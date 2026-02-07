@@ -60,5 +60,9 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 
+# Interactive shell
+rustyline = { version = "14", features = ["derive"] }
+shell-words = "1"
+
 [dev-dependencies]
 tokio-test = "0.4"

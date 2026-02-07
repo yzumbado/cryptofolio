@@ -4,6 +4,7 @@ mod core;
 mod db;
 mod error;
 mod exchange;
+mod shell;
 
 use clap::Parser;
 
@@ -88,6 +89,11 @@ async fn run() -> Result<()> {
 
         Commands::Config { command } => {
             handle_config_command(command, &pool, &opts).await?;
+        }
+
+        Commands::Shell => {
+            let mut shell = shell::Shell::new(pool, opts).await?;
+            shell.run().await?;
         }
     }
 

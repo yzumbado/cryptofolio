@@ -50,6 +50,9 @@ pub enum CryptofolioError {
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
 
+    #[error("Shell error: {0}")]
+    Shell(String),
+
     #[error("{0}")]
     Other(String),
 }
