@@ -1,4 +1,6 @@
 mod completer;
+mod context;
+mod shortcuts;
 
 use clap::Parser;
 use rustyline::error::ReadlineError;
@@ -14,12 +16,15 @@ use crate::error::Result;
 use crate::exchange::{BinanceClient, Exchange};
 
 use completer::CryptofolioCompleter;
+use context::ShellContext;
+use shortcuts::expand_shortcuts;
 
 /// Interactive shell for cryptofolio
 pub struct Shell {
     pool: SqlitePool,
     opts: GlobalOptions,
     editor: Editor<CryptofolioCompleter, DefaultHistory>,
+    context: ShellContext,
 }
 
 impl Shell {
@@ -42,7 +47,12 @@ impl Shell {
         let history_path = AppConfig::config_dir()?.join("history.txt");
         let _ = editor.load_history(&history_path);
 
-        Ok(Self { pool, opts, editor })
+        Ok(Self {
+            pool,
+            opts,
+            editor,
+            context: ShellContext::new(),
+        })
     }
 
     /// Run the interactive shell
@@ -152,9 +162,12 @@ impl Shell {
     }
 
     /// Execute a command
-    async fn execute_command(&self, input: &str) -> Result<()> {
+    async fn execute_command(&mut self, input: &str) -> Result<()> {
+        // First, expand any shortcuts/aliases
+        let expanded = expand_shortcuts(input);
+
         // Parse the input into arguments
-        let args = match shell_words::split(input) {
+        let args = match shell_words::split(&expanded) {
             Ok(args) => args,
             Err(e) => {
                 return Err(crate::error::CryptofolioError::Shell(format!(
@@ -172,6 +185,9 @@ impl Shell {
         let mut full_args = vec!["cryptofolio".to_string()];
         full_args.extend(args);
 
+        // Apply context defaults (e.g., last used account)
+        full_args = self.context.apply_defaults(&full_args);
+
         // Add global options
         if self.opts.json {
             full_args.push("--json".to_string());
@@ -186,6 +202,8 @@ impl Shell {
         // Parse and execute using clap
         match crate::cli::Cli::try_parse_from(&full_args) {
             Ok(cli) => {
+                // Update context from this command
+                self.context.update_from_command(&full_args);
                 self.run_cli_command(cli).await?;
             }
             Err(e) => {
@@ -196,9 +214,18 @@ impl Shell {
                 {
                     print!("{}", e);
                 } else {
-                    // Unknown command - could be natural language (Phase 3)
-                    // For now, show the error
-                    println!("{}", e);
+                    // Try fuzzy matching to suggest corrections
+                    if let Some(suggestion) = shortcuts::suggest_correction(input) {
+                        if colors_enabled() {
+                            println!("\x1b[33mUnknown command.\x1b[0m Did you mean '\x1b[36m{}\x1b[0m'?", suggestion);
+                        } else {
+                            println!("Unknown command. Did you mean '{}'?", suggestion);
+                        }
+                        println!("Type 'help' for available commands.");
+                    } else {
+                        // Show original error
+                        println!("{}", e);
+                    }
                 }
             }
         }
@@ -363,6 +390,12 @@ impl Shell {
         println!("  \x1b[36msync\x1b[0m                   Sync from exchanges");
         println!("  \x1b[36mconfig\x1b[0m show            Show configuration");
         println!();
+        println!("  \x1b[1mShortcuts:\x1b[0m");
+        println!();
+        println!("  \x1b[36mp\x1b[0m = portfolio    \x1b[36mh\x1b[0m = holdings    \x1b[36ma\x1b[0m = account");
+        println!("  \x1b[36ms\x1b[0m = sync         \x1b[36mm\x1b[0m = market      \x1b[36mc\x1b[0m = config");
+        println!("  \x1b[36mbuy\x1b[0m = tx buy     \x1b[36msell\x1b[0m = tx sell  \x1b[36mls\x1b[0m = holdings list");
+        println!();
         println!("  \x1b[1mShell Commands:\x1b[0m");
         println!();
         println!("  \x1b[36mhelp\x1b[0m                   Show this help");
@@ -370,6 +403,13 @@ impl Shell {
         println!("  \x1b[36mexit\x1b[0m                   Exit shell");
         println!();
         println!("  Use Tab for completion, Up/Down for history.");
+
+        // Show current context if any
+        if let Some(ctx_summary) = self.context.summary() {
+            println!();
+            println!("  \x1b[1mCurrent context:\x1b[0m {}", ctx_summary);
+        }
+
         println!();
     }
 }
