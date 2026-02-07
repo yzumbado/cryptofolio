@@ -22,3 +22,4 @@ Thumbs.db
 # Test/sample data with personal info
 import_data.csv
 import_cold_storage.csv
+.aider*

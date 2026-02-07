@@ -9,8 +9,8 @@ const AFTER_HELP: &str = r#"EXAMPLES:
     cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000
 
 LEARN MORE:
-    Documentation: https://github.com/yourusername/cryptofolio
-    Report bugs:   https://github.com/yourusername/cryptofolio/issues"#;
+    Documentation: https://github.com/yzumbado/cryptofolio
+    Report bugs:   https://github.com/yzumbado/cryptofolio/issues"#;
 
 const AFTER_LONG_HELP: &str = r#"EXAMPLES:
     # Check cryptocurrency prices
@@ -41,8 +41,8 @@ CONFIGURATION:
     Database:    ~/.config/cryptofolio/database.sqlite
 
 LEARN MORE:
-    Documentation: https://github.com/yourusername/cryptofolio
-    Report bugs:   https://github.com/yourusername/cryptofolio/issues"#;
+    Documentation: https://github.com/yzumbado/cryptofolio
+    Report bugs:   https://github.com/yzumbado/cryptofolio/issues"#;
 
 #[derive(Parser)]
 #[command(name = "cryptofolio")]
