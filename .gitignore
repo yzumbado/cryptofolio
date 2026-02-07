@@ -1,0 +1,24 @@
+# Build artifacts
+/target
+
+# Database
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Config with secrets (user-specific)
+config.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test/sample data with personal info
+import_data.csv
+import_cold_storage.csv
