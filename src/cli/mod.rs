@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod notifications;
 pub mod output;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -179,6 +180,18 @@ pub enum Commands {
     /// Start interactive shell mode
     #[command(after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)")]
     Shell,
+
+    /// Show system status and diagnostics
+    ///
+    /// Displays information about the current configuration, database location,
+    /// AI provider status (Claude API, Ollama), and network mode (testnet/mainnet).
+    /// Useful for troubleshooting connectivity issues or verifying setup.
+    #[command(after_help = "EXAMPLES:\n    cryptofolio status\n    cryptofolio status --check\n\nThis command shows:\n    - Configuration file location\n    - Database file location\n    - Testnet/Mainnet mode\n    - Claude API connection status\n    - Ollama local LLM status\n    - Active AI provider")]
+    Status {
+        /// Run connectivity checks for AI providers
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Subcommand)]

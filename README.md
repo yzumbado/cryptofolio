@@ -730,6 +730,65 @@ cryptofolio account add "Binance" --type exchange --category trading --sync
 cryptofolio sync
 ```
 
+## 🤖 Interactive Shell & AI Features
+
+### Interactive Shell Mode
+Start an interactive session with tab completion and command history:
+```bash
+$ cryptofolio shell
+
+  🪙 Cryptofolio v0.1.0
+  AI-Powered Portfolio Assistant
+
+  💰 Portfolio: $61,442.89 (+109.57%)
+  🧪 Testnet  •  🦙 AI Ready (Ollama)
+
+  Type 'help' for commands, or describe what you want to do.
+  Use 'status' for full system diagnostics.
+  Press Ctrl+C to cancel, 'exit' to quit.
+
+you>
+```
+
+### Natural Language Commands
+In shell mode, you can use natural language:
+```
+you> What's the price of Bitcoin?
+you> Show my portfolio
+you> I bought 0.1 BTC today at $95,000
+you> How much ETH do I have?
+```
+
+### AI Providers
+Cryptofolio supports multiple AI backends:
+
+| Provider | Mode | Setup |
+|----------|------|-------|
+| **Claude** (Cloud) | Online | Set `ANTHROPIC_API_KEY` environment variable |
+| **Ollama** (Local) | Offline | Run Ollama locally with `llama3.2:3b` model |
+| **Hybrid** | Auto | Uses Ollama for simple tasks, Claude for complex |
+| **Pattern-based** | Fallback | Works without any AI - uses regex matching |
+
+### System Status
+Check your configuration and AI provider status:
+```bash
+$ cryptofolio status
+
+  📊 System Status
+  ─────────────────────────────────────
+  📁 Config       ~/.config/cryptofolio/config.toml
+  🗄️ Database     ~/.config/cryptofolio/database.sqlite
+  🧪 Mode         Testnet (safe)
+
+  🤖 AI Providers
+  ─────────────────────────────────────
+  ☁️ Claude       Offline (API key not configured)
+  🦙 Ollama       Connected (llama3.2:3b)
+
+  ⚡ AI Mode      Hybrid (Local + Cloud)
+  🎯 Active       Ollama only (llama3.2:3b)
+```
+
 ## 📋 Available Commands
 
 | Command | Description |
@@ -744,6 +803,8 @@ cryptofolio sync
 | `sync` | Sync holdings from exchange |
 | `import` | Import transactions from CSV |
 | `config` | Manage configuration |
+| `shell` | Start interactive shell with AI-powered natural language |
+| `status` | Show system diagnostics and AI provider status |
 
 ### Global Flags
 

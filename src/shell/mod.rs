@@ -140,7 +140,7 @@ impl Shell {
     async fn print_welcome(&self) -> Result<()> {
         println!();
         if colors_enabled() {
-            println!("  \x1b[1;36mCryptofolio\x1b[0m v{}", env!("CARGO_PKG_VERSION"));
+            println!("  \x1b[1;36m🪙 Cryptofolio\x1b[0m v{}", env!("CARGO_PKG_VERSION"));
         } else {
             println!("  Cryptofolio v{}", env!("CARGO_PKG_VERSION"));
         }
@@ -149,29 +149,15 @@ impl Shell {
 
         // Show portfolio summary
         if let Ok(summary) = self.get_portfolio_summary().await {
-            println!("  Portfolio: {} ({})", summary.total_value, summary.pnl);
+            println!("  💰 Portfolio: {} ({})", summary.total_value, summary.pnl);
         }
 
-        let config = AppConfig::load()?;
-        if config.general.use_testnet || self.opts.testnet {
-            println!("  Mode: \x1b[33mTestnet\x1b[0m");
-        }
-
-        // Show AI status
-        if let Some(ref ai) = self.ai_service {
-            if ai.is_available() {
-                let mode_str = match ai.mode() {
-                    AiMode::Online => "Claude",
-                    AiMode::Offline => "Local (Ollama)",
-                    AiMode::Hybrid => "Hybrid",
-                    AiMode::Disabled => "Disabled",
-                };
-                println!("  AI: \x1b[32m{}\x1b[0m", mode_str);
-            }
-        }
+        // Show system status (network mode + AI status)
+        crate::cli::commands::status::print_startup_summary().await;
 
         println!();
         println!("  Type 'help' for commands, or describe what you want to do.");
+        println!("  Use 'status' for full system diagnostics.");
         println!("  Press Ctrl+C to cancel, 'exit' to quit.");
         println!();
 
@@ -227,7 +213,7 @@ impl Shell {
             let first_word = args[0].to_lowercase();
             let cli_commands = [
                 "price", "market", "portfolio", "holdings", "account",
-                "category", "tx", "sync", "import", "config",
+                "category", "tx", "sync", "import", "config", "status",
             ];
 
             if cli_commands.contains(&first_word.as_str()) {
@@ -604,6 +590,9 @@ impl Shell {
             }
             Commands::Shell => {
                 println!("Already in shell mode.");
+            }
+            Commands::Status { check } => {
+                handle_status_command(check).await?;
             }
         }
 

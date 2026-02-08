@@ -154,8 +154,7 @@ impl<'a> HoldingRepository<'a> {
     ) -> Result<()> {
         if quantity == Decimal::ZERO {
             // Delete if setting to zero
-            let _ = self.delete(account_id, asset).await;
-            return Ok(());
+            return self.delete(account_id, asset).await;
         }
 
         let holding = Holding {

@@ -6,6 +6,7 @@ pub mod import;
 pub mod market;
 pub mod portfolio;
 pub mod price;
+pub mod status;
 pub mod sync;
 pub mod tx;
 
@@ -17,5 +18,6 @@ pub use import::handle_import_command;
 pub use market::handle_market_command;
 pub use portfolio::handle_portfolio_command;
 pub use price::handle_price_command;
+pub use status::run as handle_status_command;
 pub use sync::handle_sync_command;
 pub use tx::handle_tx_command;

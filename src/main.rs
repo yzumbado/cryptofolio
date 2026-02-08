@@ -12,8 +12,8 @@ use clap::Parser;
 use cli::commands::{
     handle_account_command, handle_category_command, handle_config_command,
     handle_holdings_command, handle_import_command, handle_market_command,
-    handle_portfolio_command, handle_price_command, handle_sync_command,
-    handle_tx_command,
+    handle_portfolio_command, handle_price_command, handle_status_command,
+    handle_sync_command, handle_tx_command,
 };
 use cli::output::init_color;
 use cli::{Cli, Commands, GlobalOptions};
@@ -95,6 +95,10 @@ async fn run() -> Result<()> {
         Commands::Shell => {
             let mut shell = shell::Shell::new(pool, opts).await?;
             shell.run().await?;
+        }
+
+        Commands::Status { check } => {
+            handle_status_command(check).await?;
         }
     }
 

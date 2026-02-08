@@ -1,239 +1,435 @@
-# Cryptofolio Validation Guide
+# 🪙 Cryptofolio Validation Guide
 
-Manual validation protocol for verifying cryptofolio functionality after builds or changes.
-
-**Version:** 1.0
-**Last Updated:** 2024-03-15
+Welcome! This guide will help you build, run, and validate **Cryptofolio** — a command-line tool for managing your cryptocurrency portfolio across multiple exchanges and wallets.
 
 ---
 
-## Table of Contents
+## 📖 What is Cryptofolio?
 
-1. [Prerequisites](#prerequisites)
-2. [Build Instructions](#build-instructions)
-3. [Validation Scenarios](#validation-scenarios)
-   - [CLI Validation](#cli-validation)
-   - [NLP Evaluation](#nlp-evaluation)
-   - [Data Import Validation](#data-import-validation)
-4. [Cleanup](#cleanup)
-5. [Validation Checklist](#validation-checklist)
+Cryptofolio is a CLI (Command Line Interface) application that helps you:
 
----
+- 📊 **Track holdings** across exchanges (Binance), hardware wallets (Ledger), and software wallets (MetaMask)
+- 💰 **Monitor prices** in real-time from Binance
+- 📈 **Calculate P&L** (Profit & Loss) on your investments
+- 🔄 **Sync balances** automatically from connected exchanges
+- 📝 **Record transactions** (buys, sells, transfers)
+- 🤖 **Use natural language** to interact (e.g., "I bought 0.1 BTC today")
 
-## Prerequisites
-
-### Required
-- Rust toolchain (rustc 1.70+)
-- Internet connection (for Binance API)
-
-### Optional (for AI features)
-- **Claude API Key**: Set `ANTHROPIC_API_KEY` environment variable
-- **Ollama**: Install and run locally for offline AI mode
-  ```bash
-  # macOS
-  brew install ollama
-  ollama serve &
-  ollama pull llama3.2:3b
-  ```
-
-### Testnet Setup (Recommended)
-1. Create a Binance Testnet account: https://testnet.binance.vision/
-2. Generate API keys from the testnet
-3. Configure keys (done during validation below)
+Think of it as a personal finance app for crypto, but running in your terminal.
 
 ---
 
-## Build Instructions
+## 🎯 What You'll Do in This Guide
 
-### 1. Clone and Build (Release Mode)
+By following this guide, you will:
+
+1. **Build** the application from source code
+2. **Configure** it to use Binance testnet (safe, no real money)
+3. **Test** all major features work correctly
+4. **Clean up** the test data when finished
+
+**Estimated time:** 20-30 minutes
+
+---
+
+## 🧭 Before You Begin
+
+### Who Is This Guide For?
+
+- ✅ Developers validating changes before release
+- ✅ Contributors testing the application locally
+- ✅ Anyone curious to try Cryptofolio
+
+### What You'll Need
+
+| Requirement | Why | How to Check |
+|-------------|-----|--------------|
+| **macOS or Linux** | The app runs on Unix-based systems | You're probably on one if you cloned this repo |
+| **Rust toolchain** | To compile the source code | Run `rustc --version` in terminal |
+| **Git** | To clone the repository | Run `git --version` in terminal |
+| **Internet connection** | To fetch prices from Binance | Try opening any website |
+
+> 💡 **Don't have Rust installed?** Visit [rustup.rs](https://rustup.rs/) and follow the one-line installer.
+
+---
+
+## 🏗️ Part 1: Building the Application
+
+### Step 1.1: Open Your Terminal
+
+- **macOS:** Press `Cmd + Space`, type "Terminal", press Enter
+- **Linux:** Press `Ctrl + Alt + T` or find Terminal in your applications
+
+You should see a command prompt like this:
+```
+your-username@computer ~ %
+```
+
+### Step 1.2: Navigate to the Project
+
+If you've cloned this repository, you need to navigate into it.
 
 ```bash
-# Clone repository (skip if already cloned)
-git clone https://github.com/yzumbado/cryptofolio.git
-cd cryptofolio
+cd ~/projects/cryptofolio
+```
 
-# Build in release mode
+> ⚠️ **Not sure where you cloned it?** Run `find ~ -name "cryptofolio" -type d 2>/dev/null` to search for it.
+
+**Verify you're in the right place:**
+```bash
+ls -la
+```
+
+You should see files like:
+```
+Cargo.toml
+Cargo.lock
+src/
+docs/
+tests/
+...
+```
+
+### Step 1.3: Build in Release Mode
+
+Now, let's compile the application. Release mode creates an optimized binary.
+
+```bash
 cargo build --release
+```
 
-# Verify build
+> ⏳ **First time building?** This will download dependencies and may take 2-5 minutes. You'll see lots of "Compiling..." messages — that's normal!
+
+**Expected output (at the end):**
+```
+   Compiling cryptofolio v0.1.0
+    Finished `release` profile [optimized] target(s) in X.XXs
+```
+
+### Step 1.4: Verify the Build
+
+Let's make sure the application runs:
+
+```bash
 ./target/release/cryptofolio --version
 ```
 
-**Expected Output:**
+**Expected output:**
 ```
 cryptofolio 0.1.0
 ```
 
-### 2. Verify Help
-
-```bash
-./target/release/cryptofolio --help
-```
-
-**Expected Output:** Should display available commands including `price`, `portfolio`, `account`, `holdings`, `tx`, `sync`, `import`, `config`, `shell`.
+🎉 **Congratulations!** You've successfully built Cryptofolio!
 
 ---
 
-## Validation Scenarios
+## ⚙️ Part 2: Initial Configuration
 
-### CLI Validation
+Before testing, we need to configure the application to use **testnet** (a safe sandbox with fake money).
 
-#### V1: Configuration Setup
+### Step 2.1: Enable Testnet Mode
 
 ```bash
-# Enable testnet mode
 ./target/release/cryptofolio config use-testnet
+```
 
-# Set Binance testnet credentials (use your own keys)
-./target/release/cryptofolio config set binance.api_key YOUR_TESTNET_API_KEY
-./target/release/cryptofolio config set binance.api_secret YOUR_TESTNET_API_SECRET
+**Expected output:**
+```
+Testnet mode enabled.
+```
 
-# Verify configuration
+### Step 2.2: Get Binance Testnet API Keys
+
+> 🔐 **Why testnet?** Testnet uses fake money so you can safely test without risking real funds.
+
+1. Go to [testnet.binance.vision](https://testnet.binance.vision/)
+2. Log in with GitHub
+3. Click "Generate HMAC_SHA256 Key"
+4. Copy both the **API Key** and **Secret Key**
+
+### Step 2.3: Configure API Keys
+
+Replace `YOUR_API_KEY` and `YOUR_SECRET_KEY` with the keys you just copied:
+
+```bash
+./target/release/cryptofolio config set binance.api_key YOUR_API_KEY
+./target/release/cryptofolio config set binance.api_secret YOUR_SECRET_KEY
+```
+
+### Step 2.4: Verify Configuration
+
+```bash
 ./target/release/cryptofolio config show
 ```
 
-**Expected:** Config displays with `use_testnet = true` and API keys set (masked).
+**Expected output:**
+```
+[general]
+use_testnet = true
+currency = "USD"
+
+[binance]
+api_key = "***" (set)
+api_secret = "***" (set)
+
+[display]
+color = true
+decimals = 8
+```
+
+✅ **Configuration complete!**
 
 ---
 
-#### V2: Price Check
+## 🧪 Part 3: CLI Validation
+
+Now let's test each feature of the application.
+
+> 📝 **Tip:** Each test section shows the command to run and what you should expect to see.
+
+---
+
+### Test V0: System Status Check 🔍
+
+**What we're testing:** Can we see the system configuration and AI provider status?
 
 ```bash
-./target/release/cryptofolio price BTC ETH
+./target/release/cryptofolio status
 ```
 
-**Expected Output:** Table with current prices for BTC and ETH in USD.
+**Expected output:**
+```
+  📊 System Status
+  ─────────────────────────────────────
+  📁 Config       ~/.config/cryptofolio/config.toml
+  🗄️ Database     ~/.config/cryptofolio/database.sqlite
+  🧪 Mode         Testnet (safe)
 
+  🤖 AI Providers
+  ─────────────────────────────────────
+  ☁️ Claude       Offline (API key not configured)
+  🦙 Ollama       Connected (llama3.2:3b)  OR  Offline (Not running)
+
+  ⚡ AI Mode      Hybrid (Local + Cloud)
+  🎯 Active       Ollama only (llama3.2:3b)  OR  Pattern-based (no LLM available)
+```
+
+> 💡 The AI provider status will vary depending on your setup. If Ollama isn't running, you'll see "Pattern-based" as the active mode - this is normal and means natural language will use regex pattern matching.
+
+---
+
+### Test V1: Check Cryptocurrency Prices 💵
+
+**What we're testing:** Can the app fetch live prices from Binance?
+
+```bash
+./target/release/cryptofolio price BTC ETH SOL
+```
+
+**Expected output:**
 ```
 SYMBOL    PRICE
 BTC       $XX,XXX.XX
 ETH       $X,XXX.XX
+SOL       $XXX.XX
 ```
+
+> 💡 Prices will vary — you should see current market prices.
 
 ---
 
-#### V3: Account Management
+### Test V2: Create Accounts 📁
+
+**What we're testing:** Can we create different types of accounts?
 
 ```bash
-# List default categories
-./target/release/cryptofolio category list
-
-# Create accounts
+# Create an exchange account
 ./target/release/cryptofolio account add "Binance Test" --type exchange --category trading
-./target/release/cryptofolio account add "Ledger Nano" --type hardware_wallet --category cold-storage
-./target/release/cryptofolio account add "MetaMask" --type software_wallet --category hot-wallets
 
-# Verify accounts
+# Create a hardware wallet
+./target/release/cryptofolio account add "Ledger Nano" --type hardware-wallet --category cold-storage
+
+# Create a software wallet
+./target/release/cryptofolio account add "MetaMask" --type software-wallet --category hot-wallets
+```
+
+**Verify all accounts were created:**
+```bash
 ./target/release/cryptofolio account list
 ```
 
-**Expected:** Three accounts created and listed with correct types and categories.
-
----
-
-#### V4: Holdings Management
-
-```bash
-# Add holdings to accounts
-./target/release/cryptofolio holdings add BTC 0.5 --account "Ledger Nano" --cost 45000
-./target/release/cryptofolio holdings add ETH 2.0 --account "MetaMask" --cost 2800
-./target/release/cryptofolio holdings add BTC 0.1 --account "Binance Test" --cost 62000
-
-# List all holdings
-./target/release/cryptofolio holdings list
-
-# List holdings for specific account
-./target/release/cryptofolio holdings list --account "Ledger Nano"
+**Expected output:**
+```
+ACCOUNT        TYPE              CATEGORY       SYNC
+Binance Test   exchange          trading        No
+Ledger Nano    hardware-wallet   cold-storage   No
+MetaMask       software-wallet   hot-wallets    No
 ```
 
-**Expected:** Holdings displayed with quantities and cost basis.
+---
+
+### Test V3: Add Holdings 📦
+
+**What we're testing:** Can we add cryptocurrency holdings to accounts?
+
+```bash
+# Add 0.5 BTC to Ledger (bought at $45,000)
+./target/release/cryptofolio holdings add BTC 0.5 --account "Ledger Nano" --cost 45000
+
+# Add 2.0 ETH to MetaMask (bought at $2,800)
+./target/release/cryptofolio holdings add ETH 2.0 --account "MetaMask" --cost 2800
+
+# Add 0.1 BTC to Binance (bought at $62,000)
+./target/release/cryptofolio holdings add BTC 0.1 --account "Binance Test" --cost 62000
+
+# Add 10 SOL to Binance (bought at $150)
+./target/release/cryptofolio holdings add SOL 10 --account "Binance Test" --cost 150
+```
+
+**Verify holdings:**
+```bash
+./target/release/cryptofolio holdings list
+```
+
+**Expected output:** A table showing all holdings with quantities and cost basis.
 
 ---
 
-#### V5: Portfolio View
+### Test V4: View Portfolio 📊
+
+**What we're testing:** Can we see our total portfolio value and P&L?
 
 ```bash
-# View full portfolio
+# Full portfolio view
 ./target/release/cryptofolio portfolio
+```
 
-# View by account
+**Expected output:**
+```
+PORTFOLIO SUMMARY
+─────────────────────────────────────
+Total Value:     $XX,XXX.XX
+Cost Basis:      $XX,XXX.XX
+Unrealized P&L:  +$X,XXX.XX (+XX.XX%)
+
+HOLDINGS
+...
+```
+
+**Try grouping by account:**
+```bash
 ./target/release/cryptofolio portfolio --by-account
+```
 
-# View by category
+**Try grouping by category:**
+```bash
 ./target/release/cryptofolio portfolio --by-category
 ```
 
-**Expected:** Portfolio summary with:
-- Total value in USD
-- P&L (profit/loss) percentage
-- Holdings breakdown
-
 ---
 
-#### V6: Transaction Recording
+### Test V5: Record Transactions 📝
+
+**What we're testing:** Can we record buy/sell transactions?
 
 ```bash
 # Record a buy transaction
-./target/release/cryptofolio tx buy SOL 10 --account "Binance Test" --price 150
+./target/release/cryptofolio tx buy ADA 100 --account "Binance Test" --price 0.45
 
 # Record a sell transaction
 ./target/release/cryptofolio tx sell ETH 0.5 --account "MetaMask" --price 3200
 
-# List transactions
+# View transaction history
 ./target/release/cryptofolio tx list
 ```
 
-**Expected:** Transactions recorded and listed with timestamps.
+**Expected output:** List of transactions with timestamps, types, and amounts.
 
 ---
 
-#### V7: Transfer Between Accounts
+### Test V6: Transfer Between Accounts 🔄
+
+**What we're testing:** Can we move holdings between accounts?
 
 ```bash
-# Move holdings between accounts
+# Check current BTC holdings
+./target/release/cryptofolio holdings list
+
+# Move 0.05 BTC from Binance to Ledger
 ./target/release/cryptofolio holdings move BTC 0.05 --from "Binance Test" --to "Ledger Nano" --yes
 
 # Verify the transfer
 ./target/release/cryptofolio holdings list
 ```
 
-**Expected:**
-- Binance Test: 0.05 BTC (reduced from 0.1)
-- Ledger Nano: 0.55 BTC (increased from 0.5)
+**Expected result:**
+- Binance Test: BTC reduced from 0.1 to 0.05
+- Ledger Nano: BTC increased from 0.5 to 0.55
 
 ---
 
-### NLP Evaluation
+### Test V7: Import Transactions from CSV 📥
 
-Start the interactive shell for natural language testing:
+**What we're testing:** Can we import transactions from a CSV file?
+
+The repository includes a sample CSV file at `tests/fixtures/sample_transactions.csv`.
+
+```bash
+# View the sample CSV (optional)
+cat tests/fixtures/sample_transactions.csv
+
+# Import transactions
+./target/release/cryptofolio import tests/fixtures/sample_transactions.csv --account "Ledger Nano"
+
+# Verify import
+./target/release/cryptofolio tx list --limit 20
+```
+
+**Expected result:** 8 transactions imported from the CSV file.
+
+---
+
+## 🤖 Part 4: NLP (Natural Language) Evaluation
+
+Cryptofolio can understand natural language! Let's test the AI features.
+
+### Step 4.1: Start Interactive Shell
 
 ```bash
 ./target/release/cryptofolio shell
 ```
 
-#### N1: Price Queries
+**Expected welcome screen:**
+```
+  Cryptofolio v0.1.0
+  AI-Powered Portfolio Assistant
 
-| Input | Expected Intent | Expected Action |
-|-------|-----------------|-----------------|
-| `What's the price of Bitcoin?` | `price.check` | Displays BTC price |
-| `How much is ETH right now?` | `price.check` | Displays ETH price |
-| `btc price` | `price.check` | Displays BTC price |
+  Portfolio: $XX,XXX.XX (+XX.XX%)
+  Mode: Testnet
+  AI: Hybrid
 
----
+  Type 'help' for commands, or describe what you want to do.
+  Press Ctrl+C to cancel, 'exit' to quit.
 
-#### N2: Portfolio Queries
+you>
+```
 
-| Input | Expected Intent | Expected Action |
-|-------|-----------------|-----------------|
-| `Show my portfolio` | `portfolio.view` | Displays portfolio |
-| `How am I doing?` | `portfolio.view` | Displays portfolio |
-| `What do I have?` | `holdings.list` | Lists holdings |
+### Step 4.2: Test Natural Language Commands
 
----
+Try typing these phrases and observe the responses:
 
-#### N3: Transaction Recording (Multi-turn)
+| You Type | Expected Behavior |
+|----------|-------------------|
+| `What's the price of Bitcoin?` | Shows BTC price |
+| `How much is ETH?` | Shows ETH price |
+| `Show my portfolio` | Displays portfolio summary |
+| `What do I have?` | Lists your holdings |
+| `sync` | Syncs with Binance |
 
-**Test Conversation:**
+### Step 4.3: Test Multi-Turn Conversation
+
+Try this conversation (you can cancel at the confirmation step):
+
 ```
 you> I bought some bitcoin today
 
@@ -256,166 +452,197 @@ you> I bought some bitcoin today
   Confirm? [Y/n] n
 ```
 
-**Expected:** Multi-turn conversation collecting missing info, then confirmation prompt.
+> 💡 Type `n` to cancel — we're just testing the conversation flow.
 
----
+### Step 4.4: Test Out-of-Scope Handling
 
-#### N4: Sync Command
+```
+you> What's the weather like?
+```
 
-| Input | Expected Intent | Expected Action |
-|-------|-----------------|-----------------|
-| `Sync my exchanges` | `sync` | Triggers sync |
-| `Refresh everything` | `sync` | Triggers sync |
+**Expected:** A polite message saying it can only help with crypto portfolio management.
 
----
+### Step 4.5: Exit the Shell
 
-#### N5: Out of Scope
-
-| Input | Expected Response |
-|-------|-------------------|
-| `What's the weather?` | "I can only help with cryptocurrency portfolio management" |
-| `Tell me a joke` | Out of scope message |
-
-Exit shell:
 ```
 you> exit
 ```
 
 ---
 
-### Data Import Validation
+## 🧹 Part 5: Cleanup
 
-#### I1: Import Sample Transactions
+After testing, you should clean up the test data.
 
-```bash
-# Import the sample CSV
-./target/release/cryptofolio import tests/fixtures/sample_transactions.csv --account "Ledger Nano"
+### Option A: Full Reset (Recommended)
 
-# Verify transactions imported
-./target/release/cryptofolio tx list --limit 20
-
-# Verify holdings updated
-./target/release/cryptofolio holdings list --account "Ledger Nano"
-```
-
-**Expected:**
-- 8 transactions imported
-- Holdings reflect the net effect (buys - sells)
-
----
-
-## Cleanup
-
-### Option A: Delete Database (Full Reset)
+This removes all data and configuration:
 
 ```bash
-# Find and remove the database
-rm -f ~/.config/cryptofolio/database.sqlite
-
-# Verify cleanup
-./target/release/cryptofolio holdings list
-```
-
-**Expected:** Empty holdings list (fresh database created).
-
----
-
-### Option B: Remove Test Data (Keep Config)
-
-```bash
-# Remove specific accounts (will cascade delete holdings)
-./target/release/cryptofolio account remove "Binance Test" --yes
-./target/release/cryptofolio account remove "Ledger Nano" --yes
-./target/release/cryptofolio account remove "MetaMask" --yes
-
-# Verify cleanup
-./target/release/cryptofolio account list
-./target/release/cryptofolio holdings list
-```
-
-**Expected:** No accounts or holdings remaining.
-
----
-
-### Option C: Reset to Defaults (Full Cleanup)
-
-```bash
-# Remove entire config directory
 rm -rf ~/.config/cryptofolio/
+```
 
-# Verify (will create fresh config and database)
+**Verify cleanup:**
+```bash
 ./target/release/cryptofolio config show
 ```
 
-**Expected:** Default configuration displayed, empty database.
+You should see default configuration (you'll need to reconfigure for next test).
 
 ---
 
-## Validation Checklist
+### Option B: Keep Configuration, Reset Data
 
-Use this checklist to track validation progress:
-
-| # | Category | Test | Status |
-|---|----------|------|--------|
-| V1 | CLI | Configuration setup | ☐ |
-| V2 | CLI | Price check | ☐ |
-| V3 | CLI | Account management | ☐ |
-| V4 | CLI | Holdings management | ☐ |
-| V5 | CLI | Portfolio view | ☐ |
-| V6 | CLI | Transaction recording | ☐ |
-| V7 | CLI | Transfer between accounts | ☐ |
-| N1 | NLP | Price queries | ☐ |
-| N2 | NLP | Portfolio queries | ☐ |
-| N3 | NLP | Transaction recording (multi-turn) | ☐ |
-| N4 | NLP | Sync command | ☐ |
-| N5 | NLP | Out of scope handling | ☐ |
-| I1 | Import | CSV import | ☐ |
-| -- | Cleanup | Database/config cleanup | ☐ |
-
----
-
-## Troubleshooting
-
-### Build Errors
+This keeps your API keys but removes accounts and holdings:
 
 ```bash
-# Clean and rebuild
+rm -f ~/.config/cryptofolio/database.sqlite
+```
+
+---
+
+### Option C: Remove Only Test Accounts
+
+If you want to keep other data:
+
+```bash
+./target/release/cryptofolio account remove "Binance Test" --yes
+./target/release/cryptofolio account remove "Ledger Nano" --yes
+./target/release/cryptofolio account remove "MetaMask" --yes
+```
+
+---
+
+## ✅ Validation Checklist
+
+Use this checklist to track your progress:
+
+| # | Category | Test | Status |
+|---|----------|------|:------:|
+| — | **Build** | | |
+| 1.3 | Build | `cargo build --release` completes | ☐ |
+| 1.4 | Build | `--version` shows version | ☐ |
+| — | **Config** | | |
+| 2.1 | Config | Testnet mode enabled | ☐ |
+| 2.3 | Config | API keys configured | ☐ |
+| — | **CLI** | | |
+| V0 | CLI | System status displays | ☐ |
+| V1 | CLI | Price check works | ☐ |
+| V2 | CLI | Accounts created | ☐ |
+| V3 | CLI | Holdings added | ☐ |
+| V4 | CLI | Portfolio displays | ☐ |
+| V5 | CLI | Transactions recorded | ☐ |
+| V6 | CLI | Transfer works | ☐ |
+| V7 | CLI | CSV import works | ☐ |
+| — | **NLP** | | |
+| 4.2 | NLP | Natural language queries | ☐ |
+| 4.3 | NLP | Multi-turn conversation | ☐ |
+| 4.4 | NLP | Out-of-scope handling | ☐ |
+| — | **Cleanup** | | |
+| 5 | Cleanup | Test data removed | ☐ |
+
+---
+
+## 🔧 Troubleshooting
+
+### ❌ Build Fails
+
+**Try cleaning and rebuilding:**
+```bash
 cargo clean
 cargo build --release
 ```
 
-### Database Locked
-
+**Still failing?** Check you have the latest Rust:
 ```bash
-# Check for running processes
+rustup update
+```
+
+---
+
+### ❌ "Command not found"
+
+Make sure you're running the binary with the correct path:
+```bash
+./target/release/cryptofolio --version
+```
+
+Not:
+```bash
+cryptofolio --version  # ❌ Won't work unless installed globally
+```
+
+---
+
+### ❌ API Errors / Price Check Fails
+
+1. **Check testnet mode is enabled:**
+   ```bash
+   ./target/release/cryptofolio config show
+   ```
+   Look for `use_testnet = true`
+
+2. **Verify API keys are set:**
+   Look for `api_key = "***" (set)`
+
+3. **Check internet connection:**
+   ```bash
+   curl -s https://api.binance.com/api/v3/ping
+   ```
+   Should return `{}`
+
+---
+
+### ❌ AI/NLP Not Working
+
+**For online mode (Claude):**
+```bash
+# Check if API key is set
+echo $ANTHROPIC_API_KEY
+```
+
+**For offline mode (Ollama):**
+```bash
+# Check if Ollama is running
+ollama list
+```
+
+If neither is configured, NLP features will fall back to rule-based parsing (less accurate but functional).
+
+---
+
+### ❌ "Database Locked" Error
+
+Another process might be using the database:
+```bash
+# Find the process
 lsof ~/.config/cryptofolio/database.sqlite
 
 # Force remove if needed
 rm -f ~/.config/cryptofolio/database.sqlite
 ```
 
-### API Errors
+---
 
-- Verify testnet mode is enabled: `cryptofolio config show`
-- Check API keys are correct
-- Ensure internet connectivity
-- Binance testnet may have rate limits
+## 📚 Quick Reference
 
-### AI Not Working
-
-- Check if `ANTHROPIC_API_KEY` is set: `echo $ANTHROPIC_API_KEY`
-- For offline mode, verify Ollama is running: `ollama list`
-- Check AI mode in config: should show "Hybrid" in shell welcome
+| Action | Command |
+|--------|---------|
+| Check price | `./target/release/cryptofolio price BTC` |
+| List accounts | `./target/release/cryptofolio account list` |
+| List holdings | `./target/release/cryptofolio holdings list` |
+| View portfolio | `./target/release/cryptofolio portfolio` |
+| Start shell | `./target/release/cryptofolio shell` |
+| Full help | `./target/release/cryptofolio --help` |
 
 ---
 
-## Notes
+## 🤝 Need Help?
 
-- All tests use **testnet** mode to avoid real transactions
-- NLP tests require either Claude API key or Ollama running
-- The sample CSV in `tests/fixtures/` can be modified for additional test cases
-- Run cleanup after validation to reset for next test cycle
+- 📖 Check the [main documentation](../README.md)
+- 🐛 Report issues on [GitHub](https://github.com/yzumbado/cryptofolio/issues)
+- 💬 See [CONVERSATIONAL_CLI.md](./CONVERSATIONAL_CLI.md) for AI feature details
 
 ---
 
-*Document Version: 1.0*
+*Document Version: 1.1 — Last Updated: 2024-03-15*

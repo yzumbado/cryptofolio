@@ -8,7 +8,8 @@ use super::{AiProvider, ProviderConfig};
 use crate::ai::conversation::ConversationState;
 use crate::ai::intent::{Entity, Intent, ParsedInput};
 use crate::config::AppConfig;
-use crate::error::{CryptofolioError, Result};
+use crate::cli::notifications;
+use crate::error::Result;
 
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const DEFAULT_MODEL: &str = "llama3.2:3b";
@@ -492,7 +493,8 @@ impl AiProvider for OllamaProvider {
     async fn parse_input(&self, input: &str, context: &ConversationState) -> Result<ParsedInput> {
         // First, check if Ollama is running
         if !self.health_check().await {
-            // Fall back to rule-based parsing
+            // Fall back to rule-based parsing with notification
+            notifications::warn_ai_fallback("Ollama not running at localhost:11434");
             return self.rule_based_fallback(input);
         }
 
@@ -518,9 +520,13 @@ impl AiProvider for OllamaProvider {
                     }
                 }
                 // Fallback on error
+                notifications::warn_ai_fallback("Ollama response parsing failed");
                 self.rule_based_fallback(input)
             }
-            Err(_) => self.rule_based_fallback(input),
+            Err(e) => {
+                notifications::warn_ai_fallback(&format!("Ollama request failed: {}", e));
+                self.rule_based_fallback(input)
+            }
         }
     }
 

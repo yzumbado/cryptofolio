@@ -45,8 +45,53 @@ pub fn get_aliases() -> HashMap<&'static str, &'static str> {
     aliases
 }
 
+/// Check if input looks like natural language rather than a command
+fn is_natural_language(input: &str) -> bool {
+    let words: Vec<&str> = input.split_whitespace().collect();
+    if words.len() < 2 {
+        return false;
+    }
+
+    let first_word = words[0].to_lowercase();
+    let second_word = words[1].to_lowercase();
+
+    // Common natural language starters
+    let nl_starters = [
+        "i", "what", "how", "show", "can", "please", "could", "would", "tell", "give", "do",
+        "did", "is", "are", "was", "were", "have", "has", "had", "will", "should",
+    ];
+
+    // Verbs that follow "I" in natural language
+    let verbs_after_i = [
+        "bought", "sold", "want", "need", "have", "had", "got", "transferred", "moved",
+        "swapped", "exchanged", "received", "sent", "added", "removed", "think", "would",
+        "am", "just", "recently", "already", "also", "currently",
+    ];
+
+    // If first word is "I" (capital) followed by a verb, it's natural language
+    if words[0] == "I" && verbs_after_i.iter().any(|v| second_word == *v) {
+        return true;
+    }
+
+    // Question patterns
+    if nl_starters.contains(&first_word.as_str()) {
+        // Check for question-like patterns
+        let question_words = ["what", "how", "can", "could", "would", "is", "are", "do", "did"];
+        if question_words.contains(&first_word.as_str()) {
+            return true;
+        }
+    }
+
+    false
+}
+
 /// Expand shortcuts and aliases in the input
 pub fn expand_shortcuts(input: &str) -> String {
+    // Don't expand shortcuts for natural language input
+    if is_natural_language(input) {
+        return input.to_string();
+    }
+
     let aliases = get_aliases();
     let words: Vec<&str> = input.split_whitespace().collect();
 
@@ -101,6 +146,7 @@ pub fn get_all_commands() -> Vec<&'static str> {
         "config",
         "config show",
         "config set",
+        "status",
         "help",
         "clear",
         "exit",
@@ -162,6 +208,40 @@ mod tests {
         assert_eq!(expand_shortcuts("h list"), "holdings list");
         assert_eq!(expand_shortcuts("buy BTC 0.1"), "tx buy BTC 0.1");
         assert_eq!(expand_shortcuts("ls"), "holdings list");
+    }
+
+    #[test]
+    fn test_natural_language_not_expanded() {
+        // "I" should not expand to "import" when followed by verbs
+        assert_eq!(
+            expand_shortcuts("I bought some bitcoin today"),
+            "I bought some bitcoin today"
+        );
+        assert_eq!(
+            expand_shortcuts("I want to buy ETH"),
+            "I want to buy ETH"
+        );
+        assert_eq!(
+            expand_shortcuts("I have 0.5 BTC"),
+            "I have 0.5 BTC"
+        );
+
+        // Questions should not be expanded
+        assert_eq!(
+            expand_shortcuts("What is the price of BTC?"),
+            "What is the price of BTC?"
+        );
+        assert_eq!(
+            expand_shortcuts("How much ETH do I have?"),
+            "How much ETH do I have?"
+        );
+
+        // But "i" as a standalone command should still work
+        assert_eq!(expand_shortcuts("i"), "import");
+        assert_eq!(
+            expand_shortcuts("i transactions.csv --account Test"),
+            "import transactions.csv --account Test"
+        );
     }
 
     #[test]
