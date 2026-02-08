@@ -1,3 +1,3 @@
 pub mod settings;
 
-pub use settings::{AppConfig, BinanceConfig, DisplayConfig, GeneralConfig};
+pub use settings::{AiConfig, AppConfig, BinanceConfig, DisplayConfig, GeneralConfig};

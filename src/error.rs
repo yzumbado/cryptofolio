@@ -53,6 +53,9 @@ pub enum CryptofolioError {
     #[error("Shell error: {0}")]
     Shell(String),
 
+    #[error("AI error: {0}")]
+    Ai(String),
+
     #[error("{0}")]
     Other(String),
 }

@@ -14,6 +14,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub display: DisplayConfig,
+
+    #[serde(default)]
+    pub ai: Option<AiConfig>,
 }
 
 impl Default for AppConfig {
@@ -22,6 +25,54 @@ impl Default for AppConfig {
             general: GeneralConfig::default(),
             binance: BinanceConfig::default(),
             display: DisplayConfig::default(),
+            ai: Some(AiConfig::default()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiConfig {
+    /// AI mode: "online", "offline", "hybrid", "disabled"
+    #[serde(default = "default_ai_mode")]
+    pub mode: Option<String>,
+
+    /// Claude API key (can also be set via ANTHROPIC_API_KEY env var)
+    #[serde(default)]
+    pub claude_api_key: Option<String>,
+
+    /// Claude model to use
+    #[serde(default = "default_claude_model")]
+    pub claude_model: Option<String>,
+
+    /// Local model for Ollama
+    #[serde(default = "default_local_model")]
+    pub local_model: Option<String>,
+
+    /// Ollama server URL
+    #[serde(default)]
+    pub ollama_url: Option<String>,
+}
+
+fn default_ai_mode() -> Option<String> {
+    Some("hybrid".to_string())
+}
+
+fn default_claude_model() -> Option<String> {
+    Some("claude-sonnet-4-20250514".to_string())
+}
+
+fn default_local_model() -> Option<String> {
+    Some("llama3.2:3b".to_string())
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_ai_mode(),
+            claude_api_key: None,
+            claude_model: default_claude_model(),
+            local_model: default_local_model(),
+            ollama_url: None,
         }
     }
 }
@@ -170,11 +221,48 @@ impl AppConfig {
                     CryptofolioError::Config("Invalid number value".into())
                 })?;
             }
+            "ai.mode" => {
+                self.ensure_ai_config();
+                if let Some(ref mut ai) = self.ai {
+                    ai.mode = Some(value.to_string());
+                }
+            }
+            "ai.claude_api_key" => {
+                self.ensure_ai_config();
+                if let Some(ref mut ai) = self.ai {
+                    ai.claude_api_key = Some(value.to_string());
+                }
+            }
+            "ai.claude_model" => {
+                self.ensure_ai_config();
+                if let Some(ref mut ai) = self.ai {
+                    ai.claude_model = Some(value.to_string());
+                }
+            }
+            "ai.local_model" => {
+                self.ensure_ai_config();
+                if let Some(ref mut ai) = self.ai {
+                    ai.local_model = Some(value.to_string());
+                }
+            }
+            "ai.ollama_url" => {
+                self.ensure_ai_config();
+                if let Some(ref mut ai) = self.ai {
+                    ai.ollama_url = Some(value.to_string());
+                }
+            }
             _ => {
                 return Err(CryptofolioError::Config(format!("Unknown config key: {}", key)));
             }
         }
         Ok(())
+    }
+
+    /// Ensure AI config exists
+    fn ensure_ai_config(&mut self) {
+        if self.ai.is_none() {
+            self.ai = Some(AiConfig::default());
+        }
     }
 
     /// Check if Binance API credentials are configured
