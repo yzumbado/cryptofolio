@@ -1,0 +1,9 @@
+date,type,asset,quantity,price_usd,fee,fee_asset,notes
+2024-01-15T10:30:00Z,buy,BTC,0.5,42000,0.001,BTC,Initial DCA purchase
+2024-01-20T14:00:00Z,buy,ETH,2.0,2200,0.005,ETH,Ethereum accumulation
+2024-02-01T09:15:00Z,buy,SOL,50,95,0.1,SOL,Solana position
+2024-02-10T16:45:00Z,buy,BTC,0.25,48000,0.0005,BTC,DCA continuation
+2024-02-15T11:00:00Z,sell,ETH,0.5,2500,0.002,ETH,Taking partial profits
+2024-03-01T08:30:00Z,buy,BTC,0.1,62000,0.0002,BTC,Post-halving buy
+2024-03-10T13:20:00Z,buy,ETH,1.5,3100,0.004,ETH,ETH accumulation
+2024-03-15T10:00:00Z,sell,SOL,20,150,0.05,SOL,Partial SOL exit
