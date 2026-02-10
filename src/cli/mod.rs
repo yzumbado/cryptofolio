@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod commands;
 pub mod notifications;
 pub mod output;

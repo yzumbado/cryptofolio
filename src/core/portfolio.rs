@@ -1,8 +1,9 @@
+#![allow(dead_code)]
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use super::holdings::HoldingWithPrice;
-use super::account::Category;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortfolioEntry {

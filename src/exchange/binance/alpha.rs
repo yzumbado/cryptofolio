@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use reqwest::Client;
 use rust_decimal::Decimal;
 use serde::Deserialize;

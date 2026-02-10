@@ -1,10 +1,11 @@
+#![allow(dead_code)]
+
 pub mod accounts;
 pub mod holdings;
 pub mod migrations;
 pub mod transactions;
 
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
-use std::path::Path;
 
 use crate::config::AppConfig;
 use crate::error::Result;

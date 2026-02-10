@@ -93,7 +93,7 @@ impl OllamaProvider {
     /// Rule-based fallback for when AI parsing fails
     fn rule_based_fallback(&self, input: &str) -> Result<ParsedInput> {
         let input_lower = input.to_lowercase();
-        let words: Vec<&str> = input_lower.split_whitespace().collect();
+        let _words: Vec<&str> = input_lower.split_whitespace().collect();
 
         // Price check patterns
         if input_lower.contains("price") || input_lower.contains("worth") || input_lower.starts_with("how much") {

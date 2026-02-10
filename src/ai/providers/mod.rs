@@ -8,7 +8,6 @@ use async_trait::async_trait;
 
 use super::conversation::ConversationState;
 use super::intent::ParsedInput;
-use crate::config::AppConfig;
 use crate::error::Result;
 
 /// Configuration for AI providers

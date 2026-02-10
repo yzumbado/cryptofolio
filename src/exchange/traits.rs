@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use async_trait::async_trait;
 
 use super::models::{AccountBalance, MarketData, PriceData, Ticker24h};

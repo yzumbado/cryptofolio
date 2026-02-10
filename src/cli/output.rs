@@ -1,7 +1,9 @@
-use colored::{ColoredString, Colorize};
+#![allow(dead_code)]
+
+use colored::Colorize;
 use is_terminal::IsTerminal;
 use rust_decimal::Decimal;
-use std::io::{stdout, stderr};
+use std::io::stdout;
 use std::sync::OnceLock;
 
 /// Global color configuration

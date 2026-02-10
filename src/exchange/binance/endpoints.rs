@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub const MAINNET_BASE_URL: &str = "https://api.binance.com";
 pub const TESTNET_BASE_URL: &str = "https://testnet.binance.vision";
 

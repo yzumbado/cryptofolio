@@ -10,7 +10,7 @@ use rustyline::history::DefaultHistory;
 use rustyline::{Config, Editor};
 use sqlx::SqlitePool;
 
-use crate::ai::{AiMode, AiService, ConversationAction, ConversationManager};
+use crate::ai::{AiService, ConversationAction, ConversationManager};
 use crate::cli::output::{colors_enabled, format_usd, init_color};
 use crate::cli::GlobalOptions;
 use crate::config::AppConfig;
@@ -445,7 +445,7 @@ impl Shell {
 
     /// Build CLI command from conversation state
     fn build_command(&self, intent: &crate::ai::Intent) -> String {
-        use crate::ai::intent::{Entity, ParsedInput};
+        use crate::ai::intent::ParsedInput;
 
         let parsed = ParsedInput {
             intent: intent.clone(),

@@ -1,11 +1,13 @@
+#![allow(dead_code)]
+
 mod conversation;
 pub mod intent;
 mod providers;
 mod tools;
 
 pub use conversation::{ConversationAction, ConversationManager, ConversationState};
-pub use intent::{Entity, Intent, ParsedInput};
-pub use providers::{AiProvider, ProviderConfig};
+pub use intent::{Intent, ParsedInput};
+pub use providers::AiProvider;
 
 use crate::config::AppConfig;
 use crate::error::Result;

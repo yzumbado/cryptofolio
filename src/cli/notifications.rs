@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Notification system for user feedback
 //!
 //! Provides a consistent way to display messages to users with appropriate
