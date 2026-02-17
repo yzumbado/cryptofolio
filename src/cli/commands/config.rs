@@ -1,13 +1,22 @@
 use colored::Colorize;
 use sqlx::SqlitePool;
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
+use std::path::PathBuf;
 
 use crate::cli::{ConfigCommands, GlobalOptions};
-use crate::cli::output::{info, print_kv, success};
+use crate::cli::output::{print_kv, success};
+use crate::config::secrets::{
+    ensure_secure_permissions, is_secret_key, read_secret_from_env, read_secret_from_file,
+    read_secret_from_stdin, read_secret_interactive, show_security_warning,
+};
 use crate::config::AppConfig;
 use crate::error::Result;
 
-pub async fn handle_config_command(command: ConfigCommands, _pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_config_command(
+    command: ConfigCommands,
+    _pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let _ = opts;
     match command {
         ConfigCommands::Show => {
@@ -18,14 +27,42 @@ pub async fn handle_config_command(command: ConfigCommands, _pool: &SqlitePool, 
             println!();
 
             println!("{}", "[general]".dimmed());
-            print_kv("default_account", config.general.default_account.as_deref().unwrap_or("-"));
-            print_kv("use_testnet", if config.general.use_testnet { "true" } else { "false" });
+            print_kv(
+                "default_account",
+                config
+                    .general
+                    .default_account
+                    .as_deref()
+                    .unwrap_or("-"),
+            );
+            print_kv(
+                "use_testnet",
+                if config.general.use_testnet {
+                    "true"
+                } else {
+                    "false"
+                },
+            );
             print_kv("currency", &config.general.currency);
             println!();
 
             println!("{}", "[binance]".dimmed());
-            print_kv("api_key", if config.binance.api_key.is_some() { "***configured***" } else { "-" });
-            print_kv("api_secret", if config.binance.api_secret.is_some() { "***configured***" } else { "-" });
+            print_kv(
+                "api_key",
+                if config.binance.api_key.is_some() {
+                    "***configured***"
+                } else {
+                    "-"
+                },
+            );
+            print_kv(
+                "api_secret",
+                if config.binance.api_secret.is_some() {
+                    "***configured***"
+                } else {
+                    "-"
+                },
+            );
             println!();
 
             println!("{}", "[display]".dimmed());
@@ -36,43 +73,71 @@ pub async fn handle_config_command(command: ConfigCommands, _pool: &SqlitePool, 
             // Show paths
             println!("{}", "Paths".bold());
             println!();
-            print_kv("config_dir", &AppConfig::config_dir()?.display().to_string());
-            print_kv("database", &AppConfig::database_path()?.display().to_string());
+            print_kv(
+                "config_dir",
+                &AppConfig::config_dir()?.display().to_string(),
+            );
+            print_kv(
+                "database",
+                &AppConfig::database_path()?.display().to_string(),
+            );
             println!();
         }
 
         ConfigCommands::Set { key, value } => {
-            let mut config = AppConfig::load()?;
-
-            // If no value provided and it's a secret, read from stdin
-            let final_value = if let Some(v) = value {
-                v
-            } else if key.contains("secret") || key.contains("key") {
-                // Read secret from stdin
-                info("Reading secret from stdin (paste and press Enter):");
+            // Warn if user is trying to set a secret insecurely
+            if is_secret_key(&key) {
+                eprintln!();
+                eprintln!(
+                    "{}",
+                    "⚠️  WARNING: Setting secrets via command line arguments is insecure!"
+                        .yellow()
+                        .bold()
+                );
+                eprintln!("{}", "⚠️  Your secret will be visible in shell history.".yellow());
+                eprintln!();
+                eprintln!("   Use this instead:");
+                eprintln!("   {}", format!("cryptofolio config set-secret {}", key).cyan());
+                eprintln!();
+                print!("Continue anyway? [y/N] ");
                 io::stdout().flush()?;
 
-                let stdin = io::stdin();
-                let mut line = String::new();
-                stdin.lock().read_line(&mut line)?;
-                line.trim().to_string()
-            } else {
-                return Err(crate::error::CryptofolioError::Config(
-                    "Value is required for non-secret configuration keys".into()
-                ));
-            };
+                let mut input = String::new();
+                io::stdin().read_line(&mut input)?;
 
-            config.set(&key, &final_value)?;
+                if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+                    println!();
+                    println!("Cancelled. No changes made.");
+                    println!();
+                    return Ok(());
+                }
+                println!();
+            }
+
+            let mut config = AppConfig::load()?;
+            config.set(&key, &value)?;
             config.save()?;
 
+            // Ensure secure permissions
+            let config_path = AppConfig::config_path()?;
+            ensure_secure_permissions(&config_path)?;
+
             // Mask sensitive values
-            let display_value = if key.contains("secret") || key.contains("key") {
+            let display_value = if is_secret_key(&key) {
                 "***".to_string()
             } else {
-                final_value
+                value
             };
 
             success(&format!("Set {} = {}", key, display_value));
+        }
+
+        ConfigCommands::SetSecret {
+            key,
+            secret_file,
+            from_env,
+        } => {
+            handle_set_secret_command(key, secret_file, from_env).await?;
         }
 
         ConfigCommands::UseTestnet => {
@@ -90,9 +155,61 @@ pub async fn handle_config_command(command: ConfigCommands, _pool: &SqlitePool, 
             config.save()?;
 
             success("Mainnet mode enabled");
-            println!("  {}", "Warning: Real funds will be used for trading operations!".yellow());
+            println!(
+                "  {}",
+                "Warning: Real funds will be used for trading operations!".yellow()
+            );
         }
     }
 
     Ok(())
 }
+
+async fn handle_set_secret_command(
+    key: String,
+    secret_file: Option<PathBuf>,
+    from_env: Option<String>,
+) -> Result<()> {
+    // Show security warning first
+    show_security_warning(&key)?;
+
+    // Read secret from appropriate source
+    let secret = if let Some(env_var) = from_env {
+        // Read from environment variable
+        read_secret_from_env(&env_var)?
+    } else if let Some(file_path) = secret_file {
+        // Read from file
+        read_secret_from_file(&file_path)?
+    } else if is_terminal::is_terminal(std::io::stdin()) {
+        // TTY available - interactive prompt
+        read_secret_interactive(&key)?
+    } else {
+        // Stdin piped - read from pipe
+        read_secret_from_stdin()?
+    };
+
+    // Validate secret is not empty (already checked in read functions, but double-check)
+    if secret.trim().is_empty() {
+        return Err(crate::error::CryptofolioError::Config(
+            "Empty secret provided".into(),
+        ));
+    }
+
+    // Save to config
+    let mut config = AppConfig::load()?;
+    config.set(&key, &secret)?;
+    config.save()?;
+
+    // Ensure secure file permissions
+    let config_path = AppConfig::config_path()?;
+    ensure_secure_permissions(&config_path)?;
+
+    // Success message
+    println!("✓ Secret saved to ~/.config/cryptofolio/config.toml");
+    println!();
+    println!("  {}", "⚠️  Remember: Use READ-ONLY API keys only!".yellow());
+    println!();
+
+    Ok(())
+}
+

@@ -48,6 +48,9 @@ indicatif = "0.17"
 # TTY detection
 is-terminal = "0.4"
 
+# Hidden password input
+rpassword = "7"
+
 # String similarity (for "did you mean?")
 strsim = "0.11"
 

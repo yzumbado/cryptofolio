@@ -58,6 +58,9 @@ pub enum CryptofolioError {
     #[error("AI error: {0}")]
     Ai(String),
 
+    #[error("Operation cancelled by user")]
+    OperationCancelled,
+
     #[error("{0}")]
     Other(String),
 }

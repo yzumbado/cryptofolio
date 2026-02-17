@@ -542,13 +542,43 @@ pub enum ConfigCommands {
     Show,
 
     /// Set a configuration value
-    #[command(after_help = "EXAMPLES:\n    cryptofolio config set binance.api_key YOUR_KEY\n    cryptofolio config set general.use_testnet true\n\nKEYS:\n    binance.api_key        Binance API key\n    binance.api_secret     Binance API secret\n    general.use_testnet    Enable testnet mode (true/false)\n    general.default_account Default account name\n    display.color          Enable colors (true/false)")]
+    #[command(after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet    Enable testnet mode (true/false)\n    general.default_account Default account name\n    display.color          Enable colors (true/false)")]
     Set {
-        /// Configuration key (e.g., binance.api_key)
+        /// Configuration key (e.g., general.use_testnet)
         key: String,
 
-        /// Configuration value (omit to read from stdin for secrets)
-        value: Option<String>,
+        /// Configuration value
+        value: String,
+    },
+
+    /// Set a secret configuration value securely
+    ///
+    /// SECURITY NOTICE:
+    ///   Secrets are stored in plaintext in ~/.config/cryptofolio/config.toml
+    ///
+    ///   IMPORTANT: Only use READ-ONLY API keys!
+    ///   Never enable trading, withdrawal, or transfer permissions.
+    ///
+    /// BINANCE API KEY SETUP:
+    ///   1. Go to Binance → API Management → Create API
+    ///   2. Enable ONLY: "Enable Reading"
+    ///   3. Disable: Trading, Withdrawals, Internal Transfer
+    ///   4. IP restrictions recommended (optional but safer)
+    ///
+    /// Coming in v0.3: Encrypted keychain storage
+    #[command(name = "set-secret")]
+    #[command(after_help = "EXAMPLES:\n    # Interactive (hidden input)\n    cryptofolio config set-secret binance.api_secret\n\n    # From stdin (for scripts)\n    echo \"secret\" | cryptofolio config set-secret binance.api_secret\n\n    # From file\n    cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key\n\n    # From environment variable\n    cryptofolio config set-secret binance.api_secret --from-env MY_SECRET\n\nSECURITY:\n    This command prevents secrets from appearing in shell history.\n    Secrets are still stored in plaintext in config.toml (file permissions: 0600).\n    v0.3 will add encrypted keychain storage.")]
+    SetSecret {
+        /// Config key (e.g., binance.api_secret)
+        key: String,
+
+        /// Read secret from file instead of stdin/prompt
+        #[arg(long)]
+        secret_file: Option<std::path::PathBuf>,
+
+        /// Read secret from environment variable
+        #[arg(long)]
+        from_env: Option<String>,
     },
 
     /// Enable testnet mode
