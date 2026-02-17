@@ -594,7 +594,7 @@ pub enum ConfigCommands {
     Show,
 
     /// Set a configuration value
-    #[command(after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet    Enable testnet mode (true/false)\n    general.default_account Default account name\n    display.color          Enable colors (true/false)")]
+    #[command(after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n    cryptofolio config set display.decimals 6\n    cryptofolio config set display.thousands_separator true\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet          Enable testnet mode (true/false)\n    general.default_account       Default account name\n    display.color                 Enable colors (true/false)\n    display.decimals              Decimal places for quantities (0-18, default: 8)\n    display.price_decimals        Decimal places for prices (0-18, default: 2)\n    display.thousands_separator   Use thousands separator (true/false, default: true)")]
     Set {
         /// Configuration key (e.g., general.use_testnet)
         key: String,

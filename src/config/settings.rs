@@ -125,11 +125,21 @@ impl Default for BinanceConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {
+    /// Enable colored output
     #[serde(default = "default_color")]
     pub color: bool,
 
+    /// Decimal places for quantity display (crypto amounts)
     #[serde(default = "default_decimals")]
     pub decimals: u8,
+
+    /// Decimal places for price display (USD amounts)
+    #[serde(default = "default_price_decimals")]
+    pub price_decimals: u8,
+
+    /// Use thousands separator in numbers (e.g., 1,234.56)
+    #[serde(default = "default_thousands_separator")]
+    pub thousands_separator: bool,
 }
 
 fn default_color() -> bool {
@@ -140,11 +150,21 @@ fn default_decimals() -> u8 {
     8
 }
 
+fn default_price_decimals() -> u8 {
+    2
+}
+
+fn default_thousands_separator() -> bool {
+    true
+}
+
 impl Default for DisplayConfig {
     fn default() -> Self {
         Self {
             color: default_color(),
             decimals: default_decimals(),
+            price_decimals: default_price_decimals(),
+            thousands_separator: default_thousands_separator(),
         }
     }
 }
@@ -221,6 +241,16 @@ impl AppConfig {
             "display.decimals" => {
                 self.display.decimals = value.parse().map_err(|_| {
                     CryptofolioError::Config("Invalid number value".into())
+                })?;
+            }
+            "display.price_decimals" => {
+                self.display.price_decimals = value.parse().map_err(|_| {
+                    CryptofolioError::Config("Invalid number value".into())
+                })?;
+            }
+            "display.thousands_separator" => {
+                self.display.thousands_separator = value.parse().map_err(|_| {
+                    CryptofolioError::Config("Invalid boolean value".into())
                 })?;
             }
             "ai.mode" => {

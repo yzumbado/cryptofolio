@@ -38,6 +38,8 @@ struct BinanceConfig {
 struct DisplayConfig {
     color: bool,
     decimals: u8,
+    price_decimals: u8,
+    thousands_separator: bool,
 }
 
 #[derive(Serialize)]
@@ -70,6 +72,8 @@ pub async fn handle_config_command(
                     display: DisplayConfig {
                         color: config.display.color,
                         decimals: config.display.decimals,
+                        price_decimals: config.display.price_decimals,
+                        thousands_separator: config.display.thousands_separator,
                     },
                     paths: PathsConfig {
                         config_dir: AppConfig::config_dir()?.display().to_string(),
@@ -124,6 +128,8 @@ pub async fn handle_config_command(
                 println!("{}", "[display]".dimmed());
                 print_kv("color", if config.display.color { "true" } else { "false" });
                 print_kv("decimals", &config.display.decimals.to_string());
+                print_kv("price_decimals", &config.display.price_decimals.to_string());
+                print_kv("thousands_separator", if config.display.thousands_separator { "true" } else { "false" });
                 println!();
 
                 // Show paths

@@ -6,6 +6,8 @@ use rust_decimal::Decimal;
 use std::io::stdout;
 use std::sync::OnceLock;
 
+use crate::config::settings::DisplayConfig;
+
 /// Global color configuration
 static COLOR_ENABLED: OnceLock<bool> = OnceLock::new();
 
@@ -55,6 +57,17 @@ pub fn format_usd(value: Decimal) -> String {
     format!("${:.2}", value)
 }
 
+/// Format a USD amount with custom config
+pub fn format_usd_with_config(value: Decimal, config: &DisplayConfig) -> String {
+    let formatted = format!("{:.prec$}", value, prec = config.price_decimals as usize);
+    let with_separator = if config.thousands_separator {
+        add_thousands_separator(&formatted)
+    } else {
+        formatted
+    };
+    format!("${}", with_separator)
+}
+
 /// Format a quantity with appropriate decimals
 pub fn format_quantity(value: Decimal) -> String {
     if value >= Decimal::from(1000) {
@@ -64,6 +77,44 @@ pub fn format_quantity(value: Decimal) -> String {
     } else {
         format!("{:.8}", value)
     }
+}
+
+/// Format a quantity with custom config
+pub fn format_quantity_with_config(value: Decimal, config: &DisplayConfig) -> String {
+    let formatted = format!("{:.prec$}", value, prec = config.decimals as usize);
+    if config.thousands_separator {
+        add_thousands_separator(&formatted)
+    } else {
+        formatted
+    }
+}
+
+/// Add thousands separator to a formatted number string
+fn add_thousands_separator(num_str: &str) -> String {
+    // Split on decimal point
+    let parts: Vec<&str> = num_str.split('.').collect();
+    let integer_part = parts[0];
+
+    // Add commas to integer part
+    let mut result = String::new();
+    let chars: Vec<char> = integer_part.chars().collect();
+    let len = chars.len();
+
+    for (i, ch) in chars.iter().enumerate() {
+        result.push(*ch);
+        let pos = len - i - 1;
+        if pos > 0 && pos % 3 == 0 {
+            result.push(',');
+        }
+    }
+
+    // Add decimal part if exists
+    if parts.len() > 1 {
+        result.push('.');
+        result.push_str(parts[1]);
+    }
+
+    result
 }
 
 /// Format a percentage
@@ -80,6 +131,27 @@ pub fn format_pnl(value: Decimal, with_color: bool) -> String {
     };
 
     if with_color && colors_enabled() {
+        if value > Decimal::ZERO {
+            formatted.green().to_string()
+        } else if value < Decimal::ZERO {
+            formatted.red().to_string()
+        } else {
+            formatted
+        }
+    } else {
+        formatted
+    }
+}
+
+/// Format a P&L value with color and custom config
+pub fn format_pnl_with_config(value: Decimal, config: &DisplayConfig) -> String {
+    let formatted = if value >= Decimal::ZERO {
+        format!("+{}", format_usd_with_config(value, config))
+    } else {
+        format_usd_with_config(value, config)
+    };
+
+    if config.color && colors_enabled() {
         if value > Decimal::ZERO {
             formatted.green().to_string()
         } else if value < Decimal::ZERO {
