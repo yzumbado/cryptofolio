@@ -764,6 +764,204 @@ tools: [
 
 ---
 
+## Machine-Readable Output & MCP Integration
+
+**NEW in v0.2:** All query commands support `--json` flag for programmatic access and LLM/MCP integration.
+
+### JSON Output for All Commands
+
+Every data-retrieval command can output structured JSON:
+
+```bash
+# Portfolio data
+cryptofolio portfolio --json
+
+# Holdings
+cryptofolio holdings list --json
+cryptofolio holdings list --account Binance --json
+
+# Accounts
+cryptofolio account list --json
+cryptofolio account show "Binance" --json
+
+# Transactions
+cryptofolio tx list --json
+cryptofolio tx list --limit 50 --json
+
+# Prices
+cryptofolio price BTC ETH --json
+
+# Market data
+cryptofolio market BTCUSDT --json
+
+# Configuration
+cryptofolio config show --json
+```
+
+### MCP (Model Context Protocol) Server Integration
+
+Cryptofolio can be integrated as an MCP server tool for Claude Desktop or custom AI applications:
+
+**Example MCP Tool Definition:**
+```javascript
+{
+  "name": "crypto-portfolio",
+  "tools": {
+    "get_portfolio": {
+      "description": "Get current cryptocurrency portfolio with P&L",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "account": { "type": "string", "description": "Optional account filter" }
+        }
+      },
+      "handler": async (params) => {
+        const cmd = params.account
+          ? `cryptofolio portfolio --account "${params.account}" --json`
+          : `cryptofolio portfolio --json`;
+        const result = execSync(cmd).toString();
+        return JSON.parse(result);
+      }
+    },
+    "get_price": {
+      "description": "Get current cryptocurrency prices",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Crypto symbols (e.g., BTC, ETH)"
+          }
+        },
+        "required": ["symbols"]
+      },
+      "handler": async (params) => {
+        const cmd = `cryptofolio price ${params.symbols.join(' ')} --json`;
+        const result = execSync(cmd).toString();
+        return JSON.parse(result);
+      }
+    },
+    "get_holdings": {
+      "description": "List all cryptocurrency holdings",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "account": { "type": "string", "description": "Optional account filter" }
+        }
+      },
+      "handler": async (params) => {
+        const cmd = params.account
+          ? `cryptofolio holdings list --account "${params.account}" --json`
+          : `cryptofolio holdings list --json`;
+        const result = execSync(cmd).toString();
+        return JSON.parse(result);
+      }
+    }
+  }
+}
+```
+
+### LLM Integration Examples
+
+**Claude Desktop with MCP:**
+```
+User: "What's my portfolio worth?"
+
+[Claude uses get_portfolio tool]
+{
+  "total_value_usd": "112552.27",
+  "unrealized_pnl": "28107.27",
+  "unrealized_pnl_percent": "33.28"
+}
+
+Claude: "Your cryptocurrency portfolio is currently worth $112,552.27,
+with an unrealized profit of $28,107.27 (up 33.28% from your cost basis)."
+```
+
+**Custom Python Integration:**
+```python
+import subprocess
+import json
+
+def ask_portfolio_question(question: str):
+    # Get portfolio data
+    result = subprocess.run(
+        ["cryptofolio", "portfolio", "--json"],
+        capture_output=True,
+        text=True
+    )
+    portfolio = json.loads(result.stdout)
+
+    # Send to LLM with context
+    response = call_llm(
+        prompt=f"""
+        Portfolio data: {json.dumps(portfolio)}
+
+        User question: {question}
+
+        Provide a clear, concise answer.
+        """
+    )
+    return response
+
+# Usage
+ask_portfolio_question("Which of my holdings has the best performance?")
+ask_portfolio_question("Should I rebalance my portfolio?")
+```
+
+### Automation Scripts
+
+**Portfolio Monitoring:**
+```bash
+#!/bin/bash
+# Alert if portfolio drops below threshold
+
+TOTAL=$(cryptofolio portfolio --json --quiet | jq -r '.total_value_usd' | tr -d '$' | tr -d ',')
+
+if (( $(echo "$TOTAL < 100000" | bc -l) )); then
+  # Send notification
+  osascript -e "display notification \"Portfolio: \$$TOTAL\" with title \"Crypto Alert\""
+
+  # Or send to Slack
+  curl -X POST $SLACK_WEBHOOK -d "{\"text\": \"Portfolio below threshold: \$$TOTAL\"}"
+fi
+```
+
+**Daily Logging:**
+```bash
+#!/bin/bash
+# Log portfolio value daily
+
+DATE=$(date +%Y-%m-%d)
+PORTFOLIO=$(cryptofolio portfolio --json)
+
+echo "{\"date\": \"$DATE\", \"portfolio\": $PORTFOLIO}" >> ~/portfolio-history.jsonl
+
+# Calculate 7-day change
+jq -s 'if length >= 7 then
+  {
+    "current": .[-1].portfolio.total_value_usd,
+    "week_ago": .[-7].portfolio.total_value_usd,
+    "change_percent": (((.[-1].portfolio.total_value_usd | tonumber) / (.[-7].portfolio.total_value_usd | tonumber) - 1) * 100)
+  }
+else empty end' ~/portfolio-history.jsonl
+```
+
+### Benefits of JSON Output
+
+| Benefit | Description |
+|---------|-------------|
+| **LLM Integration** | Direct integration with Claude, ChatGPT, and custom AI agents |
+| **MCP Server Tools** | Build Claude Desktop tools for portfolio analysis |
+| **Scriptable** | Process with `jq`, Python, Node.js, or any language |
+| **Consistent Format** | All commands return predictable JSON structures |
+| **Precision Preserved** | Numbers as strings to avoid floating-point issues |
+| **Dashboard Ready** | Feed data to Grafana, custom monitoring, or web UIs |
+| **Testing** | Validate command outputs in CI/CD pipelines |
+
+---
+
 ## User Experience Flow
 
 ```

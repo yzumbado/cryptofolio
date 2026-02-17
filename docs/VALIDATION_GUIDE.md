@@ -10,6 +10,7 @@ Welcome! This guide will help you build, run, and validate **Cryptofolio** — a
 - **🔐 Secure Secret Handling:** New `config set-secret` command prevents API keys from appearing in shell history
 - **✅ File Permissions:** Automatic enforcement of secure file permissions (0600 on Unix)
 - **⚠️ Security Warnings:** Comprehensive warnings about using READ-ONLY API keys
+- **🤖 JSON Output:** All query commands now support `--json` flag for LLM/MCP integration and automation
 - See [docs/SECURE_SECRETS.md](SECURE_SECRETS.md) for detailed security guide
 
 ---
@@ -24,6 +25,7 @@ Cryptofolio is a CLI (Command Line Interface) application that helps you:
 - 🔄 **Sync balances** automatically from connected exchanges
 - 📝 **Record transactions** (buys, sells, transfers)
 - 🤖 **Use natural language** to interact (e.g., "I bought 0.1 BTC today")
+- 🔌 **Output JSON** for automation, scripting, and LLM/MCP integration
 
 Think of it as a personal finance app for crypto, but running in your terminal.
 
@@ -410,6 +412,229 @@ cat tests/fixtures/sample_transactions.csv
 ```
 
 **Expected result:** 8 transactions imported from the CSV file.
+
+---
+
+### Test V8: JSON Output for Automation 🤖
+
+**What we're testing:** Can all commands output machine-readable JSON for LLM/MCP integration and scripting?
+
+**NEW in v0.2:** All query commands now support the `--json` flag for automation and AI integration.
+
+#### V8.1: Portfolio JSON Output
+
+```bash
+# Get portfolio in JSON format
+./target/release/cryptofolio portfolio --json
+```
+
+**Expected output:** Pretty-printed JSON with structure:
+```json
+{
+  "total_value_usd": "112552.27",
+  "total_cost_basis": "84445.00",
+  "unrealized_pnl": "28107.27",
+  "unrealized_pnl_percent": "33.28",
+  "entries": [
+    {
+      "account_name": "Binance Test",
+      "category_name": "Trading",
+      "holdings": [
+        {
+          "asset": "BTC",
+          "quantity": "0.05",
+          "current_price": "68969.61",
+          "current_value": "3448.48",
+          "cost_basis": "62000",
+          "unrealized_pnl": "348.48",
+          "unrealized_pnl_percent": "11.24"
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### V8.2: Holdings JSON Output
+
+```bash
+# List all holdings in JSON
+./target/release/cryptofolio holdings list --json
+
+# Filter by account
+./target/release/cryptofolio holdings list --account "Binance Test" --json
+```
+
+**Expected output:** Array of holdings:
+```json
+[
+  {
+    "asset": "BTC",
+    "quantity": "0.05",
+    "cost_basis": "62000",
+    "account": "Binance Test",
+    "account_id": "dc8c029a-680e-444c-96b8-a03a56110721"
+  }
+]
+```
+
+#### V8.3: Account JSON Output
+
+```bash
+# List all accounts in JSON
+./target/release/cryptofolio account list --json
+
+# Show specific account details
+./target/release/cryptofolio account show "Binance Test" --json
+```
+
+**Expected output for list:**
+```json
+[
+  {
+    "name": "Binance Test",
+    "account_type": "Exchange",
+    "category": "Trading",
+    "sync_enabled": false,
+    "is_testnet": false
+  }
+]
+```
+
+**Expected output for show:**
+```json
+{
+  "name": "Binance Test",
+  "account_type": "Exchange",
+  "category": "Trading",
+  "is_testnet": false,
+  "sync_enabled": false,
+  "created_at": "2026-02-17T02:58:12.785695+00:00",
+  "addresses": []
+}
+```
+
+#### V8.4: Transaction JSON Output
+
+```bash
+# List transactions in JSON
+./target/release/cryptofolio tx list --limit 5 --json
+```
+
+**Expected output:** Array of transactions:
+```json
+[
+  {
+    "id": 63,
+    "timestamp": "2026-02-08T17:05:26.123148+00:00",
+    "tx_type": "Buy",
+    "from_account_id": null,
+    "to_account_id": "dc8c029a-680e-444c-96b8-a03a56110721",
+    "from_asset": null,
+    "from_quantity": null,
+    "to_asset": "ADA",
+    "to_quantity": "100",
+    "price_usd": "0.45",
+    "fee": null,
+    "fee_asset": null,
+    "notes": null
+  }
+]
+```
+
+#### V8.5: Price JSON Output
+
+```bash
+# Get prices in JSON format
+./target/release/cryptofolio price BTC ETH --json
+```
+
+**Expected output:**
+```json
+[
+  {
+    "symbol": "BTCUSDT",
+    "price": "68969.61000000"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "price": "2489.15000000"
+  }
+]
+```
+
+#### V8.6: Configuration JSON Output
+
+```bash
+# View config in JSON
+./target/release/cryptofolio config show --json
+```
+
+**Expected output:**
+```json
+{
+  "general": {
+    "default_account": null,
+    "use_testnet": true,
+    "currency": "USD"
+  },
+  "binance": {
+    "api_key_configured": true,
+    "api_secret_configured": true
+  },
+  "display": {
+    "color": true,
+    "decimals": 8
+  },
+  "paths": {
+    "config_dir": "/Users/you/.config/cryptofolio",
+    "database": "/Users/you/.config/cryptofolio/database.sqlite"
+  }
+}
+```
+
+#### V8.7: Scripting with jq
+
+Test JSON output with `jq` (install with `brew install jq` on macOS):
+
+```bash
+# Extract total portfolio value
+./target/release/cryptofolio portfolio --json | jq -r '.total_value_usd'
+
+# Get only BTC holdings
+./target/release/cryptofolio holdings list --json | jq '.[] | select(.asset == "BTC")'
+
+# Count transactions
+./target/release/cryptofolio tx list --json | jq 'length'
+
+# Alert if portfolio below threshold
+TOTAL=$(./target/release/cryptofolio portfolio --json --quiet | jq -r '.total_value_usd' | tr -d '$' | tr -d ',')
+if (( $(echo "$TOTAL < 100000" | bc -l) )); then
+  echo "Portfolio below $100k: $$TOTAL"
+fi
+```
+
+**Expected results:**
+- All JSON outputs should be valid (parse without errors)
+- Numbers returned as strings to preserve precision
+- Timestamps in ISO 8601 format
+- Empty results return `[]` for arrays
+
+#### V8.8: LLM Integration Test (Optional)
+
+If you have `jq` and want to test LLM-style queries:
+
+```bash
+# Prepare portfolio summary for AI
+./target/release/cryptofolio portfolio --json | jq '{
+  total_value: .total_value_usd,
+  profit_loss: .unrealized_pnl,
+  profit_percent: .unrealized_pnl_percent,
+  num_holdings: (.entries | map(.holdings | length) | add)
+}'
+```
+
+**Use case:** This JSON can be fed to Claude, ChatGPT, or MCP tools for portfolio analysis.
 
 ---
 
