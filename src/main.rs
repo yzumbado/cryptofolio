@@ -1,28 +1,19 @@
-mod ai;
-mod cli;
-mod config;
-mod core;
-mod db;
-mod error;
-mod exchange;
-mod shell;
-
 use clap::Parser;
 
-use cli::commands::{
+use cryptofolio::cli::commands::{
     handle_account_command, handle_category_command, handle_config_command,
     handle_holdings_command, handle_import_command, handle_market_command,
     handle_portfolio_command, handle_price_command, handle_status_command,
     handle_sync_command, handle_tx_command,
 };
-use cli::output::init_color;
-use cli::{Cli, Commands, GlobalOptions};
-use error::Result;
+use cryptofolio::cli::output::init_color;
+use cryptofolio::cli::{Cli, Commands, GlobalOptions};
+use cryptofolio::error::Result;
 
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
-        cli::output::error(&e.to_string());
+        cryptofolio::cli::output::error(&e.to_string());
         std::process::exit(1);
     }
 }
@@ -40,7 +31,7 @@ async fn run() -> Result<()> {
     init_color(opts.no_color);
 
     // Initialize database
-    let pool = db::init_pool().await?;
+    let pool = cryptofolio::db::init_pool().await?;
 
     match cli.command {
         Commands::Price { symbols } => {
@@ -93,7 +84,7 @@ async fn run() -> Result<()> {
         }
 
         Commands::Shell => {
-            let mut shell = shell::Shell::new(pool, opts).await?;
+            let mut shell = cryptofolio::shell::Shell::new(pool, opts).await?;
             shell.run().await?;
         }
 

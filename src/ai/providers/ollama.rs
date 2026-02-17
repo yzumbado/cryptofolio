@@ -54,7 +54,7 @@ impl OllamaProvider {
     }
 
     /// Parse the AI response into structured intent
-    fn parse_response(&self, content: &str, raw_input: &str) -> Result<ParsedInput> {
+    pub fn parse_response(&self, content: &str, raw_input: &str) -> Result<ParsedInput> {
         // Try to extract JSON from the response
         let json_content = self.extract_json(content);
 
@@ -78,7 +78,7 @@ impl OllamaProvider {
     }
 
     /// Extract JSON from potentially noisy LLM output
-    fn extract_json(&self, content: &str) -> String {
+    pub fn extract_json(&self, content: &str) -> String {
         // Look for JSON object in the response
         if let Some(start) = content.find('{') {
             if let Some(end) = content.rfind('}') {
@@ -91,7 +91,7 @@ impl OllamaProvider {
     }
 
     /// Rule-based fallback for when AI parsing fails
-    fn rule_based_fallback(&self, input: &str) -> Result<ParsedInput> {
+    pub fn rule_based_fallback(&self, input: &str) -> Result<ParsedInput> {
         let input_lower = input.to_lowercase();
         let _words: Vec<&str> = input_lower.split_whitespace().collect();
 
@@ -248,7 +248,7 @@ impl OllamaProvider {
     }
 
     /// Extract cryptocurrency symbols from text
-    fn extract_symbols(&self, input: &str) -> Vec<String> {
+    pub fn extract_symbols(&self, input: &str) -> Vec<String> {
         let known_symbols = [
             ("bitcoin", "BTC"),
             ("btc", "BTC"),
@@ -287,12 +287,12 @@ impl OllamaProvider {
     }
 
     /// Extract single symbol
-    fn extract_single_symbol(&self, input: &str) -> Option<String> {
+    pub fn extract_single_symbol(&self, input: &str) -> Option<String> {
         self.extract_symbols(input).into_iter().next()
     }
 
     /// Extract quantity from text
-    fn extract_quantity(&self, input: &str) -> Option<f64> {
+    pub fn extract_quantity(&self, input: &str) -> Option<f64> {
         // Look for patterns like "0.1", "0.5 BTC", etc.
         let re_patterns = [
             r"(\d+\.?\d*)\s*(?:btc|eth|sol|ada|doge|xrp|dot|avax|matic|ltc|link)",
@@ -328,7 +328,7 @@ impl OllamaProvider {
     }
 
     /// Extract price from text
-    fn extract_price(&self, input: &str) -> Option<f64> {
+    pub fn extract_price(&self, input: &str) -> Option<f64> {
         let input_clean = input.replace(',', "").replace('$', "");
         let input_lower = input_clean.to_lowercase();
 
@@ -359,7 +359,7 @@ impl OllamaProvider {
     }
 
     /// Extract account name from text
-    fn extract_account(&self, input: &str) -> Option<String> {
+    pub fn extract_account(&self, input: &str) -> Option<String> {
         let known_accounts = [
             "binance",
             "coinbase",
@@ -399,7 +399,7 @@ impl OllamaProvider {
     }
 
     /// Map string intent to Intent enum
-    fn map_intent(&self, intent_str: &str) -> Intent {
+    pub fn map_intent(&self, intent_str: &str) -> Intent {
         match intent_str.to_lowercase().as_str() {
             "price.check" | "price_check" | "check_price" | "price" => Intent::PriceCheck,
             "market.view" | "market_view" | "market" => Intent::MarketView,
@@ -428,7 +428,7 @@ impl OllamaProvider {
     }
 
     /// Convert entity values from JSON to our Entity enum
-    fn convert_entities(
+    pub fn convert_entities(
         &self,
         entities: &Option<HashMap<String, serde_json::Value>>,
     ) -> HashMap<String, Entity> {
@@ -463,7 +463,7 @@ impl OllamaProvider {
     }
 
     /// Build the prompt for Ollama
-    fn build_prompt(&self, input: &str, context: &ConversationState) -> String {
+    pub fn build_prompt(&self, input: &str, context: &ConversationState) -> String {
         let mut prompt = String::new();
 
         prompt.push_str("Parse this crypto portfolio command into JSON.\n\n");

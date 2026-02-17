@@ -1,5 +1,5 @@
 mod claude;
-mod ollama;
+pub mod ollama;
 
 pub use claude::ClaudeProvider;
 pub use ollama::OllamaProvider;
