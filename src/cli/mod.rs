@@ -21,6 +21,7 @@ const AFTER_LONG_HELP: &str = r#"EXAMPLES:
 
     # View your portfolio with profit/loss
     cryptofolio portfolio
+    cryptofolio portfolio --by-category
 
     # Add a hardware wallet account
     cryptofolio account add "Ledger" --type hardware_wallet --category cold-storage
@@ -28,11 +29,35 @@ const AFTER_LONG_HELP: &str = r#"EXAMPLES:
     # Add holdings with cost basis
     cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000
 
+    # Record transactions
+    cryptofolio tx buy BTC 0.1 --account Binance --price 95000
+
     # Sync from Binance exchange
     cryptofolio sync --account "Binance"
 
-    # Export as JSON for scripting
+    # Export as JSON for scripting/automation
     cryptofolio portfolio --json
+    cryptofolio holdings list --json
+    cryptofolio account list --json
+
+WORKFLOW EXAMPLE:
+    # 1. Configure API keys securely
+    cryptofolio config set-secret binance.api_key
+    cryptofolio config set-secret binance.api_secret
+
+    # 2. Create accounts
+    cryptofolio account add "Binance" --type exchange --category trading --sync
+
+    # 3. Sync holdings
+    cryptofolio sync --account "Binance"
+
+    # 4. View portfolio
+    cryptofolio portfolio
+
+AUTOMATION EXAMPLE:
+    # Extract portfolio value for monitoring
+    TOTAL=$(cryptofolio portfolio --json --quiet | jq -r '.total_value_usd')
+    echo "Portfolio value: $$TOTAL"
 
 ENVIRONMENT VARIABLES:
     CRYPTOFOLIO_TESTNET     Set to "1" to use testnet mode
@@ -83,7 +108,7 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Get current price for one or more cryptocurrencies
-    #[command(after_help = "EXAMPLES:\n    cryptofolio price BTC\n    cryptofolio price BTC ETH SOL\n    cryptofolio price BTC --json")]
+    #[command(after_help = "EXAMPLES:\n    # Get single price\n    cryptofolio price BTC\n\n    # Get multiple prices\n    cryptofolio price BTC ETH SOL\n\n    # JSON output for scripting\n    cryptofolio price BTC --json\n    cryptofolio price BTC ETH --json | jq '.[0].price'")]
     Price {
         /// Cryptocurrency symbols (e.g., BTC ETH SOL)
         #[arg(required = true)]
@@ -91,18 +116,18 @@ pub enum Commands {
     },
 
     /// Get detailed market data for a cryptocurrency
-    #[command(after_help = "EXAMPLES:\n    cryptofolio market BTC\n    cryptofolio market ETH --24h")]
+    #[command(after_help = "EXAMPLES:\n    # Get current market price\n    cryptofolio market BTC\n    cryptofolio market ETHUSDT\n\n    # Include 24-hour statistics\n    cryptofolio market BTC --24h\n\n    # JSON output with 24h data\n    cryptofolio market BTCUSDT --24h --json")]
     Market {
-        /// Cryptocurrency symbol (e.g., BTC)
+        /// Cryptocurrency symbol (e.g., BTC, BTCUSDT)
         symbol: String,
 
-        /// Show 24-hour statistics
+        /// Show 24-hour statistics (price change, volume, high/low)
         #[arg(long = "24h")]
         show_24h: bool,
     },
 
     /// Manage accounts (exchanges, wallets)
-    #[command(after_help = "EXAMPLES:\n    cryptofolio account list\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account show \"Ledger\"")]
+    #[command(after_help = "EXAMPLES:\n    # List all accounts\n    cryptofolio account list\n    cryptofolio account list --json\n\n    # Add different account types\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account add \"Binance\" --type exchange --category trading --sync\n    cryptofolio account add \"MetaMask\" --type software_wallet --category hot-wallets\n\n    # Show account details\n    cryptofolio account show \"Ledger\"\n    cryptofolio account show \"Binance\" --json")]
     Account {
         #[command(subcommand)]
         command: AccountCommands,
@@ -116,14 +141,14 @@ pub enum Commands {
     },
 
     /// Manage holdings across accounts
-    #[command(after_help = "EXAMPLES:\n    cryptofolio holdings list\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger")]
+    #[command(after_help = "EXAMPLES:\n    # List all holdings\n    cryptofolio holdings list\n    cryptofolio holdings list --account Binance\n    cryptofolio holdings list --json\n\n    # Add holdings with cost basis\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings add ETH 2.0 --account MetaMask --cost 2800\n\n    # Move holdings between accounts\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger --yes")]
     Holdings {
         #[command(subcommand)]
         command: HoldingsCommands,
     },
 
     /// View portfolio with P&L calculations
-    #[command(after_help = "EXAMPLES:\n    cryptofolio portfolio\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --json")]
+    #[command(after_help = "EXAMPLES:\n    # View full portfolio\n    cryptofolio portfolio\n\n    # Group by category or account\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --by-account\n\n    # Filter by account or category\n    cryptofolio portfolio --account Binance\n    cryptofolio portfolio --category cold-storage\n\n    # JSON output for automation\n    cryptofolio portfolio --json\n    cryptofolio portfolio --json | jq '.total_value_usd'")]
     Portfolio {
         /// Group by account
         #[arg(long = "by-account")]
@@ -143,7 +168,7 @@ pub enum Commands {
     },
 
     /// Record and view transactions
-    #[command(after_help = "EXAMPLES:\n    cryptofolio tx list\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger")]
+    #[command(after_help = "EXAMPLES:\n    # List transactions\n    cryptofolio tx list\n    cryptofolio tx list --limit 50 --json\n    cryptofolio tx list --account Binance\n\n    # Record buy/sell transactions\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000 --notes \"DCA purchase\"\n    cryptofolio tx sell ETH 1.0 --account Binance --price 3200\n\n    # Record transfers between accounts\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger --fee 0.0001\n\n    # Record swaps\n    cryptofolio tx swap --from-asset ETH --from-quantity 1.0 --to-asset BTC --to-quantity 0.05 --account Binance")]
     Tx {
         #[command(subcommand)]
         command: TxCommands,
@@ -173,7 +198,7 @@ pub enum Commands {
     },
 
     /// Manage configuration settings
-    #[command(after_help = "EXAMPLES:\n    cryptofolio config show\n    cryptofolio config set binance.api_key YOUR_KEY\n    cryptofolio config use-testnet")]
+    #[command(after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet")]
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
