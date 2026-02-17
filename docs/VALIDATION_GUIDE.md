@@ -1,6 +1,16 @@
 # 🪙 Cryptofolio Validation Guide
 
+**Version:** v0.2 (February 2026)
+**Status:** Updated with secure secret handling
+
 Welcome! This guide will help you build, run, and validate **Cryptofolio** — a command-line tool for managing your cryptocurrency portfolio across multiple exchanges and wallets.
+
+## 🆕 What's New in v0.2
+
+- **🔐 Secure Secret Handling:** New `config set-secret` command prevents API keys from appearing in shell history
+- **✅ File Permissions:** Automatic enforcement of secure file permissions (0600 on Unix)
+- **⚠️ Security Warnings:** Comprehensive warnings about using READ-ONLY API keys
+- See [docs/SECURE_SECRETS.md](SECURE_SECRETS.md) for detailed security guide
 
 ---
 
@@ -147,14 +157,28 @@ Testnet mode enabled.
 3. Click "Generate HMAC_SHA256 Key"
 4. Copy both the **API Key** and **Secret Key**
 
-### Step 2.3: Configure API Keys
+### Step 2.3: Configure API Keys Securely
 
-Replace `YOUR_API_KEY` and `YOUR_SECRET_KEY` with the keys you just copied:
+**⚠️ IMPORTANT:** Use the new `config set-secret` command (v0.2+) to avoid exposing secrets in shell history!
 
+**Interactive method (recommended):**
 ```bash
-./target/release/cryptofolio config set binance.api_key YOUR_API_KEY
-./target/release/cryptofolio config set binance.api_secret YOUR_SECRET_KEY
+# Set API key (you'll be prompted to enter it hidden)
+./target/release/cryptofolio config set-secret binance.api_key
+Enter secret (hidden): [paste your API key]
+
+# Set API secret
+./target/release/cryptofolio config set-secret binance.api_secret
+Enter secret (hidden): [paste your API secret]
 ```
+
+**Alternative: From stdin (for automation):**
+```bash
+echo "YOUR_API_KEY" | ./target/release/cryptofolio config set-secret binance.api_key
+echo "YOUR_SECRET_KEY" | ./target/release/cryptofolio config set-secret binance.api_secret
+```
+
+> 🔐 **Why use `set-secret`?** It prevents your API keys from appearing in shell history, which is a security risk. The old `config set` command will warn you if you try to use it for secrets.
 
 ### Step 2.4: Verify Configuration
 
@@ -645,4 +669,4 @@ rm -f ~/.config/cryptofolio/database.sqlite
 
 ---
 
-*Document Version: 1.1 — Last Updated: 2024-03-15*
+*Document Version: 1.2 — Last Updated: 2026-02-16 (v0.2 - Secure Secret Handling)*

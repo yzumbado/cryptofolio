@@ -598,6 +598,39 @@ PLANNED (v0.2):
 
 ---
 
+## 📢 What's New in v0.2
+
+### 🔐 Secure Secret Handling (February 2026)
+
+**Critical Security Update:** API keys and secrets are no longer exposed in shell history!
+
+#### New `config set-secret` Command
+
+```bash
+# Interactive mode with hidden input
+cryptofolio config set-secret binance.api_secret
+Enter secret (hidden): ********
+
+# Automation modes
+echo "secret" | cryptofolio config set-secret binance.api_secret  # Stdin
+cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key  # File
+cryptofolio config set-secret binance.api_secret --from-env MY_SECRET  # Env var
+```
+
+#### Security Improvements
+
+✅ **Shell history protection** - Secrets never appear in bash/zsh history
+✅ **Process list protection** - Secrets not visible in `ps` output
+✅ **File permissions** - Auto-enforced 0600 on Unix/macOS/Linux
+✅ **User education** - Comprehensive warnings about READ-ONLY API keys
+✅ **Multiple input methods** - Interactive, stdin, file, environment variable
+
+**IMPORTANT:** This version emphasizes using **READ-ONLY** API keys only. Encrypted keychain storage coming in v0.3!
+
+See [docs/SECURE_SECRETS.md](docs/SECURE_SECRETS.md) for detailed security guide.
+
+---
+
 ## Release Announcement
 
 # 🚀 Cryptofolio v0.1.0 - Initial Release
@@ -718,10 +751,16 @@ cryptofolio portfolio
 ```
 
 ### 5. (Optional) Connect Binance
+
+**⚠️ SECURITY: Use the new `config set-secret` command to avoid exposing secrets in shell history!**
+
 ```bash
-# Set API credentials
-cryptofolio config set binance.api_key YOUR_KEY
-cryptofolio config set binance.api_secret YOUR_SECRET
+# Set API credentials SECURELY (v0.2+)
+cryptofolio config set-secret binance.api_key
+# Enter key (hidden): ********
+
+cryptofolio config set-secret binance.api_secret
+# Enter secret (hidden): ********
 
 # Create synced account
 cryptofolio account add "Binance" --type exchange --category trading --sync
@@ -729,6 +768,90 @@ cryptofolio account add "Binance" --type exchange --category trading --sync
 # Sync holdings
 cryptofolio sync
 ```
+
+**IMPORTANT:** Only use **READ-ONLY** API keys! See [Security Best Practices](#-security-best-practices) below.
+
+---
+
+## 🔒 Security Best Practices
+
+### API Key Security (v0.2+)
+
+Cryptofolio v0.2 introduces **secure secret handling** to protect your API keys.
+
+#### ✅ Setting API Keys Securely
+
+**Use `config set-secret` instead of `config set`:**
+
+```bash
+# ✅ SECURE (v0.2+) - Hidden input, no shell history
+cryptofolio config set-secret binance.api_secret
+Enter secret (hidden): ********
+
+# ❌ INSECURE (old method) - Visible in shell history!
+cryptofolio config set binance.api_secret "YOUR_SECRET"  # DON'T DO THIS!
+```
+
+**Multiple input methods for different scenarios:**
+
+```bash
+# Interactive (recommended for first-time setup)
+cryptofolio config set-secret binance.api_secret
+
+# From stdin (for scripts/automation)
+echo "secret" | cryptofolio config set-secret binance.api_secret
+
+# From file (for deployment)
+cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key
+
+# From environment variable (for containers)
+cryptofolio config set-secret binance.api_secret --from-env BINANCE_SECRET
+```
+
+#### 🔐 Binance API Key Setup
+
+**When creating your Binance API key:**
+
+1. Go to Binance → API Management → Create API
+2. **Enable ONLY:**
+   - ✅ Enable Reading
+3. **DISABLE (CRITICAL):**
+   - ❌ Enable Spot & Margin Trading
+   - ❌ Enable Withdrawals
+   - ❌ Enable Internal Transfer
+   - ❌ Enable Futures
+
+**Why READ-ONLY?**
+
+Cryptofolio v0.2 stores API keys in **plaintext** in `~/.config/cryptofolio/config.toml` (file permissions: `0600`).
+
+If your computer is compromised:
+- **READ-ONLY keys:** Attacker can only view portfolio → No financial loss ✅
+- **WRITE permissions:** Attacker can steal funds → Total loss ❌
+
+**Encrypted keychain storage is coming in v0.3!**
+
+#### 📁 File Permissions
+
+Cryptofolio automatically sets secure permissions on Unix/macOS/Linux:
+
+```bash
+# Config file is automatically set to 0600 (owner read/write only)
+$ ls -la ~/.config/cryptofolio/config.toml
+-rw-------  1 user  group  512 Feb 16 10:30 config.toml
+```
+
+On Windows, ensure only your user account has read access.
+
+#### 📚 More Information
+
+See [docs/SECURE_SECRETS.md](docs/SECURE_SECRETS.md) for:
+- Detailed security guide
+- Integration with password managers
+- Troubleshooting
+- Best practices checklist
+
+---
 
 ## 🤖 Interactive Shell & AI Features
 
@@ -802,7 +925,7 @@ $ cryptofolio status
 | `tx` | Record transactions (buy, sell, transfer, swap) |
 | `sync` | Sync holdings from exchange |
 | `import` | Import transactions from CSV |
-| `config` | Manage configuration |
+| `config` | Manage configuration (includes `set-secret` for secure API keys) |
 | `shell` | Start interactive shell with AI-powered natural language |
 | `status` | Show system diagnostics and AI provider status |
 
@@ -872,20 +995,26 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 
 ## 🗺️ Roadmap
 
-### v0.2 (Next)
-- [ ] Secure secret input (stdin, keychain integration)
+### v0.2 (Current - February 2026)
+- [x] **Secure secret input** (stdin, file, env, interactive)
+- [x] **File permissions enforcement** (auto 0600 on Unix)
+- [x] **Security warnings** for READ-ONLY API keys
 - [ ] Transaction history export (CSV)
 - [ ] Customizable number formatting
+- [ ] Help text improvements (examples, better docs)
 
-### v0.3
+### v0.3 (Next)
+- [ ] **Encrypted keychain storage** (macOS Keychain, Windows Credential Manager, Linux Secret Service)
 - [ ] Multiple exchange support (Coinbase, Kraken)
 - [ ] Realized P&L calculations
 - [ ] Tax report export
+- [ ] `--json` and `--quiet` flags for all commands
 
 ### v0.4
 - [ ] Interactive TUI dashboard
-- [ ] Price alerts
+- [ ] Price alerts with notifications
 - [ ] DCA automation
+- [ ] "Did you mean?" suggestions for errors
 
 ## 🤝 Contributing
 
