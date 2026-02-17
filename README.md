@@ -756,6 +756,63 @@ All JSON outputs follow consistent patterns:
 
 See examples in [docs/VALIDATION_GUIDE.md](docs/VALIDATION_GUIDE.md) for more JSON usage patterns.
 
+### 🎨 Customizable Number Formatting (February 2026)
+
+**Display Control:** Configure decimal places and thousands separators for your preference!
+
+#### Configuration Options
+
+Control how numbers are displayed throughout the application:
+
+```bash
+# View current formatting settings
+cryptofolio config show
+
+# Set quantity decimal places (crypto amounts)
+cryptofolio config set display.decimals 6
+
+# Set price decimal places (USD amounts)
+cryptofolio config set display.price_decimals 4
+
+# Enable/disable thousands separator (commas)
+cryptofolio config set display.thousands_separator true
+```
+
+#### Settings
+
+| Setting | Description | Default | Range |
+|---------|-------------|---------|-------|
+| `display.decimals` | Decimal places for quantities (BTC, ETH amounts) | 8 | 0-18 |
+| `display.price_decimals` | Decimal places for prices (USD values) | 2 | 0-18 |
+| `display.thousands_separator` | Use commas in large numbers (1,234.56) | true | true/false |
+
+#### Examples
+
+**Default settings (decimals: 8, price_decimals: 2, thousands_separator: true):**
+```
+BTC: 0.12345678  Price: $1,234.56
+ETH: 2.50000000  Value: $5,432.10
+```
+
+**Custom settings (decimals: 4, price_decimals: 4, thousands_separator: false):**
+```
+BTC: 0.1235      Price: $1234.5600
+ETH: 2.5000      Value: $5432.1000
+```
+
+**Minimal precision (decimals: 2, price_decimals: 0, thousands_separator: true):**
+```
+BTC: 0.12        Price: $1,235
+ETH: 2.50        Value: $5,432
+```
+
+#### Use Cases
+
+- **High-precision trading**: Increase decimals for exact amounts
+- **Simplified views**: Reduce decimals for easier reading
+- **Regional preferences**: Disable thousands separator for some regions
+- **Professional reports**: Match your organization's number formatting standards
+
 ---
 
 ## Release Announcement
@@ -1122,14 +1179,14 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 
 ## 🗺️ Roadmap
 
-### v0.2 (Current - February 2026)
+### v0.2 (✅ Complete - February 2026)
 - [x] **Secure secret input** (stdin, file, env, interactive)
 - [x] **File permissions enforcement** (auto 0600 on Unix)
 - [x] **Security warnings** for READ-ONLY API keys
 - [x] **JSON output for all query commands** (portfolio, price, market, holdings, account, tx, config)
 - [x] **Transaction history export (CSV)** with filtering and date ranges
 - [x] **Help text improvements** with comprehensive examples and workflows
-- [ ] Customizable number formatting
+- [x] **Customizable number formatting** (decimals, price decimals, thousands separator)
 
 ### v0.3 (Next)
 - [ ] **Encrypted keychain storage** (macOS Keychain, Windows Credential Manager, Linux Secret Service)
