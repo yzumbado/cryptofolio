@@ -1,5 +1,6 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
+use serde::Serialize;
 use sqlx::SqlitePool;
 use std::str::FromStr;
 
@@ -8,6 +9,23 @@ use crate::cli::output::{format_quantity, format_usd, info, print_header, print_
 use crate::core::transaction::Transaction;
 use crate::db::{AccountRepository, HoldingRepository, TransactionRepository};
 use crate::error::{CryptofolioError, Result};
+
+#[derive(Serialize)]
+struct TransactionOutput {
+    id: i64,
+    timestamp: String,
+    tx_type: String,
+    from_account_id: Option<String>,
+    to_account_id: Option<String>,
+    from_asset: Option<String>,
+    from_quantity: Option<String>,
+    to_asset: Option<String>,
+    to_quantity: Option<String>,
+    price_usd: Option<String>,
+    fee: Option<String>,
+    fee_asset: Option<String>,
+    notes: Option<String>,
+}
 
 pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
     let _ = opts; // Used for quiet mode
@@ -26,29 +44,52 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
             };
 
             if transactions.is_empty() {
-                println!("No transactions found.");
+                if opts.json {
+                    println!("[]");
+                } else {
+                    println!("No transactions found.");
+                }
                 return Ok(());
             }
 
-            print_header(&[("Date", 12), ("Type", 10), ("Asset", 8), ("Quantity", 14), ("Price", 12)]);
+            if opts.json {
+                let output: Vec<TransactionOutput> = transactions.iter().map(|tx| TransactionOutput {
+                    id: tx.id,
+                    timestamp: tx.timestamp.to_rfc3339(),
+                    tx_type: tx.tx_type.display_name().to_string(),
+                    from_account_id: tx.from_account_id.clone(),
+                    to_account_id: tx.to_account_id.clone(),
+                    from_asset: tx.from_asset.clone(),
+                    from_quantity: tx.from_quantity.map(|q| q.to_string()),
+                    to_asset: tx.to_asset.clone(),
+                    to_quantity: tx.to_quantity.map(|q| q.to_string()),
+                    price_usd: tx.price_usd.map(|p| p.to_string()),
+                    fee: tx.fee.map(|f| f.to_string()),
+                    fee_asset: tx.fee_asset.clone(),
+                    notes: tx.notes.clone(),
+                }).collect();
+                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            } else {
+                print_header(&[("Date", 12), ("Type", 10), ("Asset", 8), ("Quantity", 14), ("Price", 12)]);
 
-            for tx in transactions {
-                let date = tx.timestamp.format("%Y-%m-%d").to_string();
-                let asset = tx.to_asset.or(tx.from_asset).unwrap_or_else(|| "-".to_string());
-                let qty = tx.to_quantity.or(tx.from_quantity)
-                    .map(|q| format_quantity(q))
-                    .unwrap_or_else(|| "-".to_string());
-                let price = tx.price_usd
-                    .map(|p| format_usd(p))
-                    .unwrap_or_else(|| "-".to_string());
+                for tx in transactions {
+                    let date = tx.timestamp.format("%Y-%m-%d").to_string();
+                    let asset = tx.to_asset.or(tx.from_asset).unwrap_or_else(|| "-".to_string());
+                    let qty = tx.to_quantity.or(tx.from_quantity)
+                        .map(|q| format_quantity(q))
+                        .unwrap_or_else(|| "-".to_string());
+                    let price = tx.price_usd
+                        .map(|p| format_usd(p))
+                        .unwrap_or_else(|| "-".to_string());
 
-                print_row(&[
-                    (&date, 12),
-                    (tx.tx_type.display_name(), 10),
-                    (&asset, 8),
-                    (&qty, 14),
-                    (&price, 12),
-                ]);
+                    print_row(&[
+                        (&date, 12),
+                        (tx.tx_type.display_name(), 10),
+                        (&asset, 8),
+                        (&qty, 14),
+                        (&price, 12),
+                    ]);
+                }
             }
         }
 

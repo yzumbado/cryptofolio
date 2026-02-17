@@ -1,5 +1,6 @@
 use chrono::Utc;
 use rust_decimal::Decimal;
+use serde::Serialize;
 use sqlx::SqlitePool;
 use std::str::FromStr;
 
@@ -8,6 +9,15 @@ use crate::cli::output::{format_quantity, format_usd, print_header, print_row, s
 use crate::core::transaction::Transaction;
 use crate::db::{AccountRepository, HoldingRepository, TransactionRepository};
 use crate::error::{CryptofolioError, Result};
+
+#[derive(Serialize)]
+struct HoldingOutput {
+    asset: String,
+    quantity: String,
+    cost_basis: Option<String>,
+    account: String,
+    account_id: String,
+}
 
 pub async fn handle_holdings_command(command: HoldingsCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
     let account_repo = AccountRepository::new(pool);
@@ -25,27 +35,48 @@ pub async fn handle_holdings_command(command: HoldingsCommands, pool: &SqlitePoo
             };
 
             if holdings.is_empty() {
-                println!("No holdings found.");
+                if opts.json {
+                    println!("[]");
+                } else {
+                    println!("No holdings found.");
+                }
                 return Ok(());
             }
 
-            // Group by account if showing all
-            print_header(&[("Asset", 8), ("Quantity", 18), ("Cost Basis", 12), ("Account", 20)]);
+            if opts.json {
+                let mut output = Vec::new();
+                for holding in holdings {
+                    let account = account_repo.get_account_by_id(&holding.account_id).await?;
+                    let account_name = account.map(|a| a.name).unwrap_or_else(|| "-".to_string());
 
-            for holding in holdings {
-                let account = account_repo.get_account_by_id(&holding.account_id).await?;
-                let account_name = account.map(|a| a.name).unwrap_or_else(|| "-".to_string());
+                    output.push(HoldingOutput {
+                        asset: holding.asset.clone(),
+                        quantity: holding.quantity.to_string(),
+                        cost_basis: holding.avg_cost_basis.map(|c| c.to_string()),
+                        account: account_name,
+                        account_id: holding.account_id.clone(),
+                    });
+                }
+                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            } else {
+                // Group by account if showing all
+                print_header(&[("Asset", 8), ("Quantity", 18), ("Cost Basis", 12), ("Account", 20)]);
 
-                let cost_str = holding.avg_cost_basis
-                    .map(|c| format_usd(c))
-                    .unwrap_or_else(|| "-".to_string());
+                for holding in holdings {
+                    let account = account_repo.get_account_by_id(&holding.account_id).await?;
+                    let account_name = account.map(|a| a.name).unwrap_or_else(|| "-".to_string());
 
-                print_row(&[
-                    (&holding.asset, 8),
-                    (&format_quantity(holding.quantity), 18),
-                    (&cost_str, 12),
-                    (&account_name, 20),
-                ]);
+                    let cost_str = holding.avg_cost_basis
+                        .map(|c| format_usd(c))
+                        .unwrap_or_else(|| "-".to_string());
+
+                    print_row(&[
+                        (&holding.asset, 8),
+                        (&format_quantity(holding.quantity), 18),
+                        (&cost_str, 12),
+                        (&account_name, 20),
+                    ]);
+                }
             }
         }
 

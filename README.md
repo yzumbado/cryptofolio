@@ -629,6 +629,127 @@ cryptofolio config set-secret binance.api_secret --from-env MY_SECRET  # Env var
 
 See [docs/SECURE_SECRETS.md](docs/SECURE_SECRETS.md) for detailed security guide.
 
+### 🤖 JSON Output for All Commands (February 2026)
+
+**Machine-Readable Output:** All query commands now support `--json` flag for LLM/MCP integration and automation!
+
+#### Commands with JSON Support
+
+All data-retrieval commands now output structured JSON when using the `--json` flag:
+
+```bash
+# Portfolio (existing)
+cryptofolio portfolio --json
+
+# Price data (existing)
+cryptofolio price BTC ETH --json
+
+# Market data (existing)
+cryptofolio market BTCUSDT --json
+
+# Holdings (NEW in v0.2)
+cryptofolio holdings list --json
+cryptofolio holdings list --account Binance --json
+
+# Accounts (NEW in v0.2)
+cryptofolio account list --json
+cryptofolio account show Binance --json
+
+# Transactions (NEW in v0.2)
+cryptofolio tx list --json
+cryptofolio tx list --account Binance --limit 50 --json
+
+# Configuration (NEW in v0.2)
+cryptofolio config show --json
+```
+
+#### Use Cases
+
+**1. LLM/AI Integration** - Claude, ChatGPT, or custom agents can now parse portfolio data:
+```bash
+# Ask Claude about your portfolio
+cryptofolio portfolio --json | claude-cli "Analyze my portfolio and suggest rebalancing"
+```
+
+**2. MCP Server Integration** - Build Model Context Protocol tools:
+```javascript
+// MCP tool definition
+{
+  "name": "get_crypto_portfolio",
+  "description": "Get current cryptocurrency portfolio",
+  "inputSchema": { "type": "object", "properties": {} },
+  "handler": () => execSync("cryptofolio portfolio --json").toString()
+}
+```
+
+**3. Automation & Scripting** - Process data with jq, Python, Node.js:
+```bash
+# Extract total value for monitoring
+cryptofolio portfolio --json | jq -r '.total_value_usd'
+
+# Alert if portfolio drops below threshold
+TOTAL=$(cryptofolio portfolio --json --quiet | jq -r '.total_value_usd' | tr -d '$' | tr -d ',')
+if (( $(echo "$TOTAL < 50000" | bc -l) )); then
+  notify-send "Portfolio Alert" "Total value below $50k!"
+fi
+
+# Log daily snapshots
+echo "$(date): $(cryptofolio portfolio --json)" >> ~/portfolio-history.jsonl
+```
+
+**4. Dashboard Integration** - Feed data to web dashboards or monitoring tools:
+```python
+import subprocess
+import json
+
+# Get portfolio data
+result = subprocess.run(
+    ["cryptofolio", "portfolio", "--json"],
+    capture_output=True,
+    text=True
+)
+portfolio = json.loads(result.stdout)
+
+# Send to monitoring service
+send_to_grafana(portfolio["total_value_usd"])
+```
+
+#### JSON Output Format
+
+All JSON outputs follow consistent patterns:
+
+- **Numbers as strings** - Preserves precision for financial data
+- **ISO 8601 timestamps** - Standard date/time format
+- **Null-safe fields** - Optional fields use `null` instead of omission
+- **Pretty-printed** - Human-readable formatting by default
+
+**Example Portfolio JSON:**
+```json
+{
+  "total_value_usd": "61442.89",
+  "total_cost_basis": "29317.39",
+  "unrealized_pnl": "32125.50",
+  "unrealized_pnl_percent": "109.57",
+  "entries": [
+    {
+      "account_name": "Binance",
+      "holdings": [
+        {
+          "asset": "BTC",
+          "quantity": "0.09121000",
+          "price_usd": "70253.98",
+          "value_usd": "6407.86",
+          "cost_basis": null,
+          "pnl": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+See examples in [docs/VALIDATION_GUIDE.md](docs/VALIDATION_GUIDE.md) for more JSON usage patterns.
+
 ---
 
 ## Release Announcement
@@ -999,6 +1120,7 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 - [x] **Secure secret input** (stdin, file, env, interactive)
 - [x] **File permissions enforcement** (auto 0600 on Unix)
 - [x] **Security warnings** for READ-ONLY API keys
+- [x] **JSON output for all query commands** (portfolio, price, market, holdings, account, tx, config)
 - [ ] Transaction history export (CSV)
 - [ ] Customizable number formatting
 - [ ] Help text improvements (examples, better docs)
@@ -1008,7 +1130,8 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 - [ ] Multiple exchange support (Coinbase, Kraken)
 - [ ] Realized P&L calculations
 - [ ] Tax report export
-- [ ] `--json` and `--quiet` flags for all commands
+- [ ] `--quiet` flag for all commands
+- [ ] Progress indicators for long operations
 
 ### v0.4
 - [ ] Interactive TUI dashboard

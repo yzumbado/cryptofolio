@@ -1,5 +1,6 @@
 use chrono::Utc;
 use colored::Colorize;
+use serde::Serialize;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -8,6 +9,33 @@ use crate::cli::output::{print_header, print_kv, print_row, success, suggest_nex
 use crate::core::account::{Account, AccountConfig, AccountType};
 use crate::db::AccountRepository;
 use crate::error::{CryptofolioError, Result};
+
+#[derive(Serialize)]
+struct AccountListOutput {
+    name: String,
+    account_type: String,
+    category: String,
+    sync_enabled: bool,
+    is_testnet: bool,
+}
+
+#[derive(Serialize)]
+struct AccountShowOutput {
+    name: String,
+    account_type: String,
+    category: String,
+    is_testnet: bool,
+    sync_enabled: bool,
+    created_at: String,
+    addresses: Vec<AddressOutput>,
+}
+
+#[derive(Serialize)]
+struct AddressOutput {
+    blockchain: String,
+    address: String,
+    label: Option<String>,
+}
 
 pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
     let _ = opts; // Will be used for JSON output
@@ -18,34 +46,55 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
             let accounts = repo.list_accounts().await?;
 
             if accounts.is_empty() {
-                println!("No accounts configured. Use 'cryptofolio account add' to create one.");
+                if opts.json {
+                    println!("[]");
+                } else {
+                    println!("No accounts configured. Use 'cryptofolio account add' to create one.");
+                }
                 return Ok(());
             }
 
-            print_header(&[("Name", 20), ("Type", 18), ("Category", 15), ("Sync", 6)]);
+            if opts.json {
+                let mut output = Vec::new();
+                for account in accounts {
+                    let category = repo.get_category(&account.category_id).await?;
+                    let category_name = category.map(|c| c.name).unwrap_or_else(|| "-".to_string());
 
-            for account in accounts {
-                let category = repo.get_category(&account.category_id).await?;
-                let category_name = category.map(|c| c.name).unwrap_or_else(|| "-".to_string());
+                    output.push(AccountListOutput {
+                        name: account.name.clone(),
+                        account_type: account.account_type.display_name().to_string(),
+                        category: category_name,
+                        sync_enabled: account.sync_enabled,
+                        is_testnet: account.config.is_testnet,
+                    });
+                }
+                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            } else {
+                print_header(&[("Name", 20), ("Type", 18), ("Category", 15), ("Sync", 6)]);
 
-                let sync_status = if account.sync_enabled {
-                    "Yes".green().to_string()
-                } else {
-                    "No".dimmed().to_string()
-                };
+                for account in accounts {
+                    let category = repo.get_category(&account.category_id).await?;
+                    let category_name = category.map(|c| c.name).unwrap_or_else(|| "-".to_string());
 
-                let type_display = if account.config.is_testnet {
-                    format!("{} (testnet)", account.account_type.display_name())
-                } else {
-                    account.account_type.display_name().to_string()
-                };
+                    let sync_status = if account.sync_enabled {
+                        "Yes".green().to_string()
+                    } else {
+                        "No".dimmed().to_string()
+                    };
 
-                print_row(&[
-                    (&account.name, 20),
-                    (&type_display, 18),
-                    (&category_name, 15),
-                    (&sync_status, 6),
-                ]);
+                    let type_display = if account.config.is_testnet {
+                        format!("{} (testnet)", account.account_type.display_name())
+                    } else {
+                        account.account_type.display_name().to_string()
+                    };
+
+                    print_row(&[
+                        (&account.name, 20),
+                        (&type_display, 18),
+                        (&category_name, 15),
+                        (&sync_status, 6),
+                    ]);
+                }
             }
         }
 
@@ -134,26 +183,43 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
             let category = repo.get_category(&account.category_id).await?;
             let addresses = repo.list_addresses(&account.id).await?;
 
-            println!();
-            println!("{}", account.name.bold());
-            println!();
-
-            print_kv("Type", account.account_type.display_name());
-            print_kv("Category", &category.map(|c| c.name).unwrap_or_else(|| "-".to_string()));
-            print_kv("Testnet", if account.config.is_testnet { "Yes" } else { "No" });
-            print_kv("Sync Enabled", if account.sync_enabled { "Yes" } else { "No" });
-            print_kv("Created", &account.created_at.format("%Y-%m-%d %H:%M").to_string());
-
-            if !addresses.is_empty() {
+            if opts.json {
+                let output = AccountShowOutput {
+                    name: account.name.clone(),
+                    account_type: account.account_type.display_name().to_string(),
+                    category: category.map(|c| c.name).unwrap_or_else(|| "-".to_string()),
+                    is_testnet: account.config.is_testnet,
+                    sync_enabled: account.sync_enabled,
+                    created_at: account.created_at.to_rfc3339(),
+                    addresses: addresses.iter().map(|a| AddressOutput {
+                        blockchain: a.blockchain.clone(),
+                        address: a.address.clone(),
+                        label: a.label.clone(),
+                    }).collect(),
+                };
+                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            } else {
                 println!();
-                println!("{}", "Wallet Addresses:".bold());
-                for addr in addresses {
-                    let label = addr.label.map(|l| format!(" ({})", l)).unwrap_or_default();
-                    println!("  {} {}{}", addr.blockchain.dimmed(), addr.address, label);
-                }
-            }
+                println!("{}", account.name.bold());
+                println!();
 
-            println!();
+                print_kv("Type", account.account_type.display_name());
+                print_kv("Category", &category.map(|c| c.name).unwrap_or_else(|| "-".to_string()));
+                print_kv("Testnet", if account.config.is_testnet { "Yes" } else { "No" });
+                print_kv("Sync Enabled", if account.sync_enabled { "Yes" } else { "No" });
+                print_kv("Created", &account.created_at.format("%Y-%m-%d %H:%M").to_string());
+
+                if !addresses.is_empty() {
+                    println!();
+                    println!("{}", "Wallet Addresses:".bold());
+                    for addr in addresses {
+                        let label = addr.label.map(|l| format!(" ({})", l)).unwrap_or_default();
+                        println!("  {} {}{}", addr.blockchain.dimmed(), addr.address, label);
+                    }
+                }
+
+                println!();
+            }
         }
 
         AccountCommands::Address { command } => {
