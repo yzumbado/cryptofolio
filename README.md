@@ -349,7 +349,13 @@ $ cryptofolio holdings list
 
 ```bash
 # Export all transactions for the year
-$ cryptofolio tx list --year 2024 --format csv > 2024-transactions.csv
+$ cryptofolio tx export 2024-transactions.csv --from 2024-01-01 --to 2024-12-31
+
+# Export specific account for the year
+$ cryptofolio tx export binance-2024.csv --account "Binance Main" --from 2024-01-01 --to 2024-12-31
+
+# Export specific asset trades
+$ cryptofolio tx export btc-trades-2024.csv --asset BTC --from 2024-01-01 --to 2024-12-31
 
 # View realized P&L (future feature)
 $ cryptofolio pnl --realized --year 2024
@@ -1121,9 +1127,9 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 - [x] **File permissions enforcement** (auto 0600 on Unix)
 - [x] **Security warnings** for READ-ONLY API keys
 - [x] **JSON output for all query commands** (portfolio, price, market, holdings, account, tx, config)
-- [ ] Transaction history export (CSV)
+- [x] **Transaction history export (CSV)** with filtering and date ranges
+- [x] **Help text improvements** with comprehensive examples and workflows
 - [ ] Customizable number formatting
-- [ ] Help text improvements (examples, better docs)
 
 ### v0.3 (Next)
 - [ ] **Encrypted keychain storage** (macOS Keychain, Windows Credential Manager, Linux Secret Service)
