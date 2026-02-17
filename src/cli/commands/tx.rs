@@ -1,7 +1,8 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use std::fs::File;
 use std::str::FromStr;
 
 use crate::cli::{TxCommands, GlobalOptions};
@@ -25,6 +26,21 @@ struct TransactionOutput {
     fee: Option<String>,
     fee_asset: Option<String>,
     notes: Option<String>,
+}
+
+#[derive(Serialize)]
+struct CsvExportRecord {
+    date: String,
+    #[serde(rename = "type")]
+    tx_type: String,
+    asset: String,
+    quantity: String,
+    price_usd: String,
+    fee: String,
+    fee_asset: String,
+    notes: String,
+    to_asset: String,
+    to_quantity: String,
 }
 
 pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
@@ -312,7 +328,188 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                 account
             ));
         }
+
+        TxCommands::Export {
+            file,
+            account,
+            asset,
+            from,
+            to,
+            limit,
+        } => {
+            handle_export_command(file, account, asset, from, to, limit, pool, opts).await?;
+        }
     }
 
     Ok(())
+}
+
+async fn handle_export_command(
+    file: String,
+    account_filter: Option<String>,
+    asset_filter: Option<String>,
+    from_date: Option<String>,
+    to_date: Option<String>,
+    limit: i64,
+    pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
+    let account_repo = AccountRepository::new(pool);
+    let tx_repo = TransactionRepository::new(pool);
+
+    // Parse date filters if provided
+    let from_timestamp = if let Some(date_str) = from_date {
+        Some(parse_date_filter(&date_str)?)
+    } else {
+        None
+    };
+
+    let to_timestamp = if let Some(date_str) = to_date {
+        Some(parse_date_filter(&date_str)?)
+    } else {
+        None
+    };
+
+    // Get account ID if filter specified
+    let account_id = if let Some(account_name) = &account_filter {
+        let acc = account_repo.get_account(account_name).await?
+            .ok_or_else(|| CryptofolioError::AccountNotFound(account_name.clone()))?;
+        Some(acc.id)
+    } else {
+        None
+    };
+
+    // Fetch transactions
+    let mut transactions = if let Some(acc_id) = &account_id {
+        if limit > 0 {
+            tx_repo.list_by_account(acc_id, Some(limit)).await?
+        } else {
+            tx_repo.list_by_account(acc_id, None).await?
+        }
+    } else {
+        if limit > 0 {
+            tx_repo.list(Some(limit)).await?
+        } else {
+            tx_repo.list(None).await?
+        }
+    };
+
+    // Apply filters
+    if let Some(from_ts) = from_timestamp {
+        transactions.retain(|tx| tx.timestamp >= from_ts);
+    }
+
+    if let Some(to_ts) = to_timestamp {
+        transactions.retain(|tx| tx.timestamp <= to_ts);
+    }
+
+    if let Some(asset_sym) = &asset_filter {
+        let asset_upper = asset_sym.to_uppercase();
+        transactions.retain(|tx| {
+            tx.from_asset.as_ref().map(|a| a == &asset_upper).unwrap_or(false)
+                || tx.to_asset.as_ref().map(|a| a == &asset_upper).unwrap_or(false)
+        });
+    }
+
+    if transactions.is_empty() {
+        if !opts.quiet {
+            info("No transactions match the specified filters");
+        }
+        return Ok(());
+    }
+
+    // Convert transactions to CSV format
+    let csv_records: Vec<CsvExportRecord> = transactions.iter()
+        .map(|tx| transaction_to_csv_record(tx))
+        .collect();
+
+    // Write to CSV file
+    if !opts.quiet {
+        info(&format!("Exporting {} transactions to '{}'...", csv_records.len(), file));
+    }
+
+    let file_handle = File::create(&file)?;
+    let mut writer = csv::Writer::from_writer(file_handle);
+
+    for record in csv_records {
+        writer.serialize(&record)?;
+    }
+
+    writer.flush()?;
+
+    success(&format!("Exported {} transactions to '{}'", transactions.len(), file));
+
+    Ok(())
+}
+
+fn transaction_to_csv_record(tx: &Transaction) -> CsvExportRecord {
+    use crate::core::transaction::TransactionType;
+
+    // Determine primary asset and quantity based on transaction type
+    let (asset, quantity) = match tx.tx_type {
+        TransactionType::Buy | TransactionType::Receive | TransactionType::TransferIn => {
+            (
+                tx.to_asset.clone().unwrap_or_default(),
+                tx.to_quantity.map(|q| q.to_string()).unwrap_or_default(),
+            )
+        }
+        TransactionType::Sell | TransactionType::TransferOut | TransactionType::Fee => {
+            (
+                tx.from_asset.clone().unwrap_or_default(),
+                tx.from_quantity.map(|q| q.to_string()).unwrap_or_default(),
+            )
+        }
+        TransactionType::TransferInternal => {
+            // For internal transfers, use the asset being transferred
+            (
+                tx.from_asset.clone().or_else(|| tx.to_asset.clone()).unwrap_or_default(),
+                tx.from_quantity.or(tx.to_quantity).map(|q| q.to_string()).unwrap_or_default(),
+            )
+        }
+        TransactionType::Swap => {
+            (
+                tx.from_asset.clone().unwrap_or_default(),
+                tx.from_quantity.map(|q| q.to_string()).unwrap_or_default(),
+            )
+        }
+    };
+
+    CsvExportRecord {
+        date: tx.timestamp.to_rfc3339(),
+        tx_type: tx.tx_type.as_str().to_string(),
+        asset,
+        quantity,
+        price_usd: tx.price_usd.map(|p| p.to_string()).unwrap_or_default(),
+        fee: tx.fee.map(|f| f.to_string()).unwrap_or_default(),
+        fee_asset: tx.fee_asset.clone().unwrap_or_default(),
+        notes: tx.notes.clone().unwrap_or_default(),
+        to_asset: if matches!(tx.tx_type, TransactionType::Swap) {
+            tx.to_asset.clone().unwrap_or_default()
+        } else {
+            String::new()
+        },
+        to_quantity: if matches!(tx.tx_type, TransactionType::Swap) {
+            tx.to_quantity.map(|q| q.to_string()).unwrap_or_default()
+        } else {
+            String::new()
+        },
+    }
+}
+
+fn parse_date_filter(date_str: &str) -> Result<DateTime<Utc>> {
+    // Try RFC3339 format first
+    if let Ok(dt) = DateTime::parse_from_rfc3339(date_str) {
+        return Ok(dt.with_timezone(&Utc));
+    }
+
+    // Try YYYY-MM-DD format
+    if let Ok(naive_date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        if let Some(naive_datetime) = naive_date.and_hms_opt(0, 0, 0) {
+            return Ok(naive_datetime.and_utc());
+        }
+    }
+
+    Err(CryptofolioError::Config(
+        format!("Invalid date format: '{}'. Use YYYY-MM-DD or ISO 8601", date_str)
+    ))
 }

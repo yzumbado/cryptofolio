@@ -168,7 +168,7 @@ pub enum Commands {
     },
 
     /// Record and view transactions
-    #[command(after_help = "EXAMPLES:\n    # List transactions\n    cryptofolio tx list\n    cryptofolio tx list --limit 50 --json\n    cryptofolio tx list --account Binance\n\n    # Record buy/sell transactions\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000 --notes \"DCA purchase\"\n    cryptofolio tx sell ETH 1.0 --account Binance --price 3200\n\n    # Record transfers between accounts\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger --fee 0.0001\n\n    # Record swaps\n    cryptofolio tx swap --from-asset ETH --from-quantity 1.0 --to-asset BTC --to-quantity 0.05 --account Binance")]
+    #[command(after_help = "EXAMPLES:\n    # List transactions\n    cryptofolio tx list\n    cryptofolio tx list --limit 50 --json\n    cryptofolio tx list --account Binance\n\n    # Record buy/sell transactions\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000 --notes \"DCA purchase\"\n    cryptofolio tx sell ETH 1.0 --account Binance --price 3200\n\n    # Record transfers between accounts\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger --fee 0.0001\n\n    # Record swaps\n    cryptofolio tx swap --from-asset ETH --from-quantity 1.0 --to-asset BTC --to-quantity 0.05 --account Binance\n\n    # Export transactions to CSV\n    cryptofolio tx export transactions.csv\n    cryptofolio tx export 2024-trades.csv --from 2024-01-01 --to 2024-12-31")]
     Tx {
         #[command(subcommand)]
         command: TxCommands,
@@ -558,6 +558,33 @@ pub enum TxCommands {
         /// Simulate without making changes
         #[arg(long)]
         dry_run: bool,
+    },
+
+    /// Export transactions to CSV file
+    #[command(after_help = "EXAMPLES:\n    # Export all transactions\n    cryptofolio tx export transactions.csv\n\n    # Export filtered transactions\n    cryptofolio tx export binance-2024.csv --account Binance\n    cryptofolio tx export btc-trades.csv --asset BTC\n\n    # Export with date range\n    cryptofolio tx export q1-2024.csv --from 2024-01-01 --to 2024-03-31\n\nCSV FORMAT:\n    Compatible with import format:\n    date,type,asset,quantity,price_usd,fee,fee_asset,notes,to_asset,to_quantity")]
+    Export {
+        /// Output file path
+        file: String,
+
+        /// Filter by account name
+        #[arg(long)]
+        account: Option<String>,
+
+        /// Filter by asset symbol
+        #[arg(long)]
+        asset: Option<String>,
+
+        /// Start date (YYYY-MM-DD or ISO 8601)
+        #[arg(long)]
+        from: Option<String>,
+
+        /// End date (YYYY-MM-DD or ISO 8601)
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Maximum number of transactions (0 for unlimited)
+        #[arg(long, default_value = "0")]
+        limit: i64,
     },
 }
 
