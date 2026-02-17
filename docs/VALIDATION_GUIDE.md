@@ -11,6 +11,8 @@ Welcome! This guide will help you build, run, and validate **Cryptofolio** — a
 - **✅ File Permissions:** Automatic enforcement of secure file permissions (0600 on Unix)
 - **⚠️ Security Warnings:** Comprehensive warnings about using READ-ONLY API keys
 - **🤖 JSON Output:** All query commands now support `--json` flag for LLM/MCP integration and automation
+- **📊 CSV Export:** Export transaction history with filtering (account, asset, date ranges)
+- **🎨 Customizable Formatting:** Configure decimal places and thousands separators
 - See [docs/SECURE_SECRETS.md](SECURE_SECRETS.md) for detailed security guide
 
 ---
@@ -23,9 +25,11 @@ Cryptofolio is a CLI (Command Line Interface) application that helps you:
 - 💰 **Monitor prices** in real-time from Binance
 - 📈 **Calculate P&L** (Profit & Loss) on your investments
 - 🔄 **Sync balances** automatically from connected exchanges
-- 📝 **Record transactions** (buys, sells, transfers)
+- 📝 **Record transactions** (buys, sells, transfers, swaps)
+- 📤 **Export history** to CSV for tax reporting and analysis
 - 🤖 **Use natural language** to interact (e.g., "I bought 0.1 BTC today")
 - 🔌 **Output JSON** for automation, scripting, and LLM/MCP integration
+- 🎨 **Customize formatting** (decimal places, thousands separators)
 
 Think of it as a personal finance app for crypto, but running in your terminal.
 
@@ -635,6 +639,181 @@ If you have `jq` and want to test LLM-style queries:
 ```
 
 **Use case:** This JSON can be fed to Claude, ChatGPT, or MCP tools for portfolio analysis.
+
+---
+
+### Test V9: CSV Export for Tax Reporting 📊
+
+**What we're testing:** Can we export transaction history to CSV with filtering?
+
+**NEW in v0.2:** Transaction export with account, asset, and date range filtering.
+
+#### V9.1: Export All Transactions
+
+```bash
+# Export all transactions
+./target/release/cryptofolio tx export /tmp/all-transactions.csv
+```
+
+**Expected output:**
+```
+[INFO] Exporting N transactions to '/tmp/all-transactions.csv'...
+[OK] Exported N transactions to '/tmp/all-transactions.csv'
+```
+
+**Verify CSV format:**
+```bash
+cat /tmp/all-transactions.csv | head -3
+```
+
+**Expected CSV headers:**
+```csv
+date,type,asset,quantity,price_usd,fee,fee_asset,notes,to_asset,to_quantity
+```
+
+#### V9.2: Export Filtered by Asset
+
+```bash
+# Export only BTC transactions
+./target/release/cryptofolio tx export /tmp/btc-only.csv --asset BTC
+```
+
+**Expected:** Only transactions involving BTC (buy, sell, transfer)
+
+#### V9.3: Export Filtered by Date Range
+
+```bash
+# Export 2024 transactions
+./target/release/cryptofolio tx export /tmp/2024.csv --from 2024-01-01 --to 2024-12-31
+```
+
+**Expected:** Only transactions within 2024
+
+#### V9.4: Export Filtered by Account
+
+```bash
+# Export Binance transactions
+./target/release/cryptofolio tx export /tmp/binance.csv --account "Binance Test"
+```
+
+**Expected:** Only transactions from specified account
+
+#### V9.5: Tax Season Workflow
+
+```bash
+# Export full year for tax reporting
+./target/release/cryptofolio tx export ~/Documents/crypto-taxes-2024.csv \
+  --from 2024-01-01 --to 2024-12-31
+
+# Verify export
+wc -l ~/Documents/crypto-taxes-2024.csv
+head -5 ~/Documents/crypto-taxes-2024.csv
+```
+
+**Use case:** Ready to share with accountant or import to tax software
+
+---
+
+### Test V10: Customizable Number Formatting 🎨
+
+**What we're testing:** Can we customize how numbers are displayed?
+
+**NEW in v0.2:** Configure decimal places and thousands separators.
+
+#### V10.1: View Current Formatting Settings
+
+```bash
+# Show current display configuration
+./target/release/cryptofolio config show | grep -A 5 "\[display\]"
+```
+
+**Expected output:**
+```
+[display]
+  color: true
+  decimals: 8
+  price_decimals: 2
+  thousands_separator: true
+```
+
+#### V10.2: Customize Quantity Decimals
+
+```bash
+# Set quantity decimals to 4 (less precision)
+./target/release/cryptofolio config set display.decimals 4
+
+# Verify change
+./target/release/cryptofolio config show | grep decimals
+```
+
+**Expected:**
+```
+  decimals: 4
+```
+
+**Visual impact:** Quantities like `0.12345678 BTC` → `0.1235 BTC`
+
+#### V10.3: Customize Price Decimals
+
+```bash
+# Set price decimals to 4 (more precision)
+./target/release/cryptofolio config set display.price_decimals 4
+
+# Verify change
+./target/release/cryptofolio config show | grep price_decimals
+```
+
+**Expected:**
+```
+  price_decimals: 4
+```
+
+**Visual impact:** Prices like `$1,234.56` → `$1,234.5600`
+
+#### V10.4: Toggle Thousands Separator
+
+```bash
+# Disable thousands separator
+./target/release/cryptofolio config set display.thousands_separator false
+
+# Verify change
+./target/release/cryptofolio config show | grep thousands
+```
+
+**Expected:**
+```
+  thousands_separator: false
+```
+
+**Visual impact:** Numbers like `1,234.56` → `1234.56`
+
+#### V10.5: Reset to Defaults
+
+```bash
+# Reset to default formatting
+./target/release/cryptofolio config set display.decimals 8
+./target/release/cryptofolio config set display.price_decimals 2
+./target/release/cryptofolio config set display.thousands_separator true
+```
+
+**Expected:** Back to original formatting
+
+#### V10.6: Configuration via JSON
+
+```bash
+# View formatting config as JSON
+./target/release/cryptofolio config show --json | jq '.display'
+```
+
+**Expected JSON:**
+```json
+{
+  "color": true,
+  "decimals": 8,
+  "price_decimals": 2,
+  "thousands_separator": true
+}
+```
 
 ---
 

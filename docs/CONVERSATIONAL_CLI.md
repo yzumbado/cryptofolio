@@ -766,7 +766,7 @@ tools: [
 
 ## Machine-Readable Output & MCP Integration
 
-**NEW in v0.2:** All query commands support `--json` flag for programmatic access and LLM/MCP integration.
+**NEW in v0.2:** All query commands support `--json` flag for programmatic access and LLM/MCP integration. Transaction history can also be exported to CSV format for tax reporting and external analysis.
 
 ### JSON Output for All Commands
 
@@ -796,6 +796,41 @@ cryptofolio market BTCUSDT --json
 
 # Configuration
 cryptofolio config show --json
+```
+
+### CSV Export for Transaction History
+
+**NEW in v0.2:** Export transaction history to CSV format for tax reporting, spreadsheet analysis, or external tools:
+
+```bash
+# Export all transactions
+cryptofolio tx export transactions.csv
+
+# Export with filters
+cryptofolio tx export 2025-btc.csv --asset BTC --from 2025-01-01 --to 2025-12-31
+cryptofolio tx export binance.csv --account Binance
+cryptofolio tx export recent.csv --limit 100
+
+# Tax season workflow
+cryptofolio tx export tax-year-2025.csv --from 2025-01-01 --to 2025-12-31
+# Import into TurboTax, CoinTracker, or Excel for analysis
+```
+
+### Customizable Number Formatting
+
+**NEW in v0.2:** Configure display precision for quantities and prices:
+
+```bash
+# View current formatting settings
+cryptofolio config show
+
+# Customize decimal places
+cryptofolio config set display.decimals 4           # Quantity precision (default: 8)
+cryptofolio config set display.price_decimals 2     # Price precision (default: 4)
+
+# Toggle thousands separator
+cryptofolio config set display.thousands_separator true   # Show 1,234.56
+cryptofolio config set display.thousands_separator false  # Show 1234.56
 ```
 
 ### MCP (Model Context Protocol) Server Integration
