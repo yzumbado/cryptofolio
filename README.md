@@ -1311,18 +1311,22 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 - [x] **Help text improvements** with comprehensive examples and workflows
 - [x] **Customizable number formatting** (decimals, price decimals, thousands separator)
 
-### v0.3 (Next)
-- [ ] **Encrypted keychain storage** (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-- [ ] Multiple exchange support (Coinbase, Kraken)
-- [ ] Realized P&L calculations
-- [ ] Tax report export
+### v0.3 (Next - Q2 2026)
+- [ ] **Encrypted keychain storage** (macOS Keychain)
+- [ ] Realized P&L calculations (FIFO/LIFO)
+- [ ] **CoinGecko portfolio import**
+- [ ] **CoinMarketCap portfolio import**
+- [ ] **CSV report generation** (customizable templates)
+- [ ] **Advanced data extraction** (JSON, CSV, SQL export)
 - [ ] `--quiet` flag for all commands
 - [ ] Progress indicators for long operations
 
-### v0.4
-- [ ] Interactive TUI dashboard
-- [ ] Price alerts with notifications
-- [ ] DCA automation
+### v0.4 (Q3 2026 - Experimental)
+- [ ] **Local Node.js dashboard** (rich data visualization)
+- [ ] Interactive portfolio explorer
+- [ ] Time-series charts and trend analysis
+- [ ] Portfolio composition breakdown
+- [ ] Historical performance tracking
 - [ ] "Did you mean?" suggestions for errors
 
 ## 🤝 Contributing
