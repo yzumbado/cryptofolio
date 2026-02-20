@@ -338,3 +338,10 @@ pub fn print_did_you_mean(suggestions: &[&str]) {
         }
     }
 }
+
+/// Print data as JSON
+pub fn print_json<T: serde::Serialize>(data: &T) -> crate::error::Result<()> {
+    let json = serde_json::to_string_pretty(data)?;
+    println!("{}", json);
+    Ok(())
+}

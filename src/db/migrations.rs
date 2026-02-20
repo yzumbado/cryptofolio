@@ -95,6 +95,64 @@ CREATE TABLE IF NOT EXISTS _migrations (
 );
 "#;
 
+const MIGRATION_002: &str = r#"
+-- Currency metadata table
+CREATE TABLE IF NOT EXISTS currencies (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    decimals INTEGER NOT NULL DEFAULT 2,
+    asset_type TEXT NOT NULL CHECK(asset_type IN ('fiat', 'crypto', 'stablecoin')),
+    enabled BOOLEAN NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed with common currencies
+INSERT OR IGNORE INTO currencies (code, name, symbol, decimals, asset_type, enabled) VALUES
+('USD', 'US Dollar', '$', 2, 'fiat', 1),
+('CRC', 'Costa Rican Colón', '₡', 2, 'fiat', 1),
+('EUR', 'Euro', '€', 2, 'fiat', 1),
+('BTC', 'Bitcoin', '₿', 8, 'crypto', 1),
+('ETH', 'Ethereum', 'Ξ', 18, 'crypto', 1),
+('USDT', 'Tether USD', 'USDT', 6, 'stablecoin', 1),
+('USDC', 'USD Coin', 'USDC', 6, 'stablecoin', 1),
+('BNB', 'Binance Coin', 'BNB', 8, 'crypto', 1),
+('SOL', 'Solana', 'SOL', 9, 'crypto', 1);
+
+-- Exchange rates cache table (for manual entry and future API)
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_currency TEXT NOT NULL,
+    to_currency TEXT NOT NULL,
+    rate TEXT NOT NULL,
+    timestamp DATETIME NOT NULL,
+    source TEXT DEFAULT 'manual',
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(from_currency, to_currency, timestamp)
+);
+
+-- Index for quick lookups
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_lookup
+ON exchange_rates(from_currency, to_currency, timestamp DESC);
+
+-- Add cost_basis_currency to holdings
+ALTER TABLE holdings ADD COLUMN cost_basis_currency TEXT DEFAULT 'USD';
+ALTER TABLE holdings ADD COLUMN avg_cost_basis_base TEXT;
+
+-- Add multi-currency fields to transactions
+ALTER TABLE transactions ADD COLUMN price_currency TEXT;
+ALTER TABLE transactions ADD COLUMN price_amount TEXT;
+ALTER TABLE transactions ADD COLUMN exchange_rate TEXT;
+ALTER TABLE transactions ADD COLUMN exchange_rate_pair TEXT;
+
+-- Add 'banking' category for bank accounts
+INSERT OR IGNORE INTO categories (id, name, sort_order) VALUES
+    ('banking', 'Banking', 0),
+    ('on-ramp', 'On-Ramp', 4);
+"#;
+
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     // Check if migration 1 has been applied
     let migration_exists: Option<(i64,)> = sqlx::query_as(
@@ -111,6 +169,25 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
 
         // Mark migration as applied
         sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (1)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 2 has been applied
+    let migration_2_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 2"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_2_exists.is_none() {
+        // Apply migration 2
+        sqlx::raw_sql(MIGRATION_002).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (2)")
             .execute(pool)
             .await?;
     }

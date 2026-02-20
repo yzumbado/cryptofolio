@@ -7,6 +7,7 @@ Welcome! This guide will help you build, run, and validate **Cryptofolio** — a
 
 ## 🆕 What's New in v0.2
 
+- **💱 Multi-Currency Support:** Full fiat currency support (CRC, USD, EUR), bank accounts, exchange rate tracking
 - **🔐 Secure Secret Handling:** New `config set-secret` command prevents API keys from appearing in shell history
 - **✅ File Permissions:** Automatic enforcement of secure file permissions (0600 on Unix)
 - **⚠️ Security Warnings:** Comprehensive warnings about using READ-ONLY API keys
@@ -714,13 +715,233 @@ head -5 ~/Documents/crypto-taxes-2024.csv
 
 ---
 
-### Test V10: Customizable Number Formatting 🎨
+### Test V10: Multi-Currency & Fiat Support 💱
+
+**What we're testing:** Can we manage multiple currencies, track exchange rates, and handle fiat-to-crypto flows?
+
+**NEW in v0.2:** Complete support for fiat currencies, bank accounts, and multi-currency cost basis tracking.
+
+#### V10.1: List Pre-Loaded Currencies
+
+```bash
+# List all available currencies
+./target/release/cryptofolio currency list
+```
+
+**Expected output:**
+```
+CODE    NAME                SYMBOL    TYPE          DECIMALS    ENABLED
+CRC     Costa Rican Colón   ₡         Fiat          2           Yes
+EUR     Euro                €         Fiat          2           Yes
+USD     US Dollar           $         Fiat          2           Yes
+USDC    USD Coin            USDC      Stablecoin    6           Yes
+USDT    Tether              ₮         Stablecoin    6           Yes
+BNB     Binance Coin        BNB       Crypto        8           Yes
+BTC     Bitcoin             ₿         Crypto        8           Yes
+ETH     Ethereum            Ξ         Crypto        18          Yes
+SOL     Solana              SOL       Crypto        9           Yes
+```
+
+> 💡 Currencies are ordered by type (Fiat → Stablecoin → Crypto), then alphabetically
+
+#### V10.2: Show Specific Currency
+
+```bash
+# Show CRC details
+./target/release/cryptofolio currency show CRC
+```
+
+**Expected output:**
+```
+Currency: CRC (Costa Rican Colón)
+Symbol: ₡
+Type: Fiat
+Decimals: 2
+Status: Enabled
+Created: 2026-02-19T10:30:00Z
+Updated: 2026-02-19T10:30:00Z
+```
+
+#### V10.3: Add Custom Currency
+
+```bash
+# Add Japanese Yen
+./target/release/cryptofolio currency add JPY \
+  "Japanese Yen" \
+  "¥" \
+  --decimals 0 \
+  --type fiat
+
+# Verify it was added
+./target/release/cryptofolio currency show JPY
+```
+
+**Expected:** JPY appears with 0 decimals and Fiat type
+
+#### V10.4: Set Exchange Rate
+
+```bash
+# Set CRC to USD rate (550 colones = 1 dollar)
+./target/release/cryptofolio currency set-rate CRC USD 550 \
+  --notes "Banco Nacional rate"
+```
+
+**Expected output:**
+```
+✓ Set exchange rate: 1 CRC = 0.00181818 USD (550 CRC/USD)
+```
+
+#### V10.5: View Exchange Rate
+
+```bash
+# Show latest CRC/USD rate
+./target/release/cryptofolio currency show-rate CRC USD
+```
+
+**Expected output:**
+```
+Exchange Rate: CRC/USD
+Latest Rate: 0.00181818 (550 CRC = 1 USD)
+Source: manual
+Timestamp: 2026-02-19T15:30:00Z
+Notes: Banco Nacional rate
+```
+
+#### V10.6: View Exchange Rate History
+
+```bash
+# Add a few more rates at different times
+./target/release/cryptofolio currency set-rate CRC USD 548 --notes "Morning rate"
+./target/release/cryptofolio currency set-rate CRC USD 552 --notes "Afternoon rate"
+
+# View history
+./target/release/cryptofolio currency show-rate CRC USD --history
+```
+
+**Expected:** Table showing all historical rates, newest first
+
+#### V10.7: Costa Rica On-Ramp Flow (Complete Test)
+
+Test the full multi-hop conversion from CRC → USD → USDT → BTC:
+
+```bash
+# 1. Create bank account and add CRC
+./target/release/cryptofolio account add "Banco Nacional" --type bank --category banking
+./target/release/cryptofolio holdings add CRC 100000 --account "Banco Nacional"
+
+# 2. Convert CRC to USD at bank (store exchange rate)
+./target/release/cryptofolio tx swap CRC 100000 USD 181.82 \
+  --account "Banco Nacional" \
+  --rate 550 \
+  --notes "Bank conversion"
+
+# Verify rate was stored
+./target/release/cryptofolio currency show-rate CRC USD
+
+# 3. Transfer USD to on-ramp
+./target/release/cryptofolio account add "Lulubit" --type exchange --category on-ramp
+./target/release/cryptofolio tx transfer USD 181.82 \
+  --from "Banco Nacional" \
+  --to "Lulubit"
+
+# 4. Buy USDT on the on-ramp
+./target/release/cryptofolio tx swap USD 181.82 USDT 176 \
+  --account "Lulubit" \
+  --notes "3% platform fee"
+
+# 5. Transfer USDT to Binance
+./target/release/cryptofolio tx transfer USDT 176 \
+  --from "Lulubit" \
+  --to "Binance Test" \
+  --fee 0.1
+
+# 6. Buy BTC with USDT
+./target/release/cryptofolio tx swap USDT 175.9 BTC 0.0025 \
+  --account "Binance Test"
+
+# 7. View final portfolio
+./target/release/cryptofolio portfolio
+```
+
+**Expected result:**
+- BTC holding shows in portfolio
+- Cost basis preserved through entire chain
+- All exchange rates stored in database
+- Transaction history shows complete flow
+
+#### V10.8: Currency JSON Output
+
+```bash
+# List currencies as JSON
+./target/release/cryptofolio currency list --json
+```
+
+**Expected JSON structure:**
+```json
+[
+  {
+    "code": "CRC",
+    "name": "Costa Rican Colón",
+    "symbol": "₡",
+    "decimals": 2,
+    "asset_type": "fiat",
+    "enabled": true,
+    "created_at": "2026-02-19T10:30:00Z",
+    "updated_at": "2026-02-19T10:30:00Z"
+  }
+]
+```
+
+```bash
+# Show specific rate as JSON
+./target/release/cryptofolio currency show-rate CRC USD --json
+```
+
+**Expected JSON:**
+```json
+{
+  "from_currency": "CRC",
+  "to_currency": "USD",
+  "rate": "0.00181818",
+  "timestamp": "2026-02-19T15:30:00Z",
+  "source": "manual",
+  "notes": "Banco Nacional rate"
+}
+```
+
+#### V10.9: Toggle Currency
+
+```bash
+# Disable CRC temporarily
+./target/release/cryptofolio currency toggle CRC --disable
+
+# Verify it's disabled
+./target/release/cryptofolio currency list
+
+# Re-enable it
+./target/release/cryptofolio currency toggle CRC --enable
+```
+
+**Expected:** CRC shows as disabled/enabled in list
+
+#### V10.10: Bank Account Type
+
+```bash
+# Verify bank account type works
+./target/release/cryptofolio account list --json | jq '.[] | select(.account_type == "Bank")'
+```
+
+**Expected:** Banco Nacional account shows type "Bank"
+
+---
+
+### Test V11: Customizable Number Formatting 🎨
 
 **What we're testing:** Can we customize how numbers are displayed?
 
 **NEW in v0.2:** Configure decimal places and thousands separators.
 
-#### V10.1: View Current Formatting Settings
+#### V11.1: View Current Formatting Settings
 
 ```bash
 # Show current display configuration
@@ -736,7 +957,7 @@ head -5 ~/Documents/crypto-taxes-2024.csv
   thousands_separator: true
 ```
 
-#### V10.2: Customize Quantity Decimals
+#### V11.2: Customize Quantity Decimals
 
 ```bash
 # Set quantity decimals to 4 (less precision)
@@ -753,7 +974,7 @@ head -5 ~/Documents/crypto-taxes-2024.csv
 
 **Visual impact:** Quantities like `0.12345678 BTC` → `0.1235 BTC`
 
-#### V10.3: Customize Price Decimals
+#### V11.3: Customize Price Decimals
 
 ```bash
 # Set price decimals to 4 (more precision)
@@ -770,7 +991,7 @@ head -5 ~/Documents/crypto-taxes-2024.csv
 
 **Visual impact:** Prices like `$1,234.56` → `$1,234.5600`
 
-#### V10.4: Toggle Thousands Separator
+#### V11.4: Toggle Thousands Separator
 
 ```bash
 # Disable thousands separator
@@ -787,7 +1008,7 @@ head -5 ~/Documents/crypto-taxes-2024.csv
 
 **Visual impact:** Numbers like `1,234.56` → `1234.56`
 
-#### V10.5: Reset to Defaults
+#### V11.5: Reset to Defaults
 
 ```bash
 # Reset to default formatting
@@ -798,7 +1019,7 @@ head -5 ~/Documents/crypto-taxes-2024.csv
 
 **Expected:** Back to original formatting
 
-#### V10.6: Configuration via JSON
+#### V11.6: Configuration via JSON
 
 ```bash
 # View formatting config as JSON

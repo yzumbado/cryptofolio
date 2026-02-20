@@ -106,6 +106,10 @@ impl<'a> TransactionRepository<'a> {
             to_asset: row.to_asset,
             to_quantity: parse_decimal(row.to_quantity)?,
             price_usd: parse_decimal(row.price_usd)?,
+            price_currency: None, // TODO: Load from database
+            price_amount: None,   // TODO: Load from database
+            exchange_rate: None,  // TODO: Load from database
+            exchange_rate_pair: None, // TODO: Load from database
             fee: parse_decimal(row.fee)?,
             fee_asset: row.fee_asset,
             external_id: row.external_id,

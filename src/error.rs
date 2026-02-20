@@ -43,6 +43,15 @@ pub enum CryptofolioError {
     #[error("Invalid amount: {0}")]
     InvalidAmount(String),
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Already exists: {0}")]
+    AlreadyExists(String),
+
     #[error("Exchange API error: {0}")]
     ExchangeApi(String),
 

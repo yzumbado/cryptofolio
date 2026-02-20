@@ -10,6 +10,7 @@ pub enum AccountType {
     HardwareWallet,
     SoftwareWallet,
     CustodialService,
+    Bank,
 }
 
 impl AccountType {
@@ -19,6 +20,7 @@ impl AccountType {
             AccountType::HardwareWallet => "hardware_wallet",
             AccountType::SoftwareWallet => "software_wallet",
             AccountType::CustodialService => "custodial_service",
+            AccountType::Bank => "bank",
         }
     }
 
@@ -28,6 +30,7 @@ impl AccountType {
             "hardware_wallet" => Some(AccountType::HardwareWallet),
             "software_wallet" => Some(AccountType::SoftwareWallet),
             "custodial_service" => Some(AccountType::CustodialService),
+            "bank" => Some(AccountType::Bank),
             _ => None,
         }
     }
@@ -38,6 +41,7 @@ impl AccountType {
             AccountType::HardwareWallet => "Hardware Wallet",
             AccountType::SoftwareWallet => "Software Wallet",
             AccountType::CustodialService => "Custodial Service",
+            AccountType::Bank => "Bank",
         }
     }
 }

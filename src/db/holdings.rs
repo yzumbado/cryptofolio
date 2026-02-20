@@ -109,6 +109,8 @@ impl<'a> HoldingRepository<'a> {
                     asset: asset.to_uppercase(),
                     quantity,
                     avg_cost_basis: cost_per_unit,
+                    cost_basis_currency: Some("USD".to_string()),
+                    avg_cost_basis_base: cost_per_unit,
                     updated_at: Utc::now(),
                 };
                 self.upsert(&holding).await
@@ -163,6 +165,8 @@ impl<'a> HoldingRepository<'a> {
             asset: asset.to_uppercase(),
             quantity,
             avg_cost_basis: cost_per_unit,
+            cost_basis_currency: Some("USD".to_string()),
+            avg_cost_basis_base: cost_per_unit,
             updated_at: Utc::now(),
         };
         self.upsert(&holding).await
@@ -212,6 +216,8 @@ impl<'a> HoldingRepository<'a> {
             asset,
             quantity,
             avg_cost_basis,
+            cost_basis_currency: None, // TODO: Load from database
+            avg_cost_basis_base: None, // TODO: Load from database
             updated_at: DateTime::parse_from_rfc3339(&updated_at)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),

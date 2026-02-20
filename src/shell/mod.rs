@@ -588,6 +588,9 @@ impl Shell {
             Commands::Config { command } => {
                 handle_config_command(command, &self.pool, &opts).await?;
             }
+            Commands::Currency { command } => {
+                handle_currency_command(&self.pool, command).await?;
+            }
             Commands::Shell => {
                 println!("Already in shell mode.");
             }

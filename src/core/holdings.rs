@@ -9,6 +9,8 @@ pub struct Holding {
     pub asset: String,
     pub quantity: Decimal,
     pub avg_cost_basis: Option<Decimal>,
+    pub cost_basis_currency: Option<String>,  // Currency for avg_cost_basis
+    pub avg_cost_basis_base: Option<Decimal>, // Cost basis in base currency (USD)
     pub updated_at: DateTime<Utc>,
 }
 

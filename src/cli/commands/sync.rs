@@ -103,6 +103,8 @@ pub async fn handle_sync_command(account: Option<String>, pool: &SqlitePool, opt
                     asset: balance.asset.clone(),
                     quantity: balance.total(),
                     avg_cost_basis: None, // Exchange doesn't provide cost basis
+                    cost_basis_currency: None,
+                    avg_cost_basis_base: None,
                     updated_at: Utc::now(),
                 };
 

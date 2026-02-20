@@ -8,7 +8,8 @@ use std::str::FromStr;
 use crate::cli::{TxCommands, GlobalOptions};
 use crate::cli::output::{format_quantity, format_usd, info, print_header, print_row, success};
 use crate::core::transaction::Transaction;
-use crate::db::{AccountRepository, HoldingRepository, TransactionRepository};
+use crate::core::currency::ExchangeRate;
+use crate::db::{AccountRepository, HoldingRepository, TransactionRepository, currencies};
 use crate::error::{CryptofolioError, Result};
 
 #[derive(Serialize)]
@@ -276,6 +277,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
             to_asset,
             to_quantity,
             account,
+            rate,
             notes,
             dry_run,
         } => {
@@ -300,6 +302,48 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                 return Ok(());
             }
 
+            // Check if both assets are fiat currencies
+            let from_currency = currencies::get_currency(pool, &from_asset.to_uppercase()).await?;
+            let to_currency = currencies::get_currency(pool, &to_asset.to_uppercase()).await?;
+
+            let is_fiat_swap = from_currency.as_ref().map(|c| c.is_fiat()).unwrap_or(false)
+                            && to_currency.as_ref().map(|c| c.is_fiat()).unwrap_or(false);
+
+            // Calculate and store exchange rate for fiat swaps
+            let (exchange_rate, exchange_rate_pair) = if is_fiat_swap {
+                // Use manual rate if provided, otherwise calculate from quantities
+                let rate_value = if let Some(ref manual_rate) = rate {
+                    Decimal::from_str(manual_rate)
+                        .map_err(|_| CryptofolioError::InvalidInput(format!("Invalid rate: {}", manual_rate)))?
+                } else if to_qty > Decimal::ZERO {
+                    from_qty / to_qty
+                } else {
+                    Decimal::ZERO
+                };
+
+                let pair = format!("{}/{}", from_asset.to_uppercase(), to_asset.to_uppercase());
+
+                // Store the exchange rate for future reference
+                let rate_record = ExchangeRate::new_manual(
+                    &from_asset.to_uppercase(),
+                    &to_asset.to_uppercase(),
+                    rate_value,
+                    Utc::now()
+                );
+                currencies::add_exchange_rate(pool, &rate_record).await?;
+
+                info(&format!(
+                    "Recorded exchange rate: {} {} = 1 {}",
+                    rate_value,
+                    from_asset.to_uppercase(),
+                    to_asset.to_uppercase()
+                ));
+
+                (Some(rate_value), Some(pair))
+            } else {
+                (None, None)
+            };
+
             // Update holdings
             holding_repo.remove_quantity(&acc.id, &from_asset, from_qty).await?;
 
@@ -316,6 +360,8 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
             // Record transaction
             let mut tx = Transaction::new_swap(&acc.id, &from_asset, from_qty, &to_asset, to_qty, Utc::now());
+            tx.exchange_rate = exchange_rate;
+            tx.exchange_rate_pair = exchange_rate_pair;
             tx.notes = notes;
             tx_repo.insert(&tx).await?;
 

@@ -1,6 +1,7 @@
 pub mod account;
 pub mod category;
 pub mod config;
+pub mod currency;
 pub mod holdings;
 pub mod import;
 pub mod market;
@@ -13,6 +14,7 @@ pub mod tx;
 pub use account::handle_account_command;
 pub use category::handle_category_command;
 pub use config::handle_config_command;
+pub use currency::handle_currency_command;
 pub use holdings::handle_holdings_command;
 pub use import::handle_import_command;
 pub use market::handle_market_command;

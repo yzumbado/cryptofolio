@@ -204,6 +204,13 @@ pub enum Commands {
         command: ConfigCommands,
     },
 
+    /// Manage currencies and exchange rates
+    #[command(after_help = "EXAMPLES:\n    # List all currencies\n    cryptofolio currency list\n    cryptofolio currency list --enabled\n    cryptofolio currency list --json\n\n    # Add a new currency\n    cryptofolio currency add MXN --name \"Mexican Peso\" --symbol \"₱\" --decimals 2 --type fiat\n\n    # Show currency details\n    cryptofolio currency show USD\n\n    # Set exchange rate\n    cryptofolio currency set-rate CRC USD 550 --notes \"Bank rate\"\n    cryptofolio currency show-rate CRC USD\n    cryptofolio currency show-rate CRC USD --history")]
+    Currency {
+        #[command(subcommand)]
+        command: CurrencyCommands,
+    },
+
     /// Start interactive shell mode
     #[command(after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)")]
     Shell,
@@ -279,6 +286,7 @@ pub enum AccountTypeArg {
     HardwareWallet,
     SoftwareWallet,
     CustodialService,
+    Bank,
 }
 
 impl AccountTypeArg {
@@ -288,6 +296,7 @@ impl AccountTypeArg {
             AccountTypeArg::HardwareWallet => "hardware_wallet",
             AccountTypeArg::SoftwareWallet => "software_wallet",
             AccountTypeArg::CustodialService => "custodial_service",
+            AccountTypeArg::Bank => "bank",
         }
     }
 }
@@ -551,6 +560,10 @@ pub enum TxCommands {
         #[arg(long, required = true)]
         account: String,
 
+        /// Exchange rate (how many FROM per 1 TO) - for fiat swaps
+        #[arg(long)]
+        rate: Option<String>,
+
         /// Transaction notes
         #[arg(long)]
         notes: Option<String>,
@@ -640,6 +653,103 @@ pub enum ConfigCommands {
     /// Disable testnet mode (use mainnet)
     #[command(name = "use-mainnet")]
     UseMainnet,
+}
+
+#[derive(Subcommand)]
+pub enum CurrencyCommands {
+    /// List all currencies
+    List {
+        /// Show only enabled currencies
+        #[arg(long)]
+        enabled: bool,
+
+        /// Filter by asset type (fiat, crypto, stablecoin)
+        #[arg(long)]
+        type_filter: Option<String>,
+    },
+
+    /// Show details for a currency
+    Show {
+        /// Currency code (e.g., USD, BTC)
+        code: String,
+    },
+
+    /// Add a new currency
+    Add {
+        /// Currency code (e.g., MXN, JPY)
+        code: String,
+
+        /// Full name of the currency
+        #[arg(long)]
+        name: String,
+
+        /// Symbol for display
+        #[arg(long)]
+        symbol: String,
+
+        /// Number of decimal places
+        #[arg(long, default_value = "2")]
+        decimals: u8,
+
+        /// Asset type: fiat, crypto, or stablecoin
+        #[arg(long = "type", value_parser = ["fiat", "crypto", "stablecoin"])]
+        type_name: String,
+    },
+
+    /// Remove a currency
+    Remove {
+        /// Currency code to remove
+        code: String,
+
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
+    },
+
+    /// Enable or disable a currency
+    Toggle {
+        /// Currency code
+        code: String,
+
+        /// Enable the currency
+        #[arg(long, conflicts_with = "disable")]
+        enable: bool,
+
+        /// Disable the currency
+        #[arg(long, conflicts_with = "enable")]
+        disable: bool,
+    },
+
+    /// Set exchange rate between two currencies
+    #[command(name = "set-rate")]
+    SetRate {
+        /// From currency (e.g., CRC)
+        from: String,
+
+        /// To currency (e.g., USD)
+        to: String,
+
+        /// Exchange rate (how many FROM per 1 TO)
+        rate: String,
+
+        /// Optional notes
+        #[arg(long)]
+        notes: Option<String>,
+    },
+
+    /// Show exchange rate between two currencies
+    #[command(name = "show-rate")]
+    ShowRate {
+        /// From currency (e.g., CRC)
+        from: String,
+
+        /// To currency (e.g., USD)
+        to: String,
+
+        /// Show all historical rates
+        #[arg(long)]
+        history: bool,
+    },
 }
 
 /// Global options that affect command behavior

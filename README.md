@@ -606,6 +606,123 @@ PLANNED (v0.2):
 
 ## 📢 What's New in v0.2
 
+### 💱 Multi-Currency & Fiat Support (February 2026)
+
+**Global Expansion:** Full support for fiat currencies, stablecoins, and multi-currency cost basis tracking!
+
+#### Features
+
+✅ **Multi-Currency Cost Basis** - Track holdings with cost basis in any currency
+✅ **Fiat Currency Support** - CRC, USD, EUR, and more
+✅ **Bank Accounts** - New account type for traditional banking
+✅ **Exchange Rate Tracking** - Manual entry with historical tracking
+✅ **Automatic Rate Storage** - Fiat-to-fiat swaps store exchange rates
+✅ **Database-Driven Currencies** - Add custom currencies without code changes
+
+#### Supported Currencies (Pre-loaded)
+
+| Type | Currencies |
+|------|------------|
+| **Fiat** | USD (US Dollar), CRC (Costa Rican Colón), EUR (Euro) |
+| **Stablecoins** | USDT (Tether), USDC (USD Coin) |
+| **Crypto** | BTC (Bitcoin), ETH (Ethereum), BNB (Binance Coin), SOL (Solana) |
+
+#### Use Case: Costa Rica On-Ramp Flow
+
+Perfect for international investors who need to track multi-hop conversions:
+
+```bash
+# 1. Start with Costa Rican Colones in your bank
+cryptofolio account add "Banco Nacional" --type bank --category banking
+cryptofolio holdings add CRC 100000 --account "Banco Nacional"
+
+# 2. Convert CRC → USD at the bank (rate: 550 CRC = 1 USD)
+cryptofolio tx swap CRC 100000 USD 181.82 \
+  --account "Banco Nacional" \
+  --rate 550 \
+  --notes "Bank conversion"
+
+# ✓ Exchange rate automatically stored: 550 CRC/USD
+
+# 3. Transfer USD to on-ramp service
+cryptofolio account add "Lulubit" --type exchange --category on-ramp
+cryptofolio tx transfer USD 181.82 \
+  --from "Banco Nacional" \
+  --to "Lulubit"
+
+# 4. Buy USDT with USD on the on-ramp
+cryptofolio tx swap USD 181.82 USDT 176 \
+  --account "Lulubit" \
+  --notes "3% fee included"
+
+# 5. Transfer USDT to main exchange
+cryptofolio tx transfer USDT 176 \
+  --from "Lulubit" \
+  --to "Binance" \
+  --fee 0.1 \
+  --notes "ERC-20 transfer"
+
+# 6. Finally, buy BTC with USDT
+cryptofolio tx swap USDT 175.9 BTC 0.0025 \
+  --account "Binance"
+
+# View complete journey with cost basis in CRC
+cryptofolio portfolio
+```
+
+**Result:** Complete tracking from CRC → USD → USDT → BTC with cost basis preserved at every step!
+
+#### Currency Management Commands
+
+```bash
+# List all currencies
+cryptofolio currency list
+
+# Show specific currency
+cryptofolio currency show CRC
+
+# Add custom currency
+cryptofolio currency add JPY \
+  "Japanese Yen" \
+  "¥" \
+  --decimals 0 \
+  --type fiat
+
+# Set exchange rate
+cryptofolio currency set-rate CRC USD 550 \
+  --notes "Banco Nacional rate 2026-02-19"
+
+# View exchange rate history
+cryptofolio currency show-rate CRC USD --history
+
+# Disable a currency (without deleting)
+cryptofolio currency toggle CRC --disable
+
+# JSON output for all currency commands
+cryptofolio currency list --json
+```
+
+#### Cost Basis in Multiple Currencies
+
+Holdings now track cost basis in both the original currency and a base currency (USD):
+
+```bash
+# Add holding with cost in CRC
+cryptofolio holdings add BTC 0.1 \
+  --account "Binance" \
+  --cost 52250000 \
+  --cost-currency CRC
+
+# View holdings (shows both CRC cost and USD equivalent)
+cryptofolio holdings list
+# Output:
+# BTC: 0.1
+#   Cost Basis (CRC): ₡52,250,000
+#   Cost Basis (USD): $95,000
+#   Current Value: $98,500
+#   P&L: +$3,500 (+3.68%)
+```
+
 ### 🔐 Secure Secret Handling (February 2026)
 
 **Critical Security Update:** API keys and secrets are no longer exposed in shell history!
@@ -1104,6 +1221,7 @@ $ cryptofolio status
 | `market` | Get detailed market data with 24h stats |
 | `account` | Manage accounts (add, remove, list) |
 | `category` | Manage categories |
+| `currency` | Manage currencies and exchange rates (NEW in v0.2) |
 | `holdings` | Manage holdings (add, remove, move) |
 | `portfolio` | View portfolio with P&L |
 | `tx` | Record transactions (buy, sell, transfer, swap) |
@@ -1180,10 +1298,15 @@ cryptofolio portfolio  # Uses testnet, outputs JSON
 ## 🗺️ Roadmap
 
 ### v0.2 (✅ Complete - February 2026)
+- [x] **Multi-currency support** (fiat, crypto, stablecoins with database-driven currencies)
+- [x] **Fiat currency tracking** (CRC, USD, EUR with manual exchange rates)
+- [x] **Bank account type** for traditional banking integration
+- [x] **Multi-currency cost basis** (track holdings with cost in any currency)
+- [x] **Exchange rate management** (manual entry, historical tracking, automatic storage)
 - [x] **Secure secret input** (stdin, file, env, interactive)
 - [x] **File permissions enforcement** (auto 0600 on Unix)
 - [x] **Security warnings** for READ-ONLY API keys
-- [x] **JSON output for all query commands** (portfolio, price, market, holdings, account, tx, config)
+- [x] **JSON output for all query commands** (portfolio, price, market, holdings, account, tx, config, currency)
 - [x] **Transaction history export (CSV)** with filtering and date ranges
 - [x] **Help text improvements** with comprehensive examples and workflows
 - [x] **Customizable number formatting** (decimals, price decimals, thousands separator)

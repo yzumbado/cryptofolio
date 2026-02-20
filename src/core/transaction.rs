@@ -72,8 +72,17 @@ pub struct Transaction {
     pub to_asset: Option<String>,
     pub to_quantity: Option<Decimal>,
 
-    // Pricing (USD)
+    // Pricing (USD) - kept for backwards compatibility
     pub price_usd: Option<Decimal>,
+
+    // Multi-currency pricing
+    pub price_currency: Option<String>,  // Currency for price_amount
+    pub price_amount: Option<Decimal>,   // Price in price_currency
+
+    // Exchange rate (for fiat conversions)
+    pub exchange_rate: Option<Decimal>,     // e.g., 550 CRC per 1 USD
+    pub exchange_rate_pair: Option<String>, // e.g., "CRC/USD"
+
     pub fee: Option<Decimal>,
     pub fee_asset: Option<String>,
 
@@ -102,6 +111,10 @@ impl Transaction {
             to_asset: Some(asset.to_string()),
             to_quantity: Some(quantity),
             price_usd: Some(price_usd),
+            price_currency: None,
+            price_amount: None,
+            exchange_rate: None,
+            exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
             external_id: None,
@@ -128,6 +141,10 @@ impl Transaction {
             to_asset: None,
             to_quantity: None,
             price_usd: Some(price_usd),
+            price_currency: None,
+            price_amount: None,
+            exchange_rate: None,
+            exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
             external_id: None,
@@ -154,6 +171,10 @@ impl Transaction {
             to_asset: Some(asset.to_string()),
             to_quantity: Some(quantity),
             price_usd: None,
+            price_currency: None,
+            price_amount: None,
+            exchange_rate: None,
+            exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
             external_id: None,
@@ -181,6 +202,10 @@ impl Transaction {
             to_asset: Some(to_asset.to_string()),
             to_quantity: Some(to_quantity),
             price_usd: None,
+            price_currency: None,
+            price_amount: None,
+            exchange_rate: None,
+            exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
             external_id: None,

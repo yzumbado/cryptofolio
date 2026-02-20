@@ -111,6 +111,7 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
                 AccountTypeArg::HardwareWallet => AccountType::HardwareWallet,
                 AccountTypeArg::SoftwareWallet => AccountType::SoftwareWallet,
                 AccountTypeArg::CustodialService => AccountType::CustodialService,
+                AccountTypeArg::Bank => AccountType::Bank,
             };
 
             // Find or validate category

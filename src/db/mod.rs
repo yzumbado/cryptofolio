@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod accounts;
+pub mod currencies;
 pub mod holdings;
 pub mod migrations;
 pub mod transactions;
