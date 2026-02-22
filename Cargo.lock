@@ -450,6 +450,7 @@ dependencies = [
  "rpassword",
  "rust_decimal",
  "rustyline",
+ "security-framework",
  "serde",
  "serde_json",
  "sha2",

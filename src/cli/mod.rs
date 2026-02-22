@@ -573,11 +573,15 @@ pub enum TxCommands {
         dry_run: bool,
     },
 
-    /// Export transactions to CSV file
-    #[command(after_help = "EXAMPLES:\n    # Export all transactions\n    cryptofolio tx export transactions.csv\n\n    # Export filtered transactions\n    cryptofolio tx export binance-2024.csv --account Binance\n    cryptofolio tx export btc-trades.csv --asset BTC\n\n    # Export with date range\n    cryptofolio tx export q1-2024.csv --from 2024-01-01 --to 2024-03-31\n\nCSV FORMAT:\n    Compatible with import format:\n    date,type,asset,quantity,price_usd,fee,fee_asset,notes,to_asset,to_quantity")]
+    /// Export transactions to file
+    #[command(after_help = "EXAMPLES:\n    # Export all transactions to CSV\n    cryptofolio tx export transactions.csv\n\n    # Export to JSON format\n    cryptofolio tx export transactions.json --format json\n\n    # Export to SQL format\n    cryptofolio tx export transactions.sql --format sql\n\n    # Export filtered transactions\n    cryptofolio tx export binance-2024.csv --account Binance\n    cryptofolio tx export btc-trades.json --asset BTC --format json\n\n    # Export with date range\n    cryptofolio tx export q1-2024.csv --from 2024-01-01 --to 2024-03-31\n\nFORMATS:\n    csv  - CSV format (default, compatible with import)\n    json - JSON array format\n    sql  - SQL INSERT statements")]
     Export {
         /// Output file path
         file: String,
+
+        /// Export format (csv, json, sql)
+        #[arg(long, default_value = "csv")]
+        format: String,
 
         /// Filter by account name
         #[arg(long)]
@@ -618,8 +622,9 @@ pub enum ConfigCommands {
 
     /// Set a secret configuration value securely
     ///
-    /// SECURITY NOTICE:
-    ///   Secrets are stored in plaintext in ~/.config/cryptofolio/config.toml
+    /// SECURITY NOTICE (v0.3+):
+    ///   On macOS: Secrets are stored in macOS Keychain with Touch ID protection
+    ///   Other platforms: Secrets are stored in plaintext in ~/.config/cryptofolio/config.toml
     ///
     ///   IMPORTANT: Only use READ-ONLY API keys!
     ///   Never enable trading, withdrawal, or transfer permissions.
@@ -629,10 +634,8 @@ pub enum ConfigCommands {
     ///   2. Enable ONLY: "Enable Reading"
     ///   3. Disable: Trading, Withdrawals, Internal Transfer
     ///   4. IP restrictions recommended (optional but safer)
-    ///
-    /// Coming in v0.3: Encrypted keychain storage
     #[command(name = "set-secret")]
-    #[command(after_help = "EXAMPLES:\n    # Interactive (hidden input)\n    cryptofolio config set-secret binance.api_secret\n\n    # From stdin (for scripts)\n    echo \"secret\" | cryptofolio config set-secret binance.api_secret\n\n    # From file\n    cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key\n\n    # From environment variable\n    cryptofolio config set-secret binance.api_secret --from-env MY_SECRET\n\nSECURITY:\n    This command prevents secrets from appearing in shell history.\n    Secrets are still stored in plaintext in config.toml (file permissions: 0600).\n    v0.3 will add encrypted keychain storage.")]
+    #[command(after_help = "EXAMPLES:\n    # Interactive (hidden input)\n    cryptofolio config set-secret binance.api_secret\n\n    # macOS: Store with Touch ID protection\n    cryptofolio config set-secret binance.api_secret --security-level touchid\n\n    # From stdin (for scripts)\n    echo \"secret\" | cryptofolio config set-secret binance.api_secret\n\n    # From file\n    cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key\n\n    # From environment variable\n    cryptofolio config set-secret binance.api_secret --from-env MY_SECRET\n\nSECURITY LEVELS (macOS only):\n    standard          Protected by macOS encryption (good for automation)\n    touchid           Require Touch ID or password (recommended)\n    touchid-only      ONLY Touch ID, no password fallback (maximum security)")]
     SetSecret {
         /// Config key (e.g., binance.api_secret)
         key: String,
@@ -644,6 +647,10 @@ pub enum ConfigCommands {
         /// Read secret from environment variable
         #[arg(long)]
         from_env: Option<String>,
+
+        /// Security level for keychain storage (macOS only): standard, touchid, touchid-only
+        #[arg(long)]
+        security_level: Option<String>,
     },
 
     /// Enable testnet mode
@@ -653,6 +660,60 @@ pub enum ConfigCommands {
     /// Disable testnet mode (use mainnet)
     #[command(name = "use-mainnet")]
     UseMainnet,
+
+    /// Migrate secrets from TOML to macOS Keychain (macOS only)
+    ///
+    /// This command migrates API keys and secrets from plaintext storage
+    /// in config.toml to encrypted macOS Keychain with optional Touch ID protection.
+    ///
+    /// Benefits:
+    ///   - OS-level encryption (protected by your Mac login password)
+    ///   - Touch ID authentication for each terminal session
+    ///   - Protected from casual file access and backups
+    ///   - Integration with macOS security features
+    #[command(name = "migrate-to-keychain")]
+    #[command(after_help = "EXAMPLES:\n    # Migrate all secrets to keychain\n    cryptofolio config migrate-to-keychain\n\n    # The wizard will:\n    #   1. Show all secrets found in config.toml\n    #   2. Let you choose security level (Standard, Touch ID, Touch ID Only)\n    #   3. Create a backup of config.toml\n    #   4. Migrate secrets to keychain\n    #   5. Clear secrets from config.toml\n\nSECURITY LEVELS:\n    Standard          Unlocked with Mac (good for automation)\n    Touch ID          Require Touch ID or password (recommended)\n    Touch ID Only     ONLY biometric, no password fallback")]
+    MigrateToKeychain,
+
+    /// Show keychain status and security levels (macOS only)
+    ///
+    /// Displays all secrets and their storage locations:
+    ///   - Keychain (with security level)
+    ///   - TOML config file
+    ///   - Environment variables
+    #[command(name = "keychain-status")]
+    #[command(after_help = "EXAMPLES:\n    # Show all secrets and their locations\n    cryptofolio config keychain-status\n\n    # JSON output\n    cryptofolio config keychain-status --json\n\nOUTPUT:\n    Shows a table with:\n      - Key name (e.g., binance.api_secret)\n      - Storage type (keychain, toml, env)\n      - Security level (for keychain entries)\n      - Last accessed timestamp")]
+    KeychainStatus,
+
+    /// Upgrade security level for a keychain entry (macOS only)
+    ///
+    /// Increases the security level for an existing keychain secret.
+    /// Requires authentication with current security level.
+    #[command(name = "upgrade-security")]
+    #[command(after_help = "EXAMPLES:\n    # Upgrade to Touch ID protection\n    cryptofolio config upgrade-security binance.api_secret --to touchid\n\n    # Upgrade to Touch ID only (maximum security)\n    cryptofolio config upgrade-security binance.api_secret --to touchid-only\n\nWARNING:\n    Touch ID Only mode has no password fallback.\n    You won't be able to access the secret in SSH sessions or without Touch ID.")]
+    UpgradeSecurity {
+        /// Secret key to upgrade (e.g., binance.api_secret)
+        key: String,
+
+        /// Target security level: touchid or touchid-only
+        #[arg(long, value_parser = ["touchid", "touchid-only"])]
+        to: String,
+    },
+
+    /// Downgrade security level for a keychain entry (macOS only)
+    ///
+    /// Decreases the security level for an existing keychain secret.
+    /// Requires authentication with current security level.
+    #[command(name = "downgrade-security")]
+    #[command(after_help = "EXAMPLES:\n    # Downgrade to standard keychain\n    cryptofolio config downgrade-security binance.api_secret --to standard\n\n    # Downgrade to Touch ID Protected (from Touch ID Only)\n    cryptofolio config downgrade-security binance.api_secret --to touchid\n\nUSE CASES:\n    - Enable automation (scripts, cron jobs need Standard level)\n    - Resolve SSH access issues")]
+    DowngradeSecurity {
+        /// Secret key to downgrade (e.g., binance.api_secret)
+        key: String,
+
+        /// Target security level: standard or touchid
+        #[arg(long, value_parser = ["standard", "touchid"])]
+        to: String,
+    },
 }
 
 #[derive(Subcommand)]

@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id as \"id!\", from_currency as \"from_currency!\",\n               to_currency as \"to_currency!\", rate as \"rate!\",\n               timestamp as \"timestamp: String\",\n               source, notes,\n               created_at as \"created_at: String\"\n        FROM exchange_rates\n        WHERE from_currency = ? AND to_currency = ?\n        ORDER BY timestamp DESC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "from_currency!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "to_currency!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "rate!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "timestamp: String",
+        "ordinal": 4,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "source",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "notes",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at: String",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5975b5b1188deb864953f59a10e3b6f93c373b501332afddc8a3b1cc01765487"
+}

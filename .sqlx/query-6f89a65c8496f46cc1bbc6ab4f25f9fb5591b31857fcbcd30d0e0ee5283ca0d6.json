@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT code as \"code!\", name as \"name!\", symbol as \"symbol!\",\n               decimals as \"decimals!\", asset_type as \"asset_type!\",\n               enabled as \"enabled!\",\n               created_at as \"created_at: String\",\n               updated_at as \"updated_at: String\"\n        FROM currencies\n        ORDER BY\n            CASE asset_type\n                WHEN 'fiat' THEN 1\n                WHEN 'stablecoin' THEN 2\n                WHEN 'crypto' THEN 3\n            END,\n            code\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "code!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "symbol!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "decimals!",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "asset_type!",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "enabled!",
+        "ordinal": 5,
+        "type_info": "Bool"
+      },
+      {
+        "name": "created_at: String",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at: String",
+        "ordinal": 7,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "6f89a65c8496f46cc1bbc6ab4f25f9fb5591b31857fcbcd30d0e0ee5283ca0d6"
+}
