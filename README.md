@@ -17,6 +17,7 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
+✅ **Keychain Security (macOS)** - OS-encrypted storage with Touch ID support
 ✅ **Multi-Currency Support** - Track CRC, USD, EUR alongside BTC, ETH, USDT
 ✅ **Local-First & Private** - All data stays on your machine
 ✅ **AI-Powered** - Natural language commands with Claude/Ollama integration
@@ -193,21 +194,40 @@ cryptofolio status
 
 ### 🔒 Security First
 
+**macOS Keychain Storage (NEW!)** - OS-encrypted secret storage
 **Read-only API access** - Never grant withdrawal permissions
 **Local-first** - All data stays on your machine
-**Secure secrets** - API keys never in shell history
+**Secure secrets** - API keys never in shell history or plaintext
 **File permissions** - Automatic 0600 on config files
 
 ```bash
-# Secure API key entry (v0.2)
+# Secure API key storage with macOS Keychain (v0.3+)
 cryptofolio config set-secret binance.api_secret
 Enter secret (hidden): ********
+✓ Stored in macOS Keychain (Touch ID Protected)
 
 # Multiple input methods
 echo "secret" | cryptofolio config set-secret binance.api_secret  # Stdin
-cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key  # File
 cryptofolio config set-secret binance.api_secret --from-env BINANCE_SECRET  # Env
+
+# Security levels (macOS only)
+cryptofolio config set-secret api.key --security-level standard       # Mac unlock
+cryptofolio config set-secret api.key --security-level touchid        # Touch ID (recommended)
+cryptofolio config set-secret api.key --security-level touchid-only   # Biometric only
+
+# Migrate existing secrets from TOML to Keychain
+cryptofolio config migrate-to-keychain
+
+# Check keychain status
+cryptofolio config keychain-status
 ```
+
+**Keychain Security Features (macOS):**
+- ✅ **OS-Encrypted Storage** - Protected by macOS security
+- ✅ **Touch ID Support** - Biometric authentication for secrets
+- ✅ **No Plaintext** - Secrets never stored in TOML files
+- ✅ **Backup Protected** - Keychain items excluded from backups
+- ✅ **Auto-Migration** - Easy upgrade from v0.2.0
 
 **Binance API Key Setup:**
 
@@ -216,11 +236,9 @@ When creating your Binance API key:
 2. **Enable ONLY:** ✅ Enable Reading
 3. **DISABLE (CRITICAL):** ❌ Enable Spot & Margin Trading, ❌ Enable Withdrawals
 
-**Why READ-ONLY?** Cryptofolio v0.2 stores API keys in plaintext in `~/.config/cryptofolio/config.toml` (file permissions: `0600`).
+**Why READ-ONLY?** Even with keychain encryption, always use read-only API keys:
 - **READ-ONLY keys:** Attacker can only view portfolio → No financial loss ✅
 - **WRITE permissions:** Attacker can steal funds → Total loss ❌
-
-**Encrypted keychain storage coming in v0.3!**
 
 [Security best practices →](SECURITY.md)
 

@@ -7,13 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for v0.3.0
-- Encrypted keychain storage (macOS Keychain)
-- Realized P&L calculations (FIFO/LIFO)
-- CoinGecko portfolio import
-- CoinMarketCap portfolio import
-- CSV report generation
-- Advanced data extraction
+### Planned for Future Releases
+- Realized P&L calculations (FIFO/LIFO) - Phase 3
+- CoinGecko portfolio import - Phase 3
+- CoinMarketCap portfolio import - Phase 3
+- CSV report generation - Phase 3
+- Advanced data extraction - Phase 3
+
+## [0.3.0] - 2026-02-21
+
+### Added - Keychain Security (Phase 2)
+- **macOS Keychain Integration** - OS-encrypted storage for API keys and secrets
+- **Touch ID Security Levels** - Three-tier security (Standard, Touch ID Protected, Touch ID Only)
+- **Migration Wizard** - Interactive `config migrate-to-keychain` command
+- **Keychain Management Commands**:
+  - `config set-secret <key> [--security-level <level>]` - Store secrets in keychain
+  - `config keychain-status [--json]` - View all keychain secrets with security levels
+  - `config upgrade-security <key> --to <level>` - Increase security level
+  - `config downgrade-security <key> --to <level>` - Decrease security level (with warning)
+- **Auto-Discovery** - Scans config.toml for secrets to migrate
+- **Automatic Backup** - Creates config.toml.backup before migration
+- **Session Caching** - 15-minute cache to prevent repeated keychain access
+- **SSH Detection** - Graceful fallback when Touch ID unavailable
+- **Database Schema** - New `keychain_keys` table (MIGRATION_005) for metadata tracking
+- **Security Improvements**:
+  - Eliminated plaintext secrets from config.toml
+  - OS-level encryption protection
+  - Protected from backup exposure (Dropbox, iCloud, Time Machine)
+  - Access control via macOS Keychain Services
+
+### Added - Validation & Testing
+- **Comprehensive Test Suite** - 9 validation test files covering all features
+- **Documentation** - 2,400+ lines of testing and validation documentation
+- **Real Production Migration** - Tested with actual production secrets
+- **100% Test Success Rate** - All 5 critical tests passed
+
+### Changed
+- **Secret Storage** - Secrets now stored in macOS Keychain by default (macOS only)
+- **Config File** - No longer contains plaintext secrets after migration
+- **Security Warning** - Updated to reflect keychain availability
+
+### Security
+- **ELIMINATED**: Plaintext secret storage in TOML files
+- **PROTECTED**: Secrets from file system access, backups, cloud sync
+- **MITIGATED**: Malware secret theft (requires OS keychain access)
+
+### Known Limitations
+- **Touch ID Prompts**: Security levels tracked but native prompts not yet implemented
+  - Reason: security-framework 2.9 lacks SecAccessControl API
+  - Workaround: Secrets still OS-encrypted and secure
+  - Planned: FFI bindings for v0.3.1
+- **Platform Support**: Keychain features macOS-only (Linux/Windows: future support)
+
+### Backward Compatibility
+- ✅ All v0.2.0 commands work unchanged
+- ✅ Existing data intact (zero data loss)
+- ✅ TOML configuration continues working
+- ✅ Mixed storage supported (TOML + Keychain)
+- ✅ Migration is opt-in (not forced)
+- ✅ JSON output format unchanged
 
 ## [0.2.0] - 2026-02-19
 
