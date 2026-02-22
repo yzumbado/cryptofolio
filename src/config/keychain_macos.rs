@@ -10,14 +10,15 @@
 //! - Session caching (15-minute timeout to avoid repeated prompts)
 //! - Automatic fallback when Touch ID unavailable
 
-use security_framework::passwords::{
-    delete_generic_password, get_generic_password, set_generic_password,
-};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::keychain::{KeychainSecurityLevel, KeychainStorage};
+use super::keychain_ffi::{
+    create_access_control, keychain_add_password, keychain_delete_password, keychain_get_password,
+    K_SEC_ACCESS_CONTROL_BIOMETRY_ANY, K_SEC_ACCESS_CONTROL_USER_PRESENCE,
+};
 use crate::error::{CryptofolioError, Result};
 
 /// Service name for keychain entries
@@ -100,32 +101,66 @@ impl KeychainStorage for MacOSKeychain {
         secret: &str,
         level: KeychainSecurityLevel,
     ) -> Result<()> {
-        // Note: security-framework 2.9 doesn't expose SecAccessControl in the public API
-        // For now, we'll use standard keychain storage for all security levels
-        // Touch ID integration would require using the lower-level Security framework FFI
-        // This is a limitation we'll document and can enhance in a future version
-
         // Cleanup old cache entries
         self.cleanup_cache();
 
         // Delete existing entry first (keychain requires this for updates)
-        let _ = delete_generic_password(SERVICE_NAME, key);
+        let _ = keychain_delete_password(SERVICE_NAME, key);
 
-        // Store the new password
-        set_generic_password(SERVICE_NAME, key, secret.as_bytes()).map_err(|e| {
-            CryptofolioError::Keychain(format!("Failed to store secret '{}': {}", key, e))
-        })?;
+        // Create access control based on security level
+        let (access_control, prompt) = match level {
+            KeychainSecurityLevel::Standard => {
+                // Standard keychain access (no Touch ID)
+                (None, None)
+            }
+            KeychainSecurityLevel::TouchIdProtected => {
+                // Touch ID OR password fallback
+                if !self.is_touchid_available() {
+                    eprintln!("Warning: Touch ID not available. Falling back to standard keychain.");
+                    (None, None)
+                } else {
+                    let ac = create_access_control(K_SEC_ACCESS_CONTROL_USER_PRESENCE)
+                        .map_err(|e| {
+                            CryptofolioError::Keychain(format!(
+                                "Failed to create Touch ID access control: {}",
+                                e
+                            ))
+                        })?;
+                    (
+                        Some(ac),
+                        Some("Cryptofolio needs access to this secret"),
+                    )
+                }
+            }
+            KeychainSecurityLevel::TouchIdOnly => {
+                // Touch ID ONLY (no password fallback)
+                if !self.is_touchid_available() {
+                    return Err(CryptofolioError::Keychain(
+                        "Touch ID not available. Cannot store with TouchIdOnly security level."
+                            .to_string(),
+                    ));
+                }
+                let ac =
+                    create_access_control(K_SEC_ACCESS_CONTROL_BIOMETRY_ANY).map_err(|e| {
+                        CryptofolioError::Keychain(format!(
+                            "Failed to create Touch ID access control: {}",
+                            e
+                        ))
+                    })?;
+                (
+                    Some(ac),
+                    Some("Cryptofolio needs access to this secret (Touch ID required)"),
+                )
+            }
+        };
+
+        // Store the password with access control
+        keychain_add_password(SERVICE_NAME, key, secret, access_control, prompt).map_err(
+            |e| CryptofolioError::Keychain(format!("Failed to store secret '{}': {}", key, e)),
+        )?;
 
         // Clear cache when updating
         self.clear_cached(key);
-
-        // Log security level intent (even though we can't enforce it yet)
-        if level.requires_touchid() {
-            eprintln!(
-                "Note: Touch ID protection requested but not yet fully implemented."
-            );
-            eprintln!("      Secret stored in standard keychain (still encrypted by macOS).");
-        }
 
         Ok(())
     }
@@ -136,27 +171,28 @@ impl KeychainStorage for MacOSKeychain {
             return Ok(cached);
         }
 
-        // Retrieve from keychain
-        let password = get_generic_password(SERVICE_NAME, key).map_err(|e| {
-            // Provide helpful error messages based on error code
-            let err_code = e.code();
-            match err_code {
-                -25300 => CryptofolioError::Keychain(format!(
+        // Retrieve from keychain (may trigger Touch ID prompt)
+        let prompt = format!("Cryptofolio needs access to \"{}\"", key);
+        let secret = keychain_get_password(SERVICE_NAME, key, Some(&prompt)).map_err(|e| {
+            // Convert FFI errors to CryptofolioError
+            let err_str = e.to_string();
+            if err_str.contains("not found") {
+                CryptofolioError::Keychain(format!(
                     "Secret '{}' not found in keychain. Use 'config set-secret {}' to configure it.",
                     key, key
-                )),
-                -128 => CryptofolioError::KeychainAuthCancelled(
-                    "Keychain authentication was cancelled".to_string(),
-                ),
-                _ => CryptofolioError::Keychain(format!(
-                    "Failed to retrieve '{}' from keychain (error {}): {}",
-                    key, err_code, e
-                )),
+                ))
+            } else if err_str.contains("canceled") {
+                CryptofolioError::KeychainAuthCancelled(
+                    "Touch ID authentication was canceled by user".to_string(),
+                )
+            } else if err_str.contains("failed") {
+                CryptofolioError::Keychain(format!("Touch ID authentication failed for '{}'", key))
+            } else {
+                CryptofolioError::Keychain(format!(
+                    "Failed to retrieve '{}' from keychain: {}",
+                    key, err_str
+                ))
             }
-        })?;
-
-        let secret = String::from_utf8(password.to_vec()).map_err(|e| {
-            CryptofolioError::Keychain(format!("Invalid UTF-8 in stored secret: {}", e))
         })?;
 
         // Cache for session
@@ -166,11 +202,13 @@ impl KeychainStorage for MacOSKeychain {
     }
 
     fn delete(&self, key: &str) -> Result<()> {
-        delete_generic_password(SERVICE_NAME, key).map_err(|e| match e.code() {
-            -25300 => {
+        keychain_delete_password(SERVICE_NAME, key).map_err(|e| {
+            let err_str = e.to_string();
+            if err_str.contains("not found") {
                 CryptofolioError::Keychain(format!("Secret '{}' not found in keychain", key))
+            } else {
+                CryptofolioError::Keychain(format!("Failed to delete secret '{}': {}", key, e))
             }
-            _ => CryptofolioError::Keychain(format!("Failed to delete secret '{}': {}", key, e)),
         })?;
 
         // Clear from cache
@@ -206,14 +244,13 @@ impl KeychainStorage for MacOSKeychain {
             return false;
         }
 
-        // For now, assume Touch ID might be available on macOS
-        // Full implementation would require LAContext from LocalAuthentication framework
-        // This is a conservative approach - we'll default to false for now
-        false
+        // Check if Touch ID hardware is available
+        // We do this by trying to create an access control - if it succeeds, Touch ID is available
+        create_access_control(K_SEC_ACCESS_CONTROL_USER_PRESENCE).is_ok()
     }
 
     fn exists(&self, key: &str) -> bool {
-        get_generic_password(SERVICE_NAME, key).is_ok()
+        keychain_get_password(SERVICE_NAME, key, None).is_ok()
     }
 }
 
