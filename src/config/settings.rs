@@ -6,6 +6,9 @@ use std::path::PathBuf;
 
 use crate::error::{CryptofolioError, Result};
 
+#[cfg(target_os = "macos")]
+use super::keychain::get_keychain;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(default)]
@@ -299,7 +302,69 @@ impl AppConfig {
 
     /// Check if Binance API credentials are configured
     pub fn has_binance_credentials(&self) -> bool {
-        self.binance.api_key.is_some() && self.binance.api_secret.is_some()
+        // Check TOML first
+        let has_toml_creds = self.binance.api_key.is_some() && self.binance.api_secret.is_some();
+
+        // If TOML has credentials, return true
+        if has_toml_creds {
+            return true;
+        }
+
+        // Otherwise, check keychain (macOS only)
+        #[cfg(target_os = "macos")]
+        {
+            let keychain = get_keychain();
+            let has_keychain_creds = keychain.exists("binance.api_key")
+                && keychain.exists("binance.api_secret");
+            return has_keychain_creds;
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        false
+    }
+
+    /// Get a secret value (checks keychain first, then TOML)
+    pub fn get_secret(&self, key: &str) -> Result<Option<String>> {
+        // Try keychain first (macOS only)
+        #[cfg(target_os = "macos")]
+        {
+            let keychain = get_keychain();
+            if keychain.exists(key) {
+                match keychain.retrieve(key) {
+                    Ok(value) => return Ok(Some(value)),
+                    Err(e) => {
+                        eprintln!("Warning: Failed to retrieve '{}' from keychain: {}", key, e);
+                        eprintln!("Falling back to TOML config...");
+                        // Fall through to TOML
+                    }
+                }
+            }
+        }
+
+        // Fall back to TOML
+        let value = match key {
+            "binance.api_key" => self.binance.api_key.clone(),
+            "binance.api_secret" => self.binance.api_secret.clone(),
+            "ai.claude_api_key" => self.ai.as_ref().and_then(|ai| ai.claude_api_key.clone()),
+            _ => None,
+        };
+
+        Ok(value)
+    }
+
+    /// Get Binance API key (from keychain or TOML)
+    pub fn get_binance_api_key(&self) -> Result<Option<String>> {
+        self.get_secret("binance.api_key")
+    }
+
+    /// Get Binance API secret (from keychain or TOML)
+    pub fn get_binance_api_secret(&self) -> Result<Option<String>> {
+        self.get_secret("binance.api_secret")
+    }
+
+    /// Get Claude API key (from keychain or TOML)
+    pub fn get_claude_api_key(&self) -> Result<Option<String>> {
+        self.get_secret("ai.claude_api_key")
     }
 
     /// Get Binance base URL based on testnet setting

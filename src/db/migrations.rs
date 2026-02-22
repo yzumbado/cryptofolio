@@ -153,6 +153,66 @@ INSERT OR IGNORE INTO categories (id, name, sort_order) VALUES
     ('on-ramp', 'On-Ramp', 4);
 "#;
 
+const MIGRATION_003: &str = r#"
+-- Tax lots for FIFO/LIFO cost basis tracking
+CREATE TABLE IF NOT EXISTS tax_lots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    quantity TEXT NOT NULL,
+    remaining_quantity TEXT NOT NULL,
+    acquisition_price TEXT NOT NULL,
+    acquisition_date DATETIME NOT NULL,
+    acquisition_tx_id INTEGER REFERENCES transactions(id),
+    cost_basis_method TEXT NOT NULL CHECK(cost_basis_method IN ('fifo', 'lifo', 'average')),
+    fully_disposed BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tax_lots_account_asset ON tax_lots(account_id, asset);
+CREATE INDEX IF NOT EXISTS idx_tax_lots_fully_disposed ON tax_lots(fully_disposed);
+CREATE INDEX IF NOT EXISTS idx_tax_lots_acquisition_date ON tax_lots(acquisition_date);
+
+-- Realized P&L from disposals
+CREATE TABLE IF NOT EXISTS realized_pnl (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    disposal_date DATETIME NOT NULL,
+    disposal_tx_id INTEGER REFERENCES transactions(id),
+    quantity TEXT NOT NULL,
+    proceeds TEXT NOT NULL,
+    cost_basis TEXT NOT NULL,
+    realized_gain TEXT NOT NULL,
+    holding_period_days INTEGER,
+    tax_lot_id INTEGER REFERENCES tax_lots(id),
+    cost_basis_method TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_realized_pnl_account ON realized_pnl(account_id);
+CREATE INDEX IF NOT EXISTS idx_realized_pnl_asset ON realized_pnl(asset);
+CREATE INDEX IF NOT EXISTS idx_realized_pnl_date ON realized_pnl(disposal_date);
+CREATE INDEX IF NOT EXISTS idx_realized_pnl_tax_lot ON realized_pnl(tax_lot_id);
+"#;
+
+const MIGRATION_005: &str = r#"
+-- Keychain metadata tracking
+CREATE TABLE IF NOT EXISTS keychain_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_name TEXT NOT NULL UNIQUE,
+    storage_type TEXT NOT NULL CHECK(storage_type IN ('keychain', 'toml', 'env')),
+    security_level TEXT CHECK(security_level IN ('standard', 'touchid', 'touchid-only')),
+    last_accessed DATETIME,
+    migrated_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_keychain_keys_name ON keychain_keys(key_name);
+CREATE INDEX IF NOT EXISTS idx_keychain_keys_storage ON keychain_keys(storage_type);
+"#;
+
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     // Check if migration 1 has been applied
     let migration_exists: Option<(i64,)> = sqlx::query_as(
@@ -188,6 +248,44 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
 
         // Mark migration as applied
         sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (2)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 3 has been applied
+    let migration_3_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 3"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_3_exists.is_none() {
+        // Apply migration 3
+        sqlx::raw_sql(MIGRATION_003).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (3)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 5 has been applied
+    let migration_5_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 5"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_5_exists.is_none() {
+        // Apply migration 5
+        sqlx::raw_sql(MIGRATION_005).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (5)")
             .execute(pool)
             .await?;
     }

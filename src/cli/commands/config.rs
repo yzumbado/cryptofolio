@@ -11,7 +11,13 @@ use crate::config::secrets::{
     read_secret_from_stdin, read_secret_interactive, show_security_warning,
 };
 use crate::config::AppConfig;
-use crate::error::Result;
+use crate::db::KeychainKeyRepository;
+use crate::error::{CryptofolioError, Result};
+
+#[cfg(target_os = "macos")]
+use crate::config::keychain::{get_keychain, KeychainSecurityLevel};
+#[cfg(target_os = "macos")]
+use crate::config::migration;
 
 #[derive(Serialize)]
 struct ConfigOutput {
@@ -50,10 +56,9 @@ struct PathsConfig {
 
 pub async fn handle_config_command(
     command: ConfigCommands,
-    _pool: &SqlitePool,
+    pool: &SqlitePool,
     opts: &GlobalOptions,
 ) -> Result<()> {
-    let _ = opts;
     match command {
         ConfigCommands::Show => {
             let config = AppConfig::load()?;
@@ -199,8 +204,9 @@ pub async fn handle_config_command(
             key,
             secret_file,
             from_env,
+            security_level,
         } => {
-            handle_set_secret_command(key, secret_file, from_env).await?;
+            handle_set_secret_command(key, secret_file, from_env, security_level, pool).await?;
         }
 
         ConfigCommands::UseTestnet => {
@@ -223,6 +229,55 @@ pub async fn handle_config_command(
                 "Warning: Real funds will be used for trading operations!".yellow()
             );
         }
+
+        ConfigCommands::MigrateToKeychain => {
+            #[cfg(target_os = "macos")]
+            {
+                let keychain_repo = KeychainKeyRepository::new(pool.clone());
+                migration::run_migration(&keychain_repo).await?;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err(CryptofolioError::KeychainNotAvailable);
+            }
+        }
+
+        ConfigCommands::KeychainStatus => {
+            #[cfg(target_os = "macos")]
+            {
+                handle_keychain_status_command(pool, opts).await?;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err(CryptofolioError::KeychainNotAvailable);
+            }
+        }
+
+        ConfigCommands::UpgradeSecurity { key, to } => {
+            #[cfg(target_os = "macos")]
+            {
+                handle_upgrade_security_command(key, to, pool).await?;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err(CryptofolioError::KeychainNotAvailable);
+            }
+        }
+
+        ConfigCommands::DowngradeSecurity { key, to } => {
+            #[cfg(target_os = "macos")]
+            {
+                handle_downgrade_security_command(key, to, pool).await?;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err(CryptofolioError::KeychainNotAvailable);
+            }
+        }
     }
 
     Ok(())
@@ -232,10 +287,9 @@ async fn handle_set_secret_command(
     key: String,
     secret_file: Option<PathBuf>,
     from_env: Option<String>,
+    security_level: Option<String>,
+    pool: &SqlitePool,
 ) -> Result<()> {
-    // Show security warning first
-    show_security_warning(&key)?;
-
     // Read secret from appropriate source
     let secret = if let Some(env_var) = from_env {
         // Read from environment variable
@@ -251,12 +305,77 @@ async fn handle_set_secret_command(
         read_secret_from_stdin()?
     };
 
-    // Validate secret is not empty (already checked in read functions, but double-check)
+    // Validate secret is not empty
     if secret.trim().is_empty() {
-        return Err(crate::error::CryptofolioError::Config(
-            "Empty secret provided".into(),
-        ));
+        return Err(CryptofolioError::Config("Empty secret provided".into()));
     }
+
+    // Try to store in keychain on macOS
+    #[cfg(target_os = "macos")]
+    {
+        let keychain = get_keychain();
+
+        // Determine security level
+        let level = if let Some(ref level_str) = security_level {
+            KeychainSecurityLevel::from_str(level_str).ok_or_else(|| {
+                CryptofolioError::Config(format!(
+                    "Invalid security level: {}. Use: standard, touchid, or touchid-only",
+                    level_str
+                ))
+            })?
+        } else {
+            // Default: Touch ID Protected (if available), otherwise Standard
+            if keychain.is_touchid_available() {
+                KeychainSecurityLevel::TouchIdProtected
+            } else {
+                KeychainSecurityLevel::Standard
+            }
+        };
+
+        // Store in keychain
+        match keychain.store_with_security(&key, &secret, level) {
+            Ok(()) => {
+                // Record in database
+                let keychain_repo = KeychainKeyRepository::new(pool.clone());
+                keychain_repo
+                    .upsert(
+                        &key,
+                        crate::db::keychain::StorageType::Keychain,
+                        Some(level),
+                    )
+                    .await?;
+
+                println!();
+                println!(
+                    "  ✓ Secret stored in macOS Keychain ({})",
+                    level.as_display_str()
+                );
+                println!();
+                println!("  {}", "⚠️  Remember: Use READ-ONLY API keys only!".yellow());
+                println!();
+
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to store in keychain: {}", e);
+                eprintln!("Falling back to TOML storage...");
+                eprintln!();
+                // Fall through to TOML storage
+            }
+        }
+    }
+
+    // Fall back to TOML storage (or only option on non-macOS)
+    #[cfg(not(target_os = "macos"))]
+    {
+        if security_level.is_some() {
+            eprintln!("Warning: --security-level is only supported on macOS");
+            eprintln!();
+        }
+    }
+
+    // Show security warning for TOML storage
+    show_security_warning(&key)?;
 
     // Save to config
     let mut config = AppConfig::load()?;
@@ -276,3 +395,198 @@ async fn handle_set_secret_command(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+async fn handle_keychain_status_command(pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+    use crate::db::keychain::StorageType;
+
+    let keychain_repo = KeychainKeyRepository::new(pool.clone());
+    let keys = keychain_repo.list().await?;
+
+    if opts.json {
+        // JSON output
+        let json_keys: Vec<serde_json::Value> = keys
+            .iter()
+            .map(|k| {
+                serde_json::json!({
+                    "key_name": k.key_name,
+                    "storage_type": k.storage_type.as_str(),
+                    "security_level": k.security_level.as_ref().map(|l| l.as_db_str()),
+                    "last_accessed": k.last_accessed,
+                    "migrated_at": k.migrated_at,
+                })
+            })
+            .collect();
+
+        println!("{}", serde_json::to_string_pretty(&json_keys)?);
+        return Ok(());
+    }
+
+    // Table output
+    println!();
+    println!("{}", "Keychain Status".bold());
+    println!();
+
+    if keys.is_empty() {
+        println!("  No secrets tracked in keychain");
+        println!();
+        println!("  Run {} to migrate secrets from config.toml", "cryptofolio config migrate-to-keychain".cyan());
+        println!();
+        return Ok(());
+    }
+
+    // Print table header
+    println!("{}", "┌────────────────────────┬──────────────────┬────────────┐".dimmed());
+    println!(
+        "{}",
+        "│ Key                    │ Security Level   │ Status     │".dimmed()
+    );
+    println!("{}", "├────────────────────────┼──────────────────┼────────────┤".dimmed());
+
+    for key in &keys {
+        let security_level = if key.storage_type == StorageType::Keychain {
+            key.security_level
+                .as_ref()
+                .map(|l| l.as_display_str())
+                .unwrap_or("Unknown")
+        } else {
+            "-"
+        };
+
+        let status = match key.storage_type {
+            StorageType::Keychain => "✓ Active".green().to_string(),
+            StorageType::Toml => "TOML".yellow().to_string(),
+            StorageType::Env => "ENV".yellow().to_string(),
+        };
+
+        println!(
+            "│ {:<22} │ {:<16} │ {:<10} │",
+            truncate_string(&key.key_name, 22),
+            security_level,
+            status
+        );
+    }
+
+    println!("{}", "└────────────────────────┴──────────────────┴────────────┘".dimmed());
+    println!();
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+async fn handle_upgrade_security_command(
+    key: String,
+    to: String,
+    pool: &SqlitePool,
+) -> Result<()> {
+    let keychain = get_keychain();
+
+    // Check if key exists in keychain
+    if !keychain.exists(&key) {
+        return Err(CryptofolioError::Keychain(format!(
+            "Secret '{}' not found in keychain. Use 'config set-secret {}' first.",
+            key, key
+        )));
+    }
+
+    // Parse target security level
+    let target_level = KeychainSecurityLevel::from_str(&to).ok_or_else(|| {
+        CryptofolioError::Config(format!("Invalid security level: {}", to))
+    })?;
+
+    // Validate upgrade path
+    if !matches!(
+        target_level,
+        KeychainSecurityLevel::TouchIdProtected | KeychainSecurityLevel::TouchIdOnly
+    ) {
+        return Err(CryptofolioError::Config(
+            "Can only upgrade to 'touchid' or 'touchid-only'".into(),
+        ));
+    }
+
+    println!();
+    println!("  Upgrading security for: {}", key);
+    println!("  Target level: {}", target_level.as_display_str());
+    println!();
+
+    // Update security level (this will trigger Touch ID prompt to retrieve current secret)
+    keychain.update_security_level(&key, target_level)?;
+
+    // Update database
+    let keychain_repo = KeychainKeyRepository::new(pool.clone());
+    keychain_repo.update_security_level(&key, target_level).await?;
+
+    println!();
+    success(&format!("Upgraded '{}' to {}", key, target_level.as_display_str()));
+    println!();
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+async fn handle_downgrade_security_command(
+    key: String,
+    to: String,
+    pool: &SqlitePool,
+) -> Result<()> {
+    let keychain = get_keychain();
+
+    // Check if key exists in keychain
+    if !keychain.exists(&key) {
+        return Err(CryptofolioError::Keychain(format!(
+            "Secret '{}' not found in keychain",
+            key
+        )));
+    }
+
+    // Parse target security level
+    let target_level = KeychainSecurityLevel::from_str(&to).ok_or_else(|| {
+        CryptofolioError::Config(format!("Invalid security level: {}", to))
+    })?;
+
+    println!();
+    println!("  Downgrading security for: {}", key);
+    println!("  Target level: {}", target_level.as_display_str());
+    println!();
+
+    // Confirmation for downgrading to standard
+    if target_level == KeychainSecurityLevel::Standard {
+        println!("  {}", "⚠️  WARNING: Downgrading to Standard".yellow());
+        println!("     Standard level doesn't require Touch ID for access");
+        println!();
+
+        print!("  Continue? [y/N] ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
+            println!();
+            println!("  Cancelled. No changes made.");
+            println!();
+            return Ok(());
+        }
+    }
+
+    // Update security level (this will trigger Touch ID prompt to retrieve current secret)
+    keychain.update_security_level(&key, target_level)?;
+
+    // Update database
+    let keychain_repo = KeychainKeyRepository::new(pool.clone());
+    keychain_repo.update_security_level(&key, target_level).await?;
+
+    println!();
+    success(&format!("Downgraded '{}' to {}", key, target_level.as_display_str()));
+    println!();
+
+    Ok(())
+}
+
+/// Truncate string to max length with ellipsis
+fn truncate_string(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len - 3])
+    }
+}

@@ -78,5 +78,9 @@ shell-words = "1"
 # Regex for pattern matching
 regex = "1"
 
+# macOS Keychain integration (conditional)
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "2.9"
+
 [dev-dependencies]
 tokio-test = "0.4"

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE currencies\n        SET name = ?, symbol = ?, decimals = ?, asset_type = ?, enabled = ?, updated_at = ?\n        WHERE code = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "c02334a35f6f98bc3783cb9c5a74c6347b32f3c9d6fda32210e3d792751d4e52"
+}

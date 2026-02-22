@@ -25,6 +25,12 @@ pub enum CryptofolioError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("Date parsing error: {0}")]
+    DateParse(#[from] chrono::ParseError),
+
+    #[error("Decimal parsing error: {0}")]
+    DecimalParse(#[from] rust_decimal::Error),
+
     #[error("Account not found: {0}")]
     AccountNotFound(String),
 
@@ -69,6 +75,24 @@ pub enum CryptofolioError {
 
     #[error("Operation cancelled by user")]
     OperationCancelled,
+
+    #[error("Keychain error: {0}")]
+    Keychain(String),
+
+    #[error("Keychain not available on this platform. Supported: macOS")]
+    KeychainNotAvailable,
+
+    #[error("Touch ID not available: {0}")]
+    TouchIdNotAvailable(String),
+
+    #[error("Touch ID authentication failed: {0}")]
+    TouchIdAuthFailed(String),
+
+    #[error("Keychain authentication cancelled: {0}")]
+    KeychainAuthCancelled(String),
+
+    #[error("Keychain access denied: {0}")]
+    KeychainAccessDenied(String),
 
     #[error("{0}")]
     Other(String),
