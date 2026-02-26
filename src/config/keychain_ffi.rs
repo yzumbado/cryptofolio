@@ -21,6 +21,7 @@ use core_foundation::data::CFData;
 use core_foundation::dictionary::CFMutableDictionary;
 use core_foundation::error::{CFError, CFErrorRef};
 use core_foundation::string::{CFString, CFStringRef};
+use std::ffi::c_void;
 use std::ptr;
 
 use crate::error::{CryptofolioError, Result};
@@ -130,8 +131,27 @@ extern "C" {
     /// OSStatus (0 = success)
     fn SecItemUpdate(query: CFTypeRef, attributes_to_update: CFTypeRef) -> OSStatus;
 
-    /// kSecAttrAccessibleWhenUnlocked constant (pointer to CFString)
-    static kSecAttrAccessibleWhenUnlocked: CFStringRef;
+    // Note: We load kSecAttrAccessibleWhenUnlocked dynamically via dlsym
+    // instead of using extern static to avoid link-time issues
+    fn dlsym(handle: *mut c_void, symbol: *const i8) -> *mut c_void;
+    fn dlopen(filename: *const i8, flag: i32) -> *mut c_void;
+}
+
+// RTLD_DEFAULT - search all loaded libraries
+const RTLD_DEFAULT: *mut c_void = -2isize as *mut c_void;
+
+/// Get kSecAttrAccessibleWhenUnlocked at runtime using dlsym
+/// This avoids static linking issues with extern static
+fn get_accessible_when_unlocked() -> CFStringRef {
+    unsafe {
+        let symbol_name = b"kSecAttrAccessibleWhenUnlocked\0".as_ptr() as *const i8;
+        let sym_ptr = dlsym(RTLD_DEFAULT, symbol_name);
+        if sym_ptr.is_null() {
+            panic!("Failed to load kSecAttrAccessibleWhenUnlocked symbol");
+        }
+        // The symbol is a pointer to CFStringRef, so dereference it
+        *(sym_ptr as *const CFStringRef)
+    }
 }
 
 // ================================================================================================
@@ -155,9 +175,10 @@ pub fn create_access_control(flags: u64) -> Result<SecAccessControlRef> {
     unsafe {
         let mut error: CFErrorRef = ptr::null_mut();
 
+        let accessible_when_unlocked = get_accessible_when_unlocked();
         let access_control = SecAccessControlCreateWithFlags(
             ptr::null_mut(), // kCFAllocatorDefault
-            kSecAttrAccessibleWhenUnlocked as CFTypeRef,
+            accessible_when_unlocked as CFTypeRef,
             flags,
             &mut error,
         );
