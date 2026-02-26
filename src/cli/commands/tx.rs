@@ -377,13 +377,14 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
         TxCommands::Export {
             file,
+            format,
             account,
             asset,
             from,
             to,
             limit,
         } => {
-            handle_export_command(file, account, asset, from, to, limit, pool, opts).await?;
+            handle_export_command(file, format, account, asset, from, to, limit, pool, opts).await?;
         }
     }
 
@@ -392,6 +393,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
 async fn handle_export_command(
     file: String,
+    _format: String, // TODO: Support json and sql formats in Phase 1
     account_filter: Option<String>,
     asset_filter: Option<String>,
     from_date: Option<String>,
