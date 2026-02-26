@@ -12,16 +12,21 @@ use cryptofolio::error::Result;
 
 #[tokio::main]
 async fn main() {
+    eprintln!("[DEBUG] main: Starting cryptofolio");
     if let Err(e) = run().await {
+        eprintln!("[ERROR] main: run() failed: {}", e);
         cryptofolio::cli::output::error(&e.to_string());
         std::process::exit(1);
     }
+    eprintln!("[DEBUG] main: Exiting normally");
 }
 
 async fn run() -> Result<()> {
+    eprintln!("[DEBUG] run: Loading .env");
     // Load .env file if present
     let _ = dotenvy::dotenv();
 
+    eprintln!("[DEBUG] run: Parsing CLI args");
     let cli = Cli::parse();
 
     // Initialize global options
