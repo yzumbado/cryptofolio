@@ -20,7 +20,7 @@ use core_foundation::boolean::CFBoolean;
 use core_foundation::data::CFData;
 use core_foundation::dictionary::CFMutableDictionary;
 use core_foundation::error::{CFError, CFErrorRef};
-use core_foundation::string::CFString;
+use core_foundation::string::{CFString, CFStringRef};
 use std::ptr;
 
 use crate::error::{CryptofolioError, Result};
@@ -130,8 +130,8 @@ extern "C" {
     /// OSStatus (0 = success)
     fn SecItemUpdate(query: CFTypeRef, attributes_to_update: CFTypeRef) -> OSStatus;
 
-    /// kSecAttrAccessibleWhenUnlocked constant
-    static kSecAttrAccessibleWhenUnlocked: CFTypeRef;
+    /// kSecAttrAccessibleWhenUnlocked constant (pointer to CFString)
+    static kSecAttrAccessibleWhenUnlocked: CFStringRef;
 }
 
 // ================================================================================================
@@ -157,7 +157,7 @@ pub fn create_access_control(flags: u64) -> Result<SecAccessControlRef> {
 
         let access_control = SecAccessControlCreateWithFlags(
             ptr::null_mut(), // kCFAllocatorDefault
-            kSecAttrAccessibleWhenUnlocked,
+            kSecAttrAccessibleWhenUnlocked as CFTypeRef,
             flags,
             &mut error,
         );
