@@ -92,6 +92,7 @@ impl Default for MacOSKeychain {
 
 impl KeychainStorage for MacOSKeychain {
     fn store(&self, key: &str, secret: &str) -> Result<()> {
+        eprintln!("[DEBUG] MacOSKeychain::store: key={}", key);
         self.store_with_security(key, secret, KeychainSecurityLevel::Standard)
     }
 
@@ -101,6 +102,7 @@ impl KeychainStorage for MacOSKeychain {
         secret: &str,
         level: KeychainSecurityLevel,
     ) -> Result<()> {
+        eprintln!("[DEBUG] MacOSKeychain::store_with_security: key={}, level={:?}", key, level);
         // Cleanup old cache entries
         self.cleanup_cache();
 
@@ -166,14 +168,18 @@ impl KeychainStorage for MacOSKeychain {
     }
 
     fn retrieve(&self, key: &str) -> Result<String> {
+        eprintln!("[DEBUG] MacOSKeychain::retrieve: key={}", key);
         // Check cache first
         if let Some(cached) = self.get_cached(key) {
+            eprintln!("[DEBUG] MacOSKeychain::retrieve: Found in cache");
             return Ok(cached);
         }
 
+        eprintln!("[DEBUG] MacOSKeychain::retrieve: Not in cache, calling keychain");
         // Retrieve from keychain (may trigger Touch ID prompt)
         let prompt = format!("Cryptofolio needs access to \"{}\"", key);
         let secret = keychain_get_password(SERVICE_NAME, key, Some(&prompt)).map_err(|e| {
+            eprintln!("[ERROR] MacOSKeychain::retrieve: keychain_get_password failed: {}", e);
             // Convert FFI errors to CryptofolioError
             let err_str = e.to_string();
             if err_str.contains("not found") {
