@@ -4,8 +4,19 @@
 
 set -e
 
-echo "🔨 Building Cryptofolio..."
-cargo build --release
+# Check if release binary exists
+if [ ! -f "./target/release/cryptofolio" ]; then
+    echo "🔨 Building Cryptofolio..."
+
+    # Set DATABASE_URL if not set
+    if [ -z "$DATABASE_URL" ]; then
+        export DATABASE_URL="sqlite://$HOME/.config/cryptofolio/database.sqlite"
+    fi
+
+    cargo build --release
+else
+    echo "✅ Using existing release binary"
+fi
 
 echo ""
 echo "📝 Creating keychain entitlements..."
