@@ -23,3 +23,11 @@ Thumbs.db
 import_data.csv
 import_cold_storage.csv
 .aider*
+
+# Office temp files
+~$*.docx
+~$*.xlsx
+*.tmp
+
+# Claude Code settings
+.claude/
