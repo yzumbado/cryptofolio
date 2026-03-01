@@ -94,6 +94,19 @@ pub enum CryptofolioError {
     #[error("Keychain access denied: {0}")]
     KeychainAccessDenied(String),
 
+    #[error("Insufficient tax lots: need {required} {asset}, only {available} available")]
+    InsufficientTaxLots {
+        asset: String,
+        required: rust_decimal::Decimal,
+        available: rust_decimal::Decimal,
+    },
+
+    #[error("Invalid cost basis method: {0}")]
+    InvalidCostBasisMethod(String),
+
+    #[error("P&L calculation failed: {0}")]
+    PnLCalculationFailed(String),
+
     #[error("{0}")]
     Other(String),
 }

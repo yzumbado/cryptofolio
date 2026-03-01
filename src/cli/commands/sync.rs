@@ -73,9 +73,11 @@ pub async fn handle_sync_command(account: Option<String>, pool: &SqlitePool, opt
         // Show progress spinner
         let spinner = if !opts.quiet {
             let pb = ProgressBar::new_spinner();
-            pb.set_style(ProgressStyle::default_spinner()
+            // Use a fallback style if the template fails
+            let style = ProgressStyle::default_spinner()
                 .template("{spinner:.blue} {msg}")
-                .unwrap());
+                .unwrap_or_else(|_| ProgressStyle::default_spinner());
+            pb.set_style(style);
             pb.set_message("Fetching balances...");
             pb.enable_steady_tick(std::time::Duration::from_millis(100));
             Some(pb)

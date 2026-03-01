@@ -5,6 +5,8 @@ pub mod currencies;
 pub mod holdings;
 pub mod keychain;
 pub mod migrations;
+pub mod realized_pnl;
+pub mod tax_lots;
 pub mod transactions;
 
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
@@ -15,6 +17,8 @@ use crate::error::Result;
 pub use accounts::AccountRepository;
 pub use holdings::HoldingRepository;
 pub use keychain::KeychainKeyRepository;
+pub use realized_pnl::RealizedPnLRepository;
+pub use tax_lots::TaxLotRepository;
 pub use transactions::TransactionRepository;
 
 /// Initialize the database connection pool

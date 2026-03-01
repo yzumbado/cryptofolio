@@ -50,7 +50,17 @@ impl MacOSKeychain {
 
     /// Check if a cached value is still valid
     fn get_cached(&self, key: &str) -> Option<String> {
-        let cache = self.cache.lock().unwrap();
+        // If mutex is poisoned, clear it and return None
+        let cache = match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Clear poisoned cache and continue
+                let mut guard = poisoned.into_inner();
+                guard.clear();
+                return None;
+            }
+        };
+
         if let Some(entry) = cache.get(key) {
             if entry.cached_at.elapsed() < CACHE_TIMEOUT {
                 return Some(entry.value.clone());
@@ -61,7 +71,17 @@ impl MacOSKeychain {
 
     /// Store a value in the session cache
     fn set_cached(&self, key: &str, value: String) {
-        let mut cache = self.cache.lock().unwrap();
+        // If mutex is poisoned, clear it and insert the new value
+        let mut cache = match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Clear poisoned cache and continue
+                let mut guard = poisoned.into_inner();
+                guard.clear();
+                guard
+            }
+        };
+
         cache.insert(
             key.to_string(),
             CacheEntry {
@@ -73,13 +93,33 @@ impl MacOSKeychain {
 
     /// Clear a value from the session cache
     fn clear_cached(&self, key: &str) {
-        let mut cache = self.cache.lock().unwrap();
+        // If mutex is poisoned, clear it entirely
+        let mut cache = match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Clear poisoned cache
+                let mut guard = poisoned.into_inner();
+                guard.clear();
+                return; // Cache is already cleared
+            }
+        };
+
         cache.remove(key);
     }
 
     /// Clear expired cache entries
     fn cleanup_cache(&self) {
-        let mut cache = self.cache.lock().unwrap();
+        // If mutex is poisoned, clear it entirely
+        let mut cache = match self.cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Clear poisoned cache
+                let mut guard = poisoned.into_inner();
+                guard.clear();
+                return; // Cache is already cleared
+            }
+        };
+
         cache.retain(|_, entry| entry.cached_at.elapsed() < CACHE_TIMEOUT);
     }
 }
