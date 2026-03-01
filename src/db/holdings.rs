@@ -224,3 +224,307 @@ impl<'a> HoldingRepository<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::migrations;
+
+    async fn setup_test_db() -> Result<SqlitePool> {
+        let pool = SqlitePool::connect(":memory:").await?;
+        migrations::run(&pool).await?;
+
+        // Create test category and account
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test-cat', 'Test Category')")
+            .execute(&pool)
+            .await?;
+
+        sqlx::query(
+            "INSERT INTO accounts (id, category_id, name, account_type) VALUES ('test-acc-1', 'test-cat', 'Test Account 1', 'exchange')",
+        )
+        .execute(&pool)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO accounts (id, category_id, name, account_type) VALUES ('test-acc-2', 'test-cat', 'Test Account 2', 'wallet')",
+        )
+        .execute(&pool)
+        .await?;
+
+        Ok(pool)
+    }
+
+    #[tokio::test]
+    async fn test_add_quantity_new_holding() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.5").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_some());
+        let h = holding.unwrap();
+        assert_eq!(h.asset, "BTC");
+        assert_eq!(h.quantity, Decimal::from_str("1.5").unwrap());
+        assert_eq!(h.avg_cost_basis, Some(Decimal::from_str("40000").unwrap()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_add_quantity_existing_holding() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        // Add first batch
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+
+        // Add second batch
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("50000").unwrap())).await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_some());
+        let h = holding.unwrap();
+        assert_eq!(h.quantity, Decimal::from_str("2.0").unwrap());
+        // Average cost basis: (1.0 * 40000 + 1.0 * 50000) / 2.0 = 45000
+        assert_eq!(h.avg_cost_basis, Some(Decimal::from_str("45000").unwrap()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_add_quantity_weighted_average() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        // Add 1 BTC @ $40k
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+
+        // Add 3 BTC @ $50k
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("3.0").unwrap(), Some(Decimal::from_str("50000").unwrap())).await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        let h = holding.unwrap();
+        assert_eq!(h.quantity, Decimal::from_str("4.0").unwrap());
+        // Weighted average: (1 * 40000 + 3 * 50000) / 4 = 47500
+        assert_eq!(h.avg_cost_basis, Some(Decimal::from_str("47500").unwrap()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_quantity() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("2.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+
+        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("0.5").unwrap()).await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_some());
+        assert_eq!(holding.unwrap().quantity, Decimal::from_str("1.5").unwrap());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_quantity_auto_delete_when_zero() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+
+        // Remove all
+        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap()).await?;
+
+        // Should be deleted
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_quantity_insufficient_balance() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+
+        let result = repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("2.0").unwrap()).await;
+        assert!(result.is_err());
+        match result {
+            Err(CryptofolioError::InsufficientBalance { .. }) => {},
+            _ => panic!("Expected InsufficientBalance error"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_quantity_asset_not_found() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        let result = repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap()).await;
+        assert!(result.is_err());
+        match result {
+            Err(CryptofolioError::AssetNotFound(_)) => {},
+            _ => panic!("Expected AssetNotFound error"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_quantity() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        // Set initial quantity
+        repo.set_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), Some(Decimal::from_str("3000").unwrap())).await?;
+
+        let holding = repo.get("test-acc-1", "ETH").await?;
+        assert!(holding.is_some());
+        assert_eq!(holding.unwrap().quantity, Decimal::from_str("10.0").unwrap());
+
+        // Update quantity (replaces, doesn't add)
+        repo.set_quantity("test-acc-1", "ETH", Decimal::from_str("5.0").unwrap(), Some(Decimal::from_str("3500").unwrap())).await?;
+
+        let holding = repo.get("test-acc-1", "ETH").await?;
+        assert!(holding.is_some());
+        let h = holding.unwrap();
+        assert_eq!(h.quantity, Decimal::from_str("5.0").unwrap());
+        assert_eq!(h.avg_cost_basis, Some(Decimal::from_str("3500").unwrap()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_quantity_zero_deletes() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+
+        // Set to zero should delete
+        repo.set_quantity("test-acc-1", "BTC", Decimal::ZERO, None).await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_all() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+
+        let holdings = repo.list_all().await?;
+        assert_eq!(holdings.len(), 3);
+
+        // Should be ordered by asset
+        assert_eq!(holdings[0].asset, "BTC");
+        assert_eq!(holdings[1].asset, "BTC");
+        assert_eq!(holdings[2].asset, "ETH");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_by_account() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+
+        let holdings = repo.list_by_account("test-acc-1").await?;
+        assert_eq!(holdings.len(), 2);
+
+        let holdings = repo.list_by_account("test-acc-2").await?;
+        assert_eq!(holdings.len(), 1);
+        assert_eq!(holdings[0].asset, "BTC");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_case_insensitive() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "btc", Decimal::from_str("1.0").unwrap(), None).await?;
+
+        // Should find with different case
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_some());
+
+        let holding = repo.get("test-acc-1", "btc").await?;
+        assert!(holding.is_some());
+
+        let holding = repo.get("test-acc-1", "Btc").await?;
+        assert!(holding.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+
+        repo.delete("test-acc-1", "BTC").await?;
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_all_for_account() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+
+        repo.delete_all_for_account("test-acc-1").await?;
+
+        let holdings = repo.list_by_account("test-acc-1").await?;
+        assert_eq!(holdings.len(), 0);
+
+        let holdings = repo.list_by_account("test-acc-2").await?;
+        assert_eq!(holdings.len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_list() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = HoldingRepository::new(&pool);
+
+        let holdings = repo.list_all().await?;
+        assert_eq!(holdings.len(), 0);
+
+        let holdings = repo.list_by_account("test-acc-1").await?;
+        assert_eq!(holdings.len(), 0);
+
+        let holding = repo.get("test-acc-1", "BTC").await?;
+        assert!(holding.is_none());
+
+        Ok(())
+    }
+}
