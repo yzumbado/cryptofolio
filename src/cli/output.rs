@@ -349,3 +349,271 @@ pub fn print_json<T: serde::Serialize>(data: &T) -> crate::error::Result<()> {
     println!("{}", json);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    // Disable colors for testing to get predictable output
+    fn setup() {
+        colored::control::set_override(false);
+    }
+
+    #[test]
+    fn test_format_decimal_no_rounding() {
+        setup();
+        let value = Decimal::from_str("123.45").unwrap();
+        assert_eq!(format_decimal(value, 2), "123.45");
+        assert_eq!(format_decimal(value, 3), "123.45");
+        assert_eq!(format_decimal(value, 4), "123.45");
+    }
+
+    #[test]
+    fn test_format_decimal_with_rounding() {
+        setup();
+        let value = Decimal::from_str("123.456789").unwrap();
+        assert_eq!(format_decimal(value, 2), "123.45");
+        assert_eq!(format_decimal(value, 4), "123.4567");
+        assert_eq!(format_decimal(value, 6), "123.456789");
+    }
+
+    #[test]
+    fn test_format_usd() {
+        setup();
+        assert_eq!(format_usd(Decimal::from_str("1234.56").unwrap()), "$1234.56");
+        assert_eq!(format_usd(Decimal::from_str("0.99").unwrap()), "$0.99");
+        assert_eq!(format_usd(Decimal::from_str("1000000").unwrap()), "$1000000.00");
+    }
+
+    #[test]
+    fn test_format_usd_negative() {
+        setup();
+        assert_eq!(format_usd(Decimal::from_str("-123.45").unwrap()), "$-123.45");
+    }
+
+    #[test]
+    fn test_format_quantity_large() {
+        setup();
+        // >= 1000: 2 decimals (truncated, not rounded)
+        let value = Decimal::from_str("1234.567").unwrap();
+        assert_eq!(format_quantity(value), "1234.56");
+    }
+
+    #[test]
+    fn test_format_quantity_medium() {
+        setup();
+        // >= 1 and < 1000: 4 decimals (truncated, not rounded)
+        let value = Decimal::from_str("12.3456789").unwrap();
+        assert_eq!(format_quantity(value), "12.3456");
+    }
+
+    #[test]
+    fn test_format_quantity_small() {
+        setup();
+        // < 1: 8 decimals (truncated, not rounded)
+        let value = Decimal::from_str("0.123456789").unwrap();
+        assert_eq!(format_quantity(value), "0.12345678");
+    }
+
+    #[test]
+    fn test_add_thousands_separator_simple() {
+        assert_eq!(add_thousands_separator("1234567"), "1,234,567");
+        assert_eq!(add_thousands_separator("1234"), "1,234");
+        assert_eq!(add_thousands_separator("123"), "123");
+    }
+
+    #[test]
+    fn test_add_thousands_separator_with_decimals() {
+        assert_eq!(add_thousands_separator("1234567.89"), "1,234,567.89");
+        assert_eq!(add_thousands_separator("1234.5678"), "1,234.5678");
+    }
+
+    #[test]
+    fn test_format_percent() {
+        setup();
+        assert_eq!(format_percent(Decimal::from_str("12.345").unwrap()), "12.34%");
+        assert_eq!(format_percent(Decimal::from_str("0.5").unwrap()), "0.50%");
+        assert_eq!(format_percent(Decimal::from_str("-5.67").unwrap()), "-5.67%");
+    }
+
+    #[test]
+    fn test_format_pnl_positive() {
+        setup();
+        let value = Decimal::from_str("123.45").unwrap();
+        assert_eq!(format_pnl(value, false), "+$123.45");
+    }
+
+    #[test]
+    fn test_format_pnl_negative() {
+        setup();
+        let value = Decimal::from_str("-123.45").unwrap();
+        assert_eq!(format_pnl(value, false), "$-123.45");
+    }
+
+    #[test]
+    fn test_format_pnl_zero() {
+        setup();
+        let value = Decimal::ZERO;
+        // Zero gets + sign because it's >= 0
+        assert_eq!(format_pnl(value, false), "+$0.00");
+    }
+
+    #[test]
+    fn test_format_pnl_percent_positive() {
+        setup();
+        let value = Decimal::from_str("15.5").unwrap();
+        assert_eq!(format_pnl_percent(value, false), "+15.50%");
+    }
+
+    #[test]
+    fn test_format_pnl_percent_negative() {
+        setup();
+        let value = Decimal::from_str("-8.25").unwrap();
+        assert_eq!(format_pnl_percent(value, false), "-8.25%");
+    }
+
+    #[test]
+    fn test_format_pnl_percent_zero() {
+        setup();
+        let value = Decimal::ZERO;
+        assert_eq!(format_pnl_percent(value, false), "+0.00%");
+    }
+
+    #[test]
+    fn test_format_price_change_positive() {
+        setup();
+        let value = Decimal::from_str("50.00").unwrap();
+        let percent = Decimal::from_str("5.5").unwrap();
+        assert_eq!(format_price_change(value, percent, false), "+$50.00 (+5.50%)");
+    }
+
+    #[test]
+    fn test_format_price_change_negative() {
+        setup();
+        let value = Decimal::from_str("-30.00").unwrap();
+        let percent = Decimal::from_str("-3.0").unwrap();
+        assert_eq!(format_price_change(value, percent, false), "$30.00 (-3.00%)");
+    }
+
+    #[test]
+    fn test_format_price_change_zero() {
+        setup();
+        let value = Decimal::ZERO;
+        let percent = Decimal::ZERO;
+        // Zero gets + sign because it's >= 0
+        assert_eq!(format_price_change(value, percent, false), "+$0.00 (+0.00%)");
+    }
+
+    #[test]
+    fn test_find_similar_exact_match() {
+        let candidates = vec!["account", "portfolio", "balance"];
+        let similar = find_similar("account", &candidates, 0.8);
+        assert_eq!(similar, vec!["account"]);
+    }
+
+    #[test]
+    fn test_find_similar_close_match() {
+        let candidates = vec!["account", "portfolio", "balance"];
+        let similar = find_similar("acount", &candidates, 0.8);
+        assert!(!similar.is_empty());
+        assert_eq!(similar[0], "account");
+    }
+
+    #[test]
+    fn test_find_similar_no_match() {
+        let candidates = vec!["account", "portfolio", "balance"];
+        let similar = find_similar("xyz", &candidates, 0.8);
+        assert!(similar.is_empty());
+    }
+
+    #[test]
+    fn test_find_similar_multiple_matches() {
+        let candidates = vec!["portfolio", "port", "export", "import"];
+        let similar = find_similar("port", &candidates, 0.6);
+        assert!(!similar.is_empty());
+        // Should have "port" and "portfolio" as close matches
+        assert!(similar.contains(&"port"));
+        assert!(similar.contains(&"portfolio"));
+    }
+
+    #[test]
+    fn test_find_similar_case_insensitive() {
+        let candidates = vec!["Account", "Portfolio", "Balance"];
+        let similar = find_similar("account", &candidates, 0.8);
+        assert_eq!(similar[0], "Account");
+    }
+
+    #[test]
+    fn test_find_similar_max_three_results() {
+        let candidates = vec!["test1", "test2", "test3", "test4", "test5"];
+        let similar = find_similar("test", &candidates, 0.6);
+        assert!(similar.len() <= 3);
+    }
+
+    #[test]
+    fn test_format_usd_with_config_thousands_separator() {
+        setup();
+        let config = DisplayConfig {
+            color: false,
+            price_decimals: 2,
+            decimals: 8,
+            thousands_separator: true,
+        };
+        let value = Decimal::from_str("1234567.89").unwrap();
+        assert_eq!(format_usd_with_config(value, &config), "$1,234,567.89");
+    }
+
+    #[test]
+    fn test_format_usd_with_config_no_separator() {
+        setup();
+        let config = DisplayConfig {
+            color: false,
+            price_decimals: 2,
+            decimals: 8,
+            thousands_separator: false,
+        };
+        let value = Decimal::from_str("1234567.89").unwrap();
+        assert_eq!(format_usd_with_config(value, &config), "$1234567.89");
+    }
+
+    #[test]
+    fn test_format_quantity_with_config() {
+        setup();
+        let config = DisplayConfig {
+            color: false,
+            price_decimals: 2,
+            decimals: 4,
+            thousands_separator: true,
+        };
+        let value = Decimal::from_str("1234.56789").unwrap();
+        // Truncated, not rounded
+        assert_eq!(format_quantity_with_config(value, &config), "1,234.5678");
+    }
+
+    #[test]
+    fn test_format_pnl_with_config_positive() {
+        setup();
+        let config = DisplayConfig {
+            color: false,
+            price_decimals: 2,
+            decimals: 8,
+            thousands_separator: true,
+        };
+        let value = Decimal::from_str("1234.56").unwrap();
+        assert_eq!(format_pnl_with_config(value, &config), "+$1,234.56");
+    }
+
+    #[test]
+    fn test_format_pnl_with_config_negative() {
+        setup();
+        let config = DisplayConfig {
+            color: false,
+            price_decimals: 2,
+            decimals: 8,
+            thousands_separator: false,
+        };
+        let value = Decimal::from_str("-1234.56").unwrap();
+        assert_eq!(format_pnl_with_config(value, &config), "$-1234.56");
+    }
+}
