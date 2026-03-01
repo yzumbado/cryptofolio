@@ -310,7 +310,11 @@ pub fn find_similar<'a>(input: &str, candidates: &[&'a str], threshold: f64) -> 
         .filter(|(_, score)| *score >= threshold)
         .collect();
 
-    matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    // Sort by score descending, treating NaN as lowest priority
+    matches.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     matches.into_iter().take(3).map(|(s, _)| s).collect()
 }
 

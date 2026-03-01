@@ -6,7 +6,8 @@ use std::fs::File;
 use std::str::FromStr;
 
 use crate::cli::{TxCommands, GlobalOptions};
-use crate::cli::output::{format_quantity, format_usd, info, print_header, print_row, success};
+use crate::cli::output::{format_quantity, format_usd, format_pnl, info, print_header, print_row, success, warning};
+use crate::core::pnl::{CostBasisMethod, PnLCalculator};
 use crate::core::transaction::Transaction;
 use crate::core::currency::ExchangeRate;
 use crate::db::{AccountRepository, HoldingRepository, TransactionRepository, currencies};
@@ -145,7 +146,19 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
             // Record transaction
             let mut tx = Transaction::new_buy(&acc.id, &asset, qty, price_usd, Utc::now());
             tx.notes = notes;
-            tx_repo.insert(&tx).await?;
+            let tx_id = tx_repo.insert(&tx).await?;
+
+            // Create tax lot for P&L tracking
+            let pnl_calc = PnLCalculator::new(pool);
+            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            if let Err(e) = pnl_calc
+                .process_acquisition(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
+                .await
+            {
+                if !opts.quiet {
+                    warning(&format!("P&L tracking failed: {}", e));
+                }
+            }
 
             success(&format!(
                 "Recorded buy: {} {} @ {} in '{}'",
@@ -185,21 +198,50 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                 return Ok(());
             }
 
+            // Record transaction FIRST (need tx_id for P&L)
+            let mut tx = Transaction::new_sell(&acc.id, &asset, qty, price_usd, Utc::now());
+            tx.notes = notes;
+            let tx_id = tx_repo.insert(&tx).await?;
+
+            // Process disposal (match tax lots, record P&L)
+            let pnl_calc = PnLCalculator::new(pool);
+            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            let realized_pnl = match pnl_calc
+                .process_disposal(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
+                .await
+            {
+                Ok(pnl) => Some(pnl),
+                Err(e) => {
+                    if !opts.quiet {
+                        warning(&format!("P&L tracking failed: {}", e));
+                    }
+                    None
+                }
+            };
+
             // Update holdings
             holding_repo.remove_quantity(&acc.id, &asset, qty).await?;
 
-            // Record transaction
-            let mut tx = Transaction::new_sell(&acc.id, &asset, qty, price_usd, Utc::now());
-            tx.notes = notes;
-            tx_repo.insert(&tx).await?;
-
-            success(&format!(
-                "Recorded sell: {} {} @ {} from '{}'",
-                format_quantity(qty),
-                asset.to_uppercase(),
-                format_usd(price_usd),
-                account
-            ));
+            // Show P&L in success message
+            if let Some(pnls) = realized_pnl {
+                let total_gain: Decimal = pnls.iter().map(|p| p.realized_gain).sum();
+                success(&format!(
+                    "Recorded sell: {} {} @ {} from '{}' (Realized P&L: {})",
+                    format_quantity(qty),
+                    asset.to_uppercase(),
+                    format_usd(price_usd),
+                    account,
+                    format_pnl(total_gain, true)
+                ));
+            } else {
+                success(&format!(
+                    "Recorded sell: {} {} @ {} from '{}'",
+                    format_quantity(qty),
+                    asset.to_uppercase(),
+                    format_usd(price_usd),
+                    account
+                ));
+            }
         }
 
         TxCommands::Transfer {
@@ -344,10 +386,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                 (None, None)
             };
 
-            // Update holdings
-            holding_repo.remove_quantity(&acc.id, &from_asset, from_qty).await?;
-
-            // Calculate implied price for cost basis
+            // Calculate implied price for cost basis (used for P&L and holdings)
             let implied_price = if from_qty > Decimal::ZERO {
                 // Get current holding to calculate USD value
                 let from_holding = holding_repo.get(&acc.id, &from_asset).await?;
@@ -356,23 +395,74 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                 None
             };
 
-            holding_repo.add_quantity(&acc.id, &to_asset, to_qty, implied_price).await?;
-
-            // Record transaction
+            // Record transaction FIRST (need tx_id for P&L)
             let mut tx = Transaction::new_swap(&acc.id, &from_asset, from_qty, &to_asset, to_qty, Utc::now());
             tx.exchange_rate = exchange_rate;
             tx.exchange_rate_pair = exchange_rate_pair;
             tx.notes = notes;
-            tx_repo.insert(&tx).await?;
+            let tx_id = tx_repo.insert(&tx).await?;
 
-            success(&format!(
-                "Recorded swap: {} {} -> {} {} in '{}'",
-                format_quantity(from_qty),
-                from_asset.to_uppercase(),
-                format_quantity(to_qty),
-                to_asset.to_uppercase(),
-                account
-            ));
+            // Process P&L for swap (disposal of from_asset + acquisition of to_asset)
+            let pnl_calc = PnLCalculator::new(pool);
+            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            let timestamp = Utc::now();
+
+            // Process disposal of from_asset (if we have implied price)
+            let realized_pnl = if let Some(price) = implied_price {
+                match pnl_calc
+                    .process_disposal(tx_id, &acc.id, &from_asset, from_qty, price, timestamp, method)
+                    .await
+                {
+                    Ok(pnl) => Some(pnl),
+                    Err(e) => {
+                        if !opts.quiet {
+                            warning(&format!("P&L disposal tracking failed: {}", e));
+                        }
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+            // Process acquisition of to_asset
+            if let Some(price) = implied_price {
+                if let Err(e) = pnl_calc
+                    .process_acquisition(tx_id, &acc.id, &to_asset, to_qty, price, timestamp, method)
+                    .await
+                {
+                    if !opts.quiet {
+                        warning(&format!("P&L acquisition tracking failed: {}", e));
+                    }
+                }
+            }
+
+            // Update holdings
+            holding_repo.remove_quantity(&acc.id, &from_asset, from_qty).await?;
+            holding_repo.add_quantity(&acc.id, &to_asset, to_qty, implied_price).await?;
+
+            // Show P&L in success message
+            if let Some(pnls) = realized_pnl {
+                let total_gain: Decimal = pnls.iter().map(|p| p.realized_gain).sum();
+                success(&format!(
+                    "Recorded swap: {} {} -> {} {} in '{}' (Realized P&L: {})",
+                    format_quantity(from_qty),
+                    from_asset.to_uppercase(),
+                    format_quantity(to_qty),
+                    to_asset.to_uppercase(),
+                    account,
+                    format_pnl(total_gain, true)
+                ));
+            } else {
+                success(&format!(
+                    "Recorded swap: {} {} -> {} {} in '{}'",
+                    format_quantity(from_qty),
+                    from_asset.to_uppercase(),
+                    format_quantity(to_qty),
+                    to_asset.to_uppercase(),
+                    account
+                ));
+            }
         }
 
         TxCommands::Export {

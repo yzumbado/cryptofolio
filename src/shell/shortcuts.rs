@@ -164,7 +164,11 @@ pub fn find_similar_commands(input: &str, threshold: f64) -> Vec<(&'static str, 
         .filter(|(_, score)| *score >= threshold)
         .collect();
 
-    matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    // Sort by score descending, treating NaN as lowest priority
+    matches.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     matches.truncate(3);
     matches
 }

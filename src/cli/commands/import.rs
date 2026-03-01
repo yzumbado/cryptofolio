@@ -74,10 +74,12 @@ pub async fn handle_import_command(
 
     let progress = if !opts.quiet && total_rows > 0 {
         let pb = ProgressBar::new(total_rows as u64);
-        pb.set_style(ProgressStyle::default_bar()
+        // Use a fallback template if the preferred one fails
+        let style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} ({eta})")
-            .unwrap()
-            .progress_chars("#>-"));
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
+            .progress_chars("#>-");
+        pb.set_style(style);
         Some(pb)
     } else {
         None
@@ -134,19 +136,29 @@ async fn process_row(
     let tx_type = TransactionType::from_str(&row.tx_type)
         .ok_or_else(|| CryptofolioError::Other(format!("Invalid transaction type: {}", row.tx_type)))?;
 
-    // Parse date
-    let timestamp = DateTime::parse_from_rfc3339(&row.date)
-        .map(|dt| dt.with_timezone(&Utc))
-        .or_else(|_| {
-            // Try alternative formats
-            DateTime::parse_from_str(&row.date, "%Y-%m-%d %H:%M:%S")
-                .map(|dt| dt.with_timezone(&Utc))
-        })
-        .or_else(|_| {
-            chrono::NaiveDate::parse_from_str(&row.date, "%Y-%m-%d")
-                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
-        })
-        .map_err(|_| CryptofolioError::Other(format!("Invalid date format: {}", row.date)))?;
+    // Parse date - try multiple formats
+    let timestamp = if let Ok(dt) = DateTime::parse_from_rfc3339(&row.date) {
+        dt.with_timezone(&Utc)
+    } else if let Ok(dt) = DateTime::parse_from_str(&row.date, "%Y-%m-%d %H:%M:%S") {
+        dt.with_timezone(&Utc)
+    } else if let Ok(date) = chrono::NaiveDate::parse_from_str(&row.date, "%Y-%m-%d") {
+        // Use midnight as default time
+        // Note: and_hms_opt(0,0,0) should always succeed for valid dates
+        match date.and_hms_opt(0, 0, 0) {
+            Some(dt) => dt.and_utc(),
+            None => {
+                return Err(CryptofolioError::Other(format!(
+                    "Invalid date (cannot create midnight timestamp): {}",
+                    row.date
+                )));
+            }
+        }
+    } else {
+        return Err(CryptofolioError::Other(format!(
+            "Invalid date format: {}",
+            row.date
+        )));
+    };
 
     // Parse quantity
     let quantity = Decimal::from_str(&row.quantity)

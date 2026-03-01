@@ -211,6 +211,13 @@ pub enum Commands {
         command: CurrencyCommands,
     },
 
+    /// View profit and loss reports
+    #[command(after_help = "EXAMPLES:\n    # View P&L summary\n    cryptofolio pnl summary\n    cryptofolio pnl summary --account Binance\n    cryptofolio pnl summary --from 2024-01-01 --to 2024-12-31\n\n    # View realized gains/losses\n    cryptofolio pnl realized\n    cryptofolio pnl realized --account Binance --limit 100\n    cryptofolio pnl realized --asset BTC\n\n    # View unrealized P&L\n    cryptofolio pnl unrealized\n    cryptofolio pnl unrealized --account Binance\n\n    # View P&L by asset\n    cryptofolio pnl by-asset BTC\n\n    # Backfill P&L from historical transactions\n    cryptofolio pnl backfill --yes\n    cryptofolio pnl backfill --account Binance --yes")]
+    Pnl {
+        #[command(subcommand)]
+        command: PnlCommands,
+    },
+
     /// Start interactive shell mode
     #[command(after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)")]
     Shell,
@@ -810,6 +817,79 @@ pub enum CurrencyCommands {
         /// Show all historical rates
         #[arg(long)]
         history: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum PnlCommands {
+    /// Show P&L summary
+    Summary {
+        /// Filter by account
+        #[arg(long)]
+        account: Option<String>,
+
+        /// Start date (YYYY-MM-DD)
+        #[arg(long)]
+        from: Option<String>,
+
+        /// End date (YYYY-MM-DD)
+        #[arg(long)]
+        to: Option<String>,
+    },
+
+    /// Show realized gains/losses
+    Realized {
+        /// Filter by account
+        #[arg(long)]
+        account: Option<String>,
+
+        /// Filter by asset
+        #[arg(long)]
+        asset: Option<String>,
+
+        /// Start date (YYYY-MM-DD)
+        #[arg(long)]
+        from: Option<String>,
+
+        /// End date (YYYY-MM-DD)
+        #[arg(long)]
+        to: Option<String>,
+
+        /// Number of results to show
+        #[arg(long, default_value = "50")]
+        limit: i64,
+    },
+
+    /// Show unrealized P&L
+    Unrealized {
+        /// Filter by account
+        #[arg(long)]
+        account: Option<String>,
+
+        /// Filter by asset
+        #[arg(long)]
+        asset: Option<String>,
+    },
+
+    /// Show P&L breakdown by asset
+    ByAsset {
+        /// Asset symbol (e.g., BTC)
+        asset: String,
+
+        /// Filter by account
+        #[arg(long)]
+        account: Option<String>,
+    },
+
+    /// Backfill P&L data from historical transactions
+    Backfill {
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
+
+        /// Filter by account
+        #[arg(long)]
+        account: Option<String>,
     },
 }
 
