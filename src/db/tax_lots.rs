@@ -304,3 +304,412 @@ impl<'a> TaxLotRepository<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::migrations;
+    use std::str::FromStr;
+
+    async fn setup_test_db() -> Result<SqlitePool> {
+        let pool = SqlitePool::connect(":memory:").await?;
+        migrations::run(&pool).await?;
+        Ok(pool)
+    }
+
+    fn dec(s: &str) -> Decimal {
+        Decimal::from_str(s).expect("Invalid decimal in test")
+    }
+
+    #[tokio::test]
+    async fn test_create_tax_lot() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Create test account first
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        let lot = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.5"),
+            remaining_quantity: dec("1.5"),
+            acquisition_price: dec("45000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let lot_id = repo.create(&lot).await?;
+        assert!(lot_id > 0, "Should return valid lot ID");
+
+        // Verify lot was created
+        let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
+        assert_eq!(lots.len(), 1, "Should have 1 tax lot");
+        assert_eq!(lots[0].quantity, dec("1.5"));
+        assert_eq!(lots[0].acquisition_price, dec("45000"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_available_lots_fifo_ordering() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Setup account
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        // Create 3 lots at different times
+        use std::thread;
+        use std::time::Duration;
+
+        let lot1 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.0"),
+            remaining_quantity: dec("1.0"),
+            acquisition_price: dec("40000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot1).await?;
+
+        thread::sleep(Duration::from_millis(10));
+
+        let lot2 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("2.0"),
+            remaining_quantity: dec("2.0"),
+            acquisition_price: dec("45000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot2).await?;
+
+        thread::sleep(Duration::from_millis(10));
+
+        let lot3 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("0.5"),
+            remaining_quantity: dec("0.5"),
+            acquisition_price: dec("50000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot3).await?;
+
+        // Get lots with FIFO ordering (oldest first)
+        let fifo_lots = repo
+            .get_available_lots("test_acct", "BTC", CostBasisMethod::Fifo)
+            .await?;
+
+        assert_eq!(fifo_lots.len(), 3, "Should have 3 available lots");
+        assert_eq!(fifo_lots[0].acquisition_price, dec("40000"), "First lot should be oldest");
+        assert_eq!(fifo_lots[1].acquisition_price, dec("45000"), "Second lot should be middle");
+        assert_eq!(fifo_lots[2].acquisition_price, dec("50000"), "Third lot should be newest");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_available_lots_lifo_ordering() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Setup account
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        // Create lots (same as FIFO test)
+        use std::thread;
+        use std::time::Duration;
+
+        let lot1 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.0"),
+            remaining_quantity: dec("1.0"),
+            acquisition_price: dec("40000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Lifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot1).await?;
+
+        thread::sleep(Duration::from_millis(10));
+
+        let lot2 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("2.0"),
+            remaining_quantity: dec("2.0"),
+            acquisition_price: dec("45000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Lifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot2).await?;
+
+        thread::sleep(Duration::from_millis(10));
+
+        let lot3 = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("0.5"),
+            remaining_quantity: dec("0.5"),
+            acquisition_price: dec("50000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Lifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&lot3).await?;
+
+        // Get lots with LIFO ordering (newest first)
+        let lifo_lots = repo
+            .get_available_lots("test_acct", "BTC", CostBasisMethod::Lifo)
+            .await?;
+
+        assert_eq!(lifo_lots.len(), 3, "Should have 3 available lots");
+        assert_eq!(lifo_lots[0].acquisition_price, dec("50000"), "First lot should be newest");
+        assert_eq!(lifo_lots[1].acquisition_price, dec("45000"), "Second lot should be middle");
+        assert_eq!(lifo_lots[2].acquisition_price, dec("40000"), "Third lot should be oldest");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_update_remaining_quantity() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Setup
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        let lot = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.0"),
+            remaining_quantity: dec("1.0"),
+            acquisition_price: dec("40000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let lot_id = repo.create(&lot).await?;
+
+        // Update remaining quantity
+        repo.update_remaining(lot_id, dec("0.3")).await?;
+
+        // Verify update
+        let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
+        assert_eq!(lots[0].remaining_quantity, dec("0.3"), "Remaining quantity should be updated");
+        assert_eq!(lots[0].quantity, dec("1.0"), "Original quantity should not change");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_mark_disposed() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Setup
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        let lot = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.0"),
+            remaining_quantity: dec("1.0"),
+            acquisition_price: dec("40000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let lot_id = repo.create(&lot).await?;
+
+        // Mark as disposed
+        repo.mark_disposed(lot_id).await?;
+
+        // Verify it's marked as disposed
+        let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
+        assert_eq!(lots[0].fully_disposed, true, "Lot should be marked as fully disposed");
+
+        // Verify it's excluded from available lots
+        let available = repo
+            .get_available_lots("test_acct", "BTC", CostBasisMethod::Fifo)
+            .await?;
+        assert_eq!(available.len(), 0, "Disposed lot should not be available");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cost_basis_method_string_conversion() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Test to_string
+        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::Fifo), "fifo");
+        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::Lifo), "lifo");
+        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::AverageCost), "average");
+
+        // Test from_string
+        assert!(matches!(repo.string_to_cost_basis_method("fifo")?, CostBasisMethod::Fifo));
+        assert!(matches!(repo.string_to_cost_basis_method("FIFO")?, CostBasisMethod::Fifo));
+        assert!(matches!(repo.string_to_cost_basis_method("lifo")?, CostBasisMethod::Lifo));
+        assert!(matches!(repo.string_to_cost_basis_method("LIFO")?, CostBasisMethod::Lifo));
+        assert!(matches!(repo.string_to_cost_basis_method("average")?, CostBasisMethod::AverageCost));
+        assert!(matches!(repo.string_to_cost_basis_method("AVERAGE")?, CostBasisMethod::AverageCost));
+
+        // Test invalid method
+        let result = repo.string_to_cost_basis_method("invalid");
+        assert!(result.is_err(), "Invalid method should return error");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_by_account() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TaxLotRepository::new(&pool);
+
+        // Setup
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test', 'Test')")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO accounts (id, name, account_type, category_id, config, sync_enabled) VALUES ('test_acct', 'Test', 'exchange', 'test', '{}', 0)")
+            .execute(&pool)
+            .await?;
+        sqlx::query("INSERT INTO transactions (id, timestamp, tx_type) VALUES (1, CURRENT_TIMESTAMP, 'buy')")
+            .execute(&pool)
+            .await?;
+
+        // Create lots for different assets
+        let btc_lot = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "BTC".to_string(),
+            quantity: dec("1.0"),
+            remaining_quantity: dec("1.0"),
+            acquisition_price: dec("40000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&btc_lot).await?;
+
+        let eth_lot = TaxLot {
+            id: 0,
+            account_id: "test_acct".to_string(),
+            asset: "ETH".to_string(),
+            quantity: dec("10.0"),
+            remaining_quantity: dec("10.0"),
+            acquisition_price: dec("3000"),
+            acquisition_date: Utc::now(),
+            acquisition_tx_id: Some(1),
+            cost_basis_method: CostBasisMethod::Fifo,
+            fully_disposed: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create(&eth_lot).await?;
+
+        // List all lots for account
+        let all_lots = repo.list_by_account("test_acct").await?;
+        assert_eq!(all_lots.len(), 2, "Should have 2 lots across different assets");
+
+        // Verify we have both BTC and ETH
+        let assets: Vec<&str> = all_lots.iter().map(|lot| lot.asset.as_str()).collect();
+        assert!(assets.contains(&"BTC"), "Should have BTC lot");
+        assert!(assets.contains(&"ETH"), "Should have ETH lot");
+
+        Ok(())
+    }
+}
