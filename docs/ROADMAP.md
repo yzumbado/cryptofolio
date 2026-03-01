@@ -1,7 +1,7 @@
 # Cryptofolio Roadmap
 
-**Last Updated:** February 2026
-**Current Version:** v0.2.0
+**Last Updated:** March 2026
+**Current Version:** v0.3.1
 
 ---
 
@@ -54,26 +54,71 @@ Build a **local-first, privacy-respecting cryptocurrency portfolio manager** tha
 
 ---
 
-## v0.3.0 (🎯 Planned - Q2 2026)
+## v0.3.1 (✅ Released - March 2026)
 
-### Security & Data Integration
+### Keychain Security & P&L Foundation
 
-**Focus:** Secure credential storage and portfolio data interoperability
+**Features Delivered:**
+- ✅ **macOS Keychain Integration**
+  - OS-encrypted storage for API keys and secrets
+  - Touch ID support with three security levels
+  - Automatic migration wizard (`config migrate-to-keychain`)
+  - Session caching (15-minute timeout)
+  - FFI bindings to Security.framework
+- ✅ **P&L Engine Foundation**
+  - Tax lot tracking infrastructure (FIFO/LIFO)
+  - Realized P&L database schema (MIGRATION_003)
+  - TaxLotRepository and RealizedPnLRepository
+  - P&L Calculator module with matching logic
+  - Cost basis method support (FIFO, LIFO)
+- ✅ **Quality Improvements**
+  - Comprehensive test suite (259 tests total)
+  - 175 unit tests (+206% increase)
+  - 84 integration tests
+  - 95-100% coverage on critical code paths
+  - Repository layer tests (71 tests across 6 repos)
+  - Core module tests (18 tests)
+  - CLI output tests (30 tests)
 
-### Security
-- [ ] **macOS Keychain Integration**
-  - Encrypted storage for API keys and secrets
-  - Automatic migration from plaintext config
-  - Secure retrieval for API operations
-  - No Windows/Linux keychain support (out of scope)
+**Technical Achievements:**
+- Database migration 003 (tax_lots, realized_pnl tables)
+- FFI bindings for native macOS security
+- Systematic test coverage improvement
+- 100% test pass rate
+
+**Metrics:**
+- Total tests: 259 (175 unit + 84 integration)
+- Test pass rate: 100%
+- Critical code coverage: 95-100%
+- Development approach: AI pair programming with Claude Code
+
+---
+
+## v0.4.0 (🎯 Planned - Q2 2026)
+
+### Binance Deep Integration & P&L Reporting
+
+**Focus:** Complete P&L implementation and enhanced exchange integration
 
 ### P&L & Accounting
-- [ ] **Realized P&L Calculations**
-  - FIFO (First In, First Out) method
-  - LIFO (Last In, First Out) method
-  - Average cost method (already implemented for unrealized)
-  - Per-transaction realized gains/losses
-  - Year-to-date realized P&L summary
+- [ ] **P&L Command Interface**
+  - `pnl summary` - Overall realized/unrealized gains
+  - `pnl realized` - List all realized gains/losses
+  - `pnl unrealized` - Current portfolio P&L
+  - `pnl by-asset` - Per-asset breakdown
+  - `pnl backfill` - Replay historical transactions
+- [ ] **Advanced Cost Basis**
+  - HIFO (Highest In, First Out) method
+  - SpecificID lot selection
+  - Tax loss harvesting detection
+  - Wash sale tracking
+
+### Exchange Integration
+- [ ] **Binance Trade History Import**
+  - Automatic transaction sync from trade history
+  - Deposit/withdrawal history
+  - Fee reconciliation
+  - Historical data backfill
 
 ### Portfolio Import
 - [ ] **CoinGecko Integration**

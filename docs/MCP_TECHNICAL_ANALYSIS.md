@@ -1050,7 +1050,7 @@ execa('cryptofolio', ['price', userInput]);
 2. [Model Context Protocol Specification](https://modelcontextprotocol.io/)
 3. [@modelcontextprotocol/sdk Documentation](https://github.com/modelcontextprotocol/sdk)
 4. [Cryptofolio Architecture](./ARCHITECTURE.md)
-5. [Cryptofolio v0.2.0 Documentation](../README.md)
+5. [Cryptofolio v0.3.1 Documentation](../README.md)
 
 ---
 

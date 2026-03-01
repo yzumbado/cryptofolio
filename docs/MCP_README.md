@@ -195,7 +195,7 @@ Database (~/.config/cryptofolio/)
 - **MCP SDK:** `@modelcontextprotocol/sdk`
 - **Process Management:** `execa`
 - **Validation:** `zod`
-- **CLI Integration:** Cryptofolio v0.2.0+ (with `--json` support)
+- **CLI Integration:** Cryptofolio v0.3.1+ (with `--json` support)
 
 ---
 

@@ -8,11 +8,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned for Future Releases
-- Realized P&L calculations (FIFO/LIFO) - Phase 3
-- CoinGecko portfolio import - Phase 3
-- CoinMarketCap portfolio import - Phase 3
-- CSV report generation - Phase 3
-- Advanced data extraction - Phase 3
+- CoinGecko portfolio import - v0.4.0
+- CoinMarketCap portfolio import - v0.4.0
+- CSV report generation - v0.4.0
+- Advanced data extraction - v0.4.0
+- Binance trade history import - v0.4.0
+
+## [0.3.1] - 2026-03-01
+
+### Added - P&L Engine Foundation
+- **Tax Lot Tracking** - FIFO/LIFO cost basis matching infrastructure
+- **Realized P&L Repository** - Database layer for gain/loss recording
+- **Database Schema** - New `tax_lots` and `realized_pnl` tables (MIGRATION_003)
+- **P&L Calculator Module** - Core business logic for profit/loss calculations
+- **Repository Pattern** - Complete data access layer for P&L tracking
+- **Cost Basis Methods** - Support for FIFO and LIFO matching algorithms
+
+### Added - Quality Improvements
+- **Comprehensive Test Suite** - 259 total tests (175 unit + 84 integration)
+- **Test Coverage Increase** - +206% unit test growth (57 → 175 tests)
+- **Critical Code Coverage** - 95-100% coverage on all financial calculations
+- **Repository Tests** - 71 tests across 6 database repositories
+- **Core Module Tests** - 18 tests for Currency, Account, Transaction models
+- **CLI Output Tests** - 30 tests for formatting and display functions
+- **Coverage Analysis** - Systematic gap identification and remediation
+
+### Added - Keychain Security (macOS)
+- **OS-Encrypted Storage** - macOS Keychain integration for API keys
+- **Touch ID Support** - Three security levels (Standard, Touch ID, Touch ID Only)
+- **FFI Bindings** - Native Security.framework integration
+- **Migration Wizard** - Interactive `config migrate-to-keychain` command
+- **Keychain Management**:
+  - `config set-secret <key>` - Store secrets in keychain
+  - `config keychain-status` - View all keychain secrets
+  - `config upgrade-security <key>` - Increase security level
+  - `config downgrade-security <key>` - Decrease security level
+- **Session Caching** - 15-minute cache to prevent repeated prompts
+- **Automatic Backup** - Creates config.toml.backup before migration
+
+### Changed
+- **Version** - Updated from 0.2.0 to 0.3.1
+- **Test Infrastructure** - Enhanced test organization and coverage tracking
+- **Documentation** - Added comprehensive quality improvement summary
+
+### Technical
+- **Database Migration 003** - P&L schema:
+  - `tax_lots` table for FIFO/LIFO tracking
+  - `realized_pnl` table for gain/loss records
+  - Foreign key relationships to transactions
+- **Repository Layer** - TaxLotRepository, RealizedPnLRepository
+- **Calculator Module** - `src/core/pnl/calculator.rs` with matching logic
+- **Type Safety** - All P&L calculations use rust_decimal for precision
+
+### Testing
+- **175 Unit Tests** - Comprehensive coverage of business logic
+- **84 Integration Tests** - End-to-end workflow validation
+- **100% Pass Rate** - All 259 tests passing
+- **Coverage Report** - 22.72% overall, 95-100% on critical paths
+
+### Security
+- **Keychain Integration** - Secrets stored in OS-encrypted keychain (macOS)
+- **Touch ID Protection** - Biometric authentication for sensitive operations
+- **No Plaintext Secrets** - Eliminated plaintext storage in config files
 
 ## [0.3.0] - 2026-02-21
 
@@ -205,6 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| **0.3.1** | 2026-03-01 | Keychain security, P&L foundation, quality improvements (259 tests) |
 | **0.2.0** | 2026-02-19 | Multi-currency support, security enhancements, JSON output |
 | **0.1.0** | 2026-01-15 | Initial release with portfolio management and AI features |
 | **0.0.1** | 2025-12-01 | Project inception |

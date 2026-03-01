@@ -1181,7 +1181,7 @@ This is intentional for security.
 
 ### Q: Does this work with exchanges other than Binance?
 
-**A:** Currently, Cryptofolio v0.2.0 only integrates with Binance for automatic syncing. However, you can manually track holdings from any exchange (Coinbase, Kraken, etc.) by recording transactions.
+**A:** Currently, Cryptofolio v0.3.1 only integrates with Binance for automatic syncing. However, you can manually track holdings from any exchange (Coinbase, Kraken, etc.) by recording transactions.
 
 **Coming in v0.3:**
 - CoinGecko portfolio import
@@ -1218,7 +1218,7 @@ cryptofolio config use-testnet
 - ✅ MCP server doesn't access or expose API keys
 - ✅ Keys stored in Cryptofolio config with 0600 permissions
 - ✅ MCP server runs locally (no network exposure)
-- ⚠️ v0.2.0 stores keys in plaintext (encrypted keychain coming in v0.3)
+- ⚠️ v0.3.1 stores keys in plaintext (encrypted keychain coming in v0.3)
 - ⚠️ **Always use READ-ONLY API keys**
 
 ### Q: Can I contribute to the MCP server?
