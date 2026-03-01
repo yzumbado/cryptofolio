@@ -294,4 +294,22 @@ mod tests {
         let currency = Currency::new("btc", "Bitcoin", "₿", 8, AssetType::Crypto);
         assert_eq!(currency.code, "BTC");
     }
+
+    #[test]
+    fn test_asset_type_display_name() {
+        assert_eq!(AssetType::Fiat.display_name(), "Fiat");
+        assert_eq!(AssetType::Crypto.display_name(), "Cryptocurrency");
+        assert_eq!(AssetType::Stablecoin.display_name(), "Stablecoin");
+    }
+
+    #[test]
+    fn test_asset_type_from_str_aliases() {
+        // Test "cryptocurrency" alias
+        assert_eq!(AssetType::from_str("cryptocurrency"), Some(AssetType::Crypto));
+        assert_eq!(AssetType::from_str("Cryptocurrency"), Some(AssetType::Crypto));
+
+        // Test "stable" alias
+        assert_eq!(AssetType::from_str("stable"), Some(AssetType::Stablecoin));
+        assert_eq!(AssetType::from_str("Stable"), Some(AssetType::Stablecoin));
+    }
 }
