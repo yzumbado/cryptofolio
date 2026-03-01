@@ -346,3 +346,392 @@ impl<'a> AccountRepository<'a> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::account::{AccountConfig, AccountType};
+    use crate::db::migrations;
+
+    async fn setup_test_db() -> Result<SqlitePool> {
+        let pool = SqlitePool::connect(":memory:").await?;
+        migrations::run(&pool).await?;
+        Ok(pool)
+    }
+
+    // ============ Category Tests ============
+
+    #[tokio::test]
+    async fn test_list_categories() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let categories = repo.list_categories().await?;
+
+        // Should have default categories from migration
+        assert!(categories.len() >= 3);
+        assert!(categories.iter().any(|c| c.id == "trading"));
+        assert!(categories.iter().any(|c| c.id == "cold-storage"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_category() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let category = repo.get_category("trading").await?;
+        assert!(category.is_some());
+        assert_eq!(category.unwrap().name, "Trading");
+
+        let not_found = repo.get_category("nonexistent").await?;
+        assert!(not_found.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_category_by_name() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        // Case-insensitive lookup
+        let category = repo.get_category_by_name("trading").await?;
+        assert!(category.is_some());
+
+        let category = repo.get_category_by_name("TRADING").await?;
+        assert!(category.is_some());
+
+        let not_found = repo.get_category_by_name("nonexistent").await?;
+        assert!(not_found.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_category() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        repo.create_category("test-cat", "Test Category").await?;
+
+        let category = repo.get_category("test-cat").await?;
+        assert!(category.is_some());
+        let cat = category.unwrap();
+        assert_eq!(cat.id, "test-cat");
+        assert_eq!(cat.name, "Test Category");
+        assert!(cat.sort_order > 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_category() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        repo.create_category("test-cat", "Old Name").await?;
+        repo.rename_category("Old Name", "New Name").await?;
+
+        let category = repo.get_category_by_name("New Name").await?;
+        assert!(category.is_some());
+
+        let old = repo.get_category_by_name("Old Name").await?;
+        assert!(old.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_category_not_found() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let result = repo.rename_category("NonExistent", "New Name").await;
+        assert!(result.is_err());
+        match result {
+            Err(CryptofolioError::CategoryNotFound(_)) => {},
+            _ => panic!("Expected CategoryNotFound error"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_category() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        repo.create_category("test-cat", "Test Category").await?;
+        repo.delete_category("Test Category").await?;
+
+        let category = repo.get_category("test-cat").await?;
+        assert!(category.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_category_not_found() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let result = repo.delete_category("NonExistent").await;
+        assert!(result.is_err());
+        match result {
+            Err(CryptofolioError::CategoryNotFound(_)) => {},
+            _ => panic!("Expected CategoryNotFound error"),
+        }
+
+        Ok(())
+    }
+
+    // ============ Account Tests ============
+
+    #[tokio::test]
+    async fn test_create_and_list_accounts() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let account = Account {
+            id: "test-acc-1".to_string(),
+            name: "Test Account".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::Exchange,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        let accounts = repo.list_accounts().await?;
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].name, "Test Account");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_account() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "My Wallet".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::SoftwareWallet,
+            config: AccountConfig::default(),
+            sync_enabled: true,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        // Case-insensitive lookup
+        let found = repo.get_account("my wallet").await?;
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, "test-acc");
+
+        let found = repo.get_account("MY WALLET").await?;
+        assert!(found.is_some());
+
+        let not_found = repo.get_account("NonExistent").await?;
+        assert!(not_found.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_account_by_id() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let account = Account {
+            id: "test-acc-id".to_string(),
+            name: "Test Account".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::Exchange,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        let found = repo.get_account_by_id("test-acc-id").await?;
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "Test Account");
+
+        let not_found = repo.get_account_by_id("nonexistent-id").await?;
+        assert!(not_found.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_account_with_config() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "Test Account".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::Exchange,
+            config: AccountConfig { is_testnet: true },
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        let found = repo.get_account("Test Account").await?;
+        assert!(found.is_some());
+        assert!(found.unwrap().config.is_testnet);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_account() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "Test Account".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::Exchange,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        // Add a wallet address and holding to test cascading delete
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None).await?;
+
+        sqlx::query("INSERT INTO holdings (account_id, asset, quantity) VALUES (?, ?, ?)")
+            .bind("test-acc")
+            .bind("BTC")
+            .bind("1.0")
+            .execute(&pool)
+            .await?;
+
+        repo.delete_account("Test Account").await?;
+
+        // Verify account is deleted
+        let account = repo.get_account("Test Account").await?;
+        assert!(account.is_none());
+
+        // Verify related records are deleted (cascading)
+        let addresses = repo.list_addresses("test-acc").await?;
+        assert_eq!(addresses.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_account_not_found() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        let result = repo.delete_account("NonExistent").await;
+        assert!(result.is_err());
+        match result {
+            Err(CryptofolioError::AccountNotFound(_)) => {},
+            _ => panic!("Expected AccountNotFound error"),
+        }
+
+        Ok(())
+    }
+
+    // ============ Wallet Address Tests ============
+
+    #[tokio::test]
+    async fn test_add_and_list_addresses() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        // Create account first
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "Test Wallet".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::HardwareWallet,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        // Add addresses
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest1", Some("Main")).await?;
+        repo.add_address("test-acc", "Ethereum", "0xtest1", None).await?;
+
+        let addresses = repo.list_addresses("test-acc").await?;
+        assert_eq!(addresses.len(), 2);
+
+        // Should be ordered by blockchain
+        assert_eq!(addresses[0].blockchain, "Bitcoin");
+        assert_eq!(addresses[0].label, Some("Main".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_address() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        // Create account first
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "Test Wallet".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::HardwareWallet,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None).await?;
+
+        repo.remove_address("test-acc", "bc1qtest").await?;
+
+        let addresses = repo.list_addresses("test-acc").await?;
+        assert_eq!(addresses.len(), 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_remove_address_not_found() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = AccountRepository::new(&pool);
+
+        // Create account first
+        let account = Account {
+            id: "test-acc".to_string(),
+            name: "Test Wallet".to_string(),
+            category_id: "trading".to_string(),
+            account_type: AccountType::HardwareWallet,
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+
+        repo.create_account(&account).await?;
+
+        let result = repo.remove_address("test-acc", "nonexistent").await;
+        assert!(result.is_err());
+
+        Ok(())
+    }
+}
