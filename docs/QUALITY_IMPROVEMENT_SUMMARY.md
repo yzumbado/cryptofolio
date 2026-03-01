@@ -1,6 +1,6 @@
 # Quality Improvement Summary
 
-**Project:** Cryptofolio
+**Project:** Cryptofolio v0.3.1
 **Date:** March 2026
 **Initiative:** Systematic Test Coverage Improvement
 

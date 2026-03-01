@@ -1,6 +1,6 @@
 # Multi-Currency Implementation Summary
 
-**Version:** v0.2.0
+**Version:** v0.3.1
 **Date:** February 2026
 **Status:** ✅ Complete
 
@@ -362,4 +362,4 @@ The multi-currency implementation successfully addresses the Costa Rica on-ramp 
 **Implementation completed:** February 2026
 **Test coverage:** 26 tests, all passing
 **Documentation:** Complete
-**Status:** ✅ Ready for v0.2.0 release
+**Status:** ✅ Ready for v0.3.1 release

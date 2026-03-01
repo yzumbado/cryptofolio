@@ -35,7 +35,7 @@ An AI-powered interactive shell that understands natural language and executes p
 ```
 $ cryptofolio
 
-  Cryptofolio v0.2.0 - AI Portfolio Assistant
+  Cryptofolio v0.3.1 - AI Portfolio Assistant
   Portfolio: $61,442.89 (+109.57%)
   Type 'help' for commands or just describe what you want to do.
 
@@ -166,7 +166,7 @@ User just bought 0.15 BTC on Binance at $94,500 and wants to record it.
 ```
 $ cryptofolio
 
-  Cryptofolio v0.2.0 - AI Portfolio Assistant
+  Cryptofolio v0.3.1 - AI Portfolio Assistant
   Portfolio: $61,442.89 (+109.57%)
 
 you> I just bought some bitcoin on binance

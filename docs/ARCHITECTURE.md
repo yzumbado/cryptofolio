@@ -1,7 +1,7 @@
 # Cryptofolio Architecture
 
-**Version:** 0.2.0
-**Last Updated:** February 2026
+**Version:** 0.3.1
+**Last Updated:** March 2026
 
 This document describes the technical architecture of Cryptofolio, a local-first cryptocurrency portfolio manager built with Rust.
 
@@ -589,4 +589,4 @@ src/
 ---
 
 **Last Updated:** February 19, 2026
-**Version:** 0.2.0
+**Version:** 0.3.1

@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Developed with Claude Code](https://img.shields.io/badge/developed%20with-Claude%20Code-blueviolet.svg)](https://claude.ai/claude-code)
@@ -66,7 +66,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.2.0
+# cryptofolio 0.3.1
 ```
 
 ### First Steps
@@ -161,7 +161,7 @@ Natural language commands powered by Claude or local Ollama.
 ```bash
 cryptofolio shell
 
-  🪙 Cryptofolio v0.2.0
+  🪙 Cryptofolio v0.3.1
   AI-Powered Portfolio Assistant
 
   💰 Portfolio: $61,442.89 (+109.57%)
@@ -382,7 +382,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.2.0
+# cryptofolio 0.3.1
 ```
 
 ### Platform-Specific Notes
@@ -606,13 +606,23 @@ jobs:
 
 [View v0.2.0 release notes →](CHANGELOG.md#020---2026-02-19)
 
-### v0.3.0 (Q2 2026) - Security & Data Integration
-- [ ] Encrypted keychain storage (macOS Keychain only)
-- [ ] Realized P&L calculations (FIFO/LIFO)
+### v0.3.1 (✅ Released - March 2026)
+- ✅ macOS Keychain integration (OS-encrypted storage)
+- ✅ Touch ID security levels (Standard, Protected, Only)
+- ✅ P&L Engine foundation (tax lots, realized gains)
+- ✅ FIFO/LIFO cost basis matching
+- ✅ Comprehensive test suite (259 tests, 100% pass rate)
+- ✅ Quality improvements (95-100% critical code coverage)
+
+[View v0.3.1 release notes →](CHANGELOG.md#031---2026-03-01)
+
+### v0.4.0 (Q2 2026) - Binance Deep Integration
+- [ ] Trade history import from Binance
+- [ ] Deposit/withdrawal history sync
+- [ ] P&L reporting commands
 - [ ] CoinGecko portfolio import
 - [ ] CoinMarketCap portfolio import
 - [ ] CSV report generation (customizable templates)
-- [ ] Advanced data extraction (JSON, CSV, SQL export)
 
 ### v0.4.0 (Q3 2026) - Visual Data Exploration (Experimental)
 - [ ] Local Node.js dashboard (no external dependencies)
