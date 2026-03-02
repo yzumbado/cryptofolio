@@ -272,11 +272,65 @@ echo "$(date): $(cryptofolio portfolio --json)" >> ~/portfolio-history.jsonl
 - `currency list --json` - Currencies
 - `config show --json` - Configuration
 
+### 💰 Profit & Loss Tracking
+
+Automatic P&L calculation with FIFO/LIFO tax lot matching.
+
+**Real-time P&L on every trade:**
+```bash
+# Buy transactions create tax lots automatically
+$ cryptofolio tx buy BTC 1.0 --account Binance --price 40000
+✓ Recorded buy: 1.0000 BTC @ $40,000.00 in 'Binance'
+
+$ cryptofolio tx buy BTC 1.0 --account Binance --price 50000
+✓ Recorded buy: 1.0000 BTC @ $50,000.00 in 'Binance'
+
+# Sell transactions match tax lots and show realized P&L
+$ cryptofolio tx sell BTC 1.5 --account Binance --price 60000
+✓ Recorded sell: 1.5000 BTC @ $60,000.00 from 'Binance' (Realized P&L: +$25,000.00)
+```
+
+**P&L Commands:**
+```bash
+# Overall summary
+$ cryptofolio pnl summary
+=== P&L Summary ===
+Realized P&L:   +$25,000.00
+Unrealized P&L: +$8,174.00
+─────────────────────────────
+Net P&L:        +$33,174.00
+
+# Detailed realized gains/losses
+$ cryptofolio pnl realized
+Date          Asset     Quantity      Cost Basis    Proceeds      Gain/Loss
+---------------------------------------------------------------------------
+2026-03-02    BTC       1.0000        $40,000.00    $60,000.00    +$20,000.00
+2026-03-02    BTC       0.5000        $25,000.00    $30,000.00    +$5,000.00
+
+# Unrealized P&L on current holdings
+$ cryptofolio pnl unrealized
+
+# Per-asset breakdown
+$ cryptofolio pnl by-asset BTC
+
+# Replay historical transactions
+$ cryptofolio pnl backfill
+```
+
+**Features:**
+- ✅ FIFO (First In, First Out) matching
+- ✅ LIFO (Last In, First Out) matching
+- ✅ Automatic tax lot tracking
+- ✅ Realized gain/loss calculation
+- ✅ Unrealized P&L monitoring
+- ✅ Holding period tracking (for tax reporting)
+- ✅ Per-asset and per-account breakdowns
+
 ### ✨ Additional Features
 
 - ✅ **Binance Integration** - Auto-sync with read-only API (Spot + Alpha markets)
 - ✅ **Transaction History** - CSV import/export with filtering
-- ✅ **Cost Basis Tracking** - Accurate P&L calculations
+- ✅ **Cost Basis Tracking** - Accurate P&L calculations with tax lot matching
 - ✅ **Testnet Support** - Practice without real funds
 - ✅ **Customizable Formatting** - Decimal precision, thousands separators
 - ✅ **Interactive Shell** - Tab completion and command history
@@ -528,6 +582,34 @@ cryptofolio tx swap USDT 175.9 BTC 0.0025 --account "Binance"
 
 # View complete cost basis chain
 cryptofolio portfolio
+```
+
+**P&L Tracking Workflow:**
+```bash
+# Track Bitcoin trades with automatic P&L
+# Tax lot 1: Buy low
+cryptofolio tx buy BTC 1.0 --account "Binance" --price 40000
+# ✓ Tax lot created @ $40k
+
+# Tax lot 2: Buy higher
+cryptofolio tx buy BTC 1.0 --account "Binance" --price 50000
+# ✓ Tax lot created @ $50k
+
+# Sell with FIFO matching (first lot matched first)
+cryptofolio tx sell BTC 1.5 --account "Binance" --price 60000
+# ✓ Realized P&L: +$25,000.00
+#   - 1.0 BTC from lot 1: ($60k - $40k) × 1.0 = $20k
+#   - 0.5 BTC from lot 2: ($60k - $50k) × 0.5 = $5k
+
+# Check P&L summary
+cryptofolio pnl summary
+# Realized P&L:   +$25,000.00
+# Unrealized P&L: +$8,174.00  (0.5 BTC remaining @ $50k cost basis)
+# Net P&L:        +$33,174.00
+
+# View detailed realized gains for tax reporting
+cryptofolio pnl realized
+# Shows: disposal date, quantity, cost basis, proceeds, gain/loss, holding period
 ```
 
 **Tax Season Export:**

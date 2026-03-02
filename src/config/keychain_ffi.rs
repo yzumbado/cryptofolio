@@ -143,12 +143,9 @@ const RTLD_DEFAULT: *mut c_void = -2isize as *mut c_void;
 /// Get kSecAttrAccessibleWhenUnlocked at runtime using dlsym
 /// This avoids static linking issues with extern static
 fn get_accessible_when_unlocked() -> CFStringRef {
-    eprintln!("[DEBUG] get_accessible_when_unlocked: Starting symbol lookup");
     unsafe {
         let symbol_name = b"kSecAttrAccessibleWhenUnlocked\0".as_ptr() as *const i8;
-        eprintln!("[DEBUG] get_accessible_when_unlocked: Calling dlsym");
         let sym_ptr = dlsym(RTLD_DEFAULT, symbol_name);
-        eprintln!("[DEBUG] get_accessible_when_unlocked: dlsym returned {:?}", sym_ptr);
 
         if sym_ptr.is_null() {
             eprintln!("[ERROR] Failed to load kSecAttrAccessibleWhenUnlocked symbol");
@@ -156,10 +153,7 @@ fn get_accessible_when_unlocked() -> CFStringRef {
         }
 
         // The symbol is a pointer to CFStringRef, so dereference it
-        eprintln!("[DEBUG] get_accessible_when_unlocked: Dereferencing symbol");
-        let result = *(sym_ptr as *const CFStringRef);
-        eprintln!("[DEBUG] get_accessible_when_unlocked: Got CFStringRef {:?}", result);
-        result
+        *(sym_ptr as *const CFStringRef)
     }
 }
 
@@ -181,20 +175,16 @@ fn get_accessible_when_unlocked() -> CFStringRef {
 /// - Result is checked before returning
 /// - Caller owns returned CFTypeRef (must release)
 pub fn create_access_control(flags: u64) -> Result<SecAccessControlRef> {
-    eprintln!("[DEBUG] create_access_control: Starting with flags={}", flags);
     unsafe {
         let mut error: CFErrorRef = ptr::null_mut();
 
-        eprintln!("[DEBUG] create_access_control: Getting accessible_when_unlocked");
         let accessible_when_unlocked = get_accessible_when_unlocked();
-        eprintln!("[DEBUG] create_access_control: Got accessible_when_unlocked, calling SecAccessControlCreateWithFlags");
         let access_control = SecAccessControlCreateWithFlags(
             ptr::null_mut(), // kCFAllocatorDefault
             accessible_when_unlocked as CFTypeRef,
             flags,
             &mut error,
         );
-        eprintln!("[DEBUG] create_access_control: SecAccessControlCreateWithFlags returned");
 
         if access_control.is_null() {
             if !error.is_null() {

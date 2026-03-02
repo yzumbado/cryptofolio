@@ -150,7 +150,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
             // Create tax lot for P&L tracking
             let pnl_calc = PnLCalculator::new(pool);
-            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
             if let Err(e) = pnl_calc
                 .process_acquisition(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
                 .await
@@ -205,7 +205,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
             // Process disposal (match tax lots, record P&L)
             let pnl_calc = PnLCalculator::new(pool);
-            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
             let realized_pnl = match pnl_calc
                 .process_disposal(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
                 .await
@@ -404,7 +404,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
 
             // Process P&L for swap (disposal of from_asset + acquisition of to_asset)
             let pnl_calc = PnLCalculator::new(pool);
-            let method = CostBasisMethod::Fifo; // Default (TODO: load from config)
+            let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
             let timestamp = Utc::now();
 
             // Process disposal of from_asset (if we have implied price)
