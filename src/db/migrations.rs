@@ -213,6 +213,25 @@ CREATE INDEX IF NOT EXISTS idx_keychain_keys_name ON keychain_keys(key_name);
 CREATE INDEX IF NOT EXISTS idx_keychain_keys_storage ON keychain_keys(storage_type);
 "#;
 
+const MIGRATION_006: &str = r#"
+-- Binance sync state: tracks last successful sync timestamp per endpoint/account.
+-- One row per exchange account. Used for incremental syncs.
+CREATE TABLE IF NOT EXISTS binance_sync_state (
+    account_id           TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    last_trade_sync      DATETIME,
+    last_deposit_sync    DATETIME,
+    last_withdrawal_sync DATETIME,
+    last_fiat_sync       DATETIME,
+    last_transfer_sync   DATETIME,
+    last_trade_id        INTEGER,
+    last_sync_symbol     TEXT,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_binance_sync_state_account ON binance_sync_state(account_id);
+"#;
+
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     // Check if migration 1 has been applied
     let migration_exists: Option<(i64,)> = sqlx::query_as(
@@ -286,6 +305,25 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
 
         // Mark migration as applied
         sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (5)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 6 has been applied
+    let migration_6_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 6"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_6_exists.is_none() {
+        // Apply migration 6
+        sqlx::raw_sql(MIGRATION_006).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (6)")
             .execute(pool)
             .await?;
     }
