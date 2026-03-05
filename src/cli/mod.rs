@@ -182,6 +182,51 @@ pub enum Commands {
         account: Option<String>,
     },
 
+    /// Import full transaction history from Binance (trades, deposits, withdrawals, fiat, transfers)
+    #[command(name = "sync-history")]
+    #[command(after_help = "EXAMPLES:\n    # Import all history (all time)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT\n\n    # Full re-import (ignore previous sync watermarks)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT --full-history\n\n    # Preview what would be imported\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run\n\n    # Only import since a specific date\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --from 2024-01-01\n\n    # Skip certain endpoints\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --no-fiat --no-transfers")]
+    SyncHistory {
+        /// Account name (must be an exchange account with sync enabled)
+        #[arg(long, required = true)]
+        account: String,
+
+        /// Comma-separated trading pairs to sync (e.g. BTCUSDT,ETHUSDT,ADAUSDT)
+        #[arg(long, default_value = "")]
+        symbols: String,
+
+        /// Import from the very beginning, ignoring previous sync watermarks
+        #[arg(long)]
+        full_history: bool,
+
+        /// Earliest date to import from (YYYY-MM-DD). Ignored when --full-history is set.
+        #[arg(long)]
+        from: Option<String>,
+
+        /// Skip trade history
+        #[arg(long = "no-trades")]
+        no_trades: bool,
+
+        /// Skip deposit history
+        #[arg(long = "no-deposits")]
+        no_deposits: bool,
+
+        /// Skip withdrawal history
+        #[arg(long = "no-withdrawals")]
+        no_withdrawals: bool,
+
+        /// Skip fiat purchase/sell history
+        #[arg(long = "no-fiat")]
+        no_fiat: bool,
+
+        /// Skip internal transfer history (Spot <-> Earn, bots)
+        #[arg(long = "no-transfers")]
+        no_transfers: bool,
+
+        /// Preview what would be imported without writing anything
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Import transactions from CSV file
     #[command(after_help = "EXAMPLES:\n    cryptofolio import transactions.csv --account Ledger\n\nCSV FORMAT:\n    date,type,asset,quantity,price_usd,fee,notes\n    2024-01-15,buy,BTC,0.5,45000,0.001,First purchase")]
     Import {
