@@ -123,6 +123,45 @@ impl BinanceClient {
         Ok(response.json().await?)
     }
 
+    /// Signed GET with additional query parameters.
+    /// Params are appended before timestamp so the signature covers everything.
+    async fn get_signed_with_params<T: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        params: &[(&str, String)],
+    ) -> Result<T> {
+        let api_key = self.api_key.as_ref()
+            .ok_or_else(|| CryptofolioError::AuthRequired("API key not configured".into()))?;
+
+        let timestamp = Self::get_timestamp();
+
+        // Build query string: extra params + timestamp
+        let mut parts: Vec<String> = params
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+        parts.push(format!("timestamp={}", timestamp));
+        let query = parts.join("&");
+
+        let signature = self.sign(&query)?;
+        let url = format!("{}{}?{}&signature={}", self.base_url, endpoint, query, signature);
+
+        let response = self.client
+            .get(&url)
+            .header("X-MBX-APIKEY", api_key)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error: BinanceError = response.json().await
+                .unwrap_or(BinanceError { code: status.as_u16() as i32, msg: "Unknown error".into() });
+            return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
+        }
+
+        Ok(response.json().await?)
+    }
+
     /// Normalize symbol to Binance format (e.g., "BTC" -> "BTCUSDT")
     fn normalize_symbol(&self, symbol: &str) -> String {
         let symbol = symbol.to_uppercase();
@@ -137,6 +176,179 @@ impl BinanceClient {
         } else {
             format!("{}USDT", symbol)
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // History methods (Task #56)
+    // -------------------------------------------------------------------------
+
+    /// Fetch trade history for a single symbol.
+    /// API: GET /api/v3/myTrades
+    /// Max 1000 results per call. Use `from_id` for pagination.
+    pub async fn get_my_trades(
+        &self,
+        symbol: &str,
+        from_id: Option<i64>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u16>,
+    ) -> Result<Vec<BinanceTrade>> {
+        let mut params: Vec<(&str, String)> = vec![("symbol", symbol.to_uppercase())];
+
+        if let Some(id) = from_id {
+            params.push(("fromId", id.to_string()));
+        }
+        if let Some(ts) = start_time {
+            params.push(("startTime", ts.to_string()));
+        }
+        if let Some(ts) = end_time {
+            params.push(("endTime", ts.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.min(1000).to_string()));
+        }
+
+        self.get_signed_with_params(MY_TRADES, &params).await
+    }
+
+    /// Fetch deposit history.
+    /// API: GET /sapi/v1/capital/deposit/hisrec
+    /// Max 1000 results per call. Use `offset` for pagination.
+    pub async fn get_deposit_history(
+        &self,
+        coin: Option<&str>,
+        status: Option<i32>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        offset: Option<i32>,
+        limit: Option<i32>,
+    ) -> Result<Vec<BinanceDeposit>> {
+        let mut params: Vec<(&str, String)> = vec![];
+
+        if let Some(c) = coin {
+            params.push(("coin", c.to_uppercase()));
+        }
+        if let Some(s) = status {
+            params.push(("status", s.to_string()));
+        }
+        if let Some(ts) = start_time {
+            params.push(("startTime", ts.to_string()));
+        }
+        if let Some(ts) = end_time {
+            params.push(("endTime", ts.to_string()));
+        }
+        if let Some(o) = offset {
+            params.push(("offset", o.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.min(1000).to_string()));
+        }
+
+        self.get_signed_with_params(DEPOSIT_HISTORY, &params).await
+    }
+
+    /// Fetch withdrawal history.
+    /// API: GET /sapi/v1/capital/withdraw/history
+    /// Max 1000 results per call. Use `offset` for pagination.
+    pub async fn get_withdrawal_history(
+        &self,
+        coin: Option<&str>,
+        status: Option<i32>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        offset: Option<i32>,
+        limit: Option<i32>,
+    ) -> Result<Vec<BinanceWithdrawal>> {
+        let mut params: Vec<(&str, String)> = vec![];
+
+        if let Some(c) = coin {
+            params.push(("coin", c.to_uppercase()));
+        }
+        if let Some(s) = status {
+            params.push(("status", s.to_string()));
+        }
+        if let Some(ts) = start_time {
+            params.push(("startTime", ts.to_string()));
+        }
+        if let Some(ts) = end_time {
+            params.push(("endTime", ts.to_string()));
+        }
+        if let Some(o) = offset {
+            params.push(("offset", o.to_string()));
+        }
+        if let Some(l) = limit {
+            params.push(("limit", l.min(1000).to_string()));
+        }
+
+        self.get_signed_with_params(WITHDRAWAL_HISTORY, &params).await
+    }
+
+    /// Fetch fiat purchase/sell history (e.g. credit card → USDT).
+    /// API: GET /sapi/v1/fiat/orders
+    /// `transaction_type`: "0" = deposit (fiat → crypto), "1" = withdrawal (crypto → fiat).
+    /// Max 500 rows per page.
+    pub async fn get_fiat_orders(
+        &self,
+        transaction_type: &str,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        page: Option<i32>,
+        rows: Option<i32>,
+    ) -> Result<BinanceFiatOrderResponse> {
+        let mut params: Vec<(&str, String)> =
+            vec![("transactionType", transaction_type.to_string())];
+
+        if let Some(ts) = start_time {
+            params.push(("beginTime", ts.to_string()));
+        }
+        if let Some(ts) = end_time {
+            params.push(("endTime", ts.to_string()));
+        }
+        if let Some(p) = page {
+            params.push(("page", p.to_string()));
+        }
+        if let Some(r) = rows {
+            params.push(("rows", r.min(500).to_string()));
+        }
+
+        self.get_signed_with_params(FIAT_DEPOSIT_HISTORY, &params).await
+    }
+
+    /// Fetch internal transfer history (e.g. Spot ↔ Earn, bots, etc.).
+    /// API: GET /sapi/v1/asset/transfer
+    /// Common transfer types: "MAIN_UMFUTURE" (Spot→Futures), "UMFUTURE_MAIN" (Futures→Spot),
+    /// "MAIN_C2C" (Spot→C2C), "MAIN_MINING" (Spot→Mining).
+    /// Max 100 rows per page.
+    pub async fn get_transfer_history(
+        &self,
+        transfer_type: &str,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        current: Option<i32>,
+        size: Option<i32>,
+    ) -> Result<BinanceTransferResponse> {
+        let mut params: Vec<(&str, String)> = vec![("type", transfer_type.to_string())];
+
+        if let Some(ts) = start_time {
+            params.push(("startTime", ts.to_string()));
+        }
+        if let Some(ts) = end_time {
+            params.push(("endTime", ts.to_string()));
+        }
+        if let Some(c) = current {
+            params.push(("current", c.to_string()));
+        }
+        if let Some(s) = size {
+            params.push(("size", s.min(100).to_string()));
+        }
+
+        self.get_signed_with_params(UNIVERSAL_TRANSFER_HISTORY, &params).await
+    }
+
+    /// Fetch info for all coins (networks, deposit/withdrawal status).
+    /// API: GET /sapi/v1/capital/config/getall
+    pub async fn get_all_coins_info(&self) -> Result<Vec<BinanceCoinInfo>> {
+        self.get_signed_with_params(ALL_COINS_INFO, &[]).await
     }
 
     /// Extract base asset from symbol
