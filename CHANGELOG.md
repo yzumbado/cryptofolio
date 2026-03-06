@@ -8,11 +8,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned for Future Releases
-- CoinGecko portfolio import - v0.4.0
-- CoinMarketCap portfolio import - v0.4.0
-- CSV report generation - v0.4.0
-- Advanced data extraction - v0.4.0
-- Binance trade history import - v0.4.0
+- CoinGecko portfolio import
+- CoinMarketCap portfolio import
+- CSV report generation
+- Advanced P&L reporting (per-asset, per-year)
+
+## [0.4.0] - 2026-03-05
+
+### Added - Binance Transaction History Sync
+
+#### New Command: `sync-history`
+- **`cryptofolio sync-history`** — Full transaction history import from Binance
+- Syncs trades, deposits, withdrawals, fiat on-ramp orders, and internal transfers
+- `--symbols BTCUSDT,ETHUSDT` — Filter to specific trading pairs (required for trades)
+- `--full-history` — Re-fetch entire history (ignores incremental watermarks)
+- `--from YYYY-MM-DD` — Start date for history fetch
+- `--dry-run` — Preview what would be imported without writing to the database
+- `--no-trades / --no-deposits / --no-withdrawals / --no-fiat / --no-transfers` — Skip individual record types
+
+#### Binance API Client Extensions (`src/exchange/binance/client.rs`)
+- `get_my_trades(symbol, from_id, start_time, limit)` — Spot trade history with fromId pagination
+- `get_deposit_history(start_time, limit, offset)` — Crypto deposit history
+- `get_withdrawal_history(start_time, limit, offset)` — Crypto withdrawal history
+- `get_fiat_orders(order_type, start_time, rows, page)` — Fiat on/off-ramp history
+- `get_transfer_history(transfer_type, start_time, size, page)` — Spot ↔ Earn internal transfers
+- `get_all_coins_info()` — Full coin/network information
+- `get_signed_with_params` — Private helper for HMAC-signed requests with arbitrary params
+
+#### Transaction Import Engine (`src/exchange/binance/import.rs`)
+- `TransactionImporter` — Converts Binance API records into Cryptofolio transactions
+- **Trade import**: Buy/sell detection, symbol parsing, P&L tax lot creation, USD price tracking for stable pairs
+- **Deposit import**: Status filtering (completed only), holding balance updates
+- **Withdrawal import**: Status filtering (completed only), balance reduction, silent handling of pre-sync history gaps
+- **Fiat order import**: Credit card / bank buy orders with computed price
+- **Transfer import**: Internal wallet moves (Spot ↔ Earn) recorded without balance change
+- `parse_symbol` — Parses trading pairs (e.g. `BTCUSDT` → `BTC`+`USDT`), tries quote assets longest-first
+- `is_usd_equivalent` — Identifies stablecoin/USD quote assets (USDT, BUSD, USDC, TUSD, USDP, DAI)
+- `ms_to_datetime` — Millisecond timestamp conversion with error propagation
+- Duplicate detection via `external_id` in transactions table (safe to re-run)
+- External IDs: `binance-trade-{id}`, `binance-deposit-{id}`, `binance-withdrawal-{id}`, `binance-fiat-{order_no}`, `binance-transfer-{tran_id}`
+
+#### Sync Orchestration (`src/exchange/binance/sync.rs`)
+- `SyncOrchestrator` — Coordinates all endpoints with incremental watermark tracking
+- `SyncOptions` — Configuration struct (which record types, symbols, start time, dry-run, full-history)
+- `SyncReport` — Per-endpoint created/skipped counts, error list, totals
+- Pagination per endpoint: fromId (trades), offset (deposits/withdrawals), page (fiat/transfers)
+- Non-fatal error collection: individual import errors do not abort the full sync
+- Default transfer types: MAIN_UMFUTURE, UMFUTURE_MAIN, MAIN_C2C, C2C_MAIN
+
+#### Sync State Repository (`src/db/sync_state.rs`)
+- `SyncStateRepository` — Persists incremental sync watermarks per account
+- `SyncState` struct — Tracks `last_trade_sync`, `last_deposit_sync`, `last_withdrawal_sync`, `last_fiat_sync`, `last_transfer_sync`, `last_trade_id`, `last_sync_symbol`
+- `get_or_create` — Upserts a fresh state record on first use
+- `reset` — Clears all watermarks for a full re-sync
+- Watermarks updated after each successful endpoint sync
+
+#### Database Migration
+- **MIGRATION_006** — New `binance_sync_state` table with per-account watermarks and index
+
+### Testing
+- **44 New Integration Tests** — `tests/binance_sync.rs` covering all import paths
+  - Trade import: buy/sell, P&L, price_usd, notes, duplicate detection, dry-run
+  - Deposit/withdrawal/fiat/transfer: happy paths, edge cases, status filtering
+  - Mixed import sequences
+  - `SyncStateRepository`: watermark updates, reset, idempotent creation
+  - `SyncReport`: totals, error collection
+- **Total Test Suite: 341 tests** (203 unit + 138 integration), 100% passing
+
+### Changed
+- **Version** — Updated from 0.3.1 to 0.4.0
+- `src/exchange/binance/models` — Made public to support integration test fixtures
+- CHANGELOG — Corrected "Planned" entries to remove already-delivered v0.4.0 items
 
 ## [0.3.1] - 2026-03-01
 

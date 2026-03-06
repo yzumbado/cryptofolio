@@ -1,8 +1,8 @@
 # Cryptofolio - Session State & Resume Guide
 
-**Last Updated:** March 4, 2026
-**Current Version:** v0.3.1 (Released)
-**Next Version:** v0.4.0 (In Progress — Phase 4 complete, awaiting manual validation)
+**Last Updated:** March 5, 2026
+**Current Version:** v0.4.0 (Released — awaiting manual validation, Task #62)
+**Previous Version:** v0.3.1
 
 ---
 
@@ -10,13 +10,13 @@
 
 ### Project Status
 - ✅ **v0.3.1 RELEASED** — Production-ready with keychain security, P&L engine
-- 🔧 **v0.4.0 IN PROGRESS** — Binance Deep Integration (Phase 4 CLI done, testing remains)
+- ✅ **v0.4.0 RELEASED** — Binance Deep Integration (all code + tests done, manual validation pending)
 - 🧪 **Test Suite:** 341 tests (203 unit + 138 integration), 100% passing
 - 📊 **Coverage:** 95-100% on critical business logic
 
 ### Git Status
 - **Branch:** claude/nice-hermann
-- **Last Commit:** ab5a654 — "test: Add integration tests for Binance history sync (Task #61)"
+- **Last Commit:** (after release commit) — see `git log --oneline -5`
 - **Status:** Clean (all changes committed, not yet pushed to remote)
 
 ---
@@ -52,30 +52,52 @@ Tests in `tests/binance_sync.rs` cover:
 - Mixed import sequence
 
 ### Task #62 — Manual testing with real Binance account
-**Status:** NOT STARTED (requires user to run against live account)
+**Status:** READY (all docs written, follow validation guide below)
 
+**Full validation guide:** `VALIDATION_GUIDE_v0.4.0.md` — 15-step checklist covering:
+1. Build & version check
+2. Credential setup
+3. Account setup + balance sync
+4. Dry-run preview
+5. Full history import
+6. Verify transactions / holdings / P&L
+7. Duplicate detection test
+8. Incremental sync (watermarks)
+9. Partial symbol / date range / skip-flags tests
+10. API error handling
+11. Post-import state verification
+
+**Quick path (minimum viable test):**
 ```bash
-# 1. Make sure credentials are set
+# Build
+cargo build --release
+
+# Credentials
 cryptofolio config set-secret binance.api_key
 cryptofolio config set-secret binance.api_secret
 
-# 2. Ensure account exists
+# Account
 cryptofolio account add "Binance" --type exchange --category trading --sync
 
-# 3. First dry-run
+# Dry-run first
 cryptofolio sync-history --account Binance \
-  --symbols BTCUSDT,ETHUSDT,ADAUSDT \
+  --symbols BTCUSDT,ETHUSDT \
   --full-history \
   --dry-run
 
-# 4. Real import
+# Real import
 cryptofolio sync-history --account Binance \
-  --symbols BTCUSDT,ETHUSDT,ADAUSDT \
+  --symbols BTCUSDT,ETHUSDT \
   --full-history
 
-# 5. Verify results
+# Verify
 cryptofolio tx list --limit 20
 cryptofolio pnl summary
+
+# Idempotency check (should show 0 created)
+cryptofolio sync-history --account Binance \
+  --symbols BTCUSDT,ETHUSDT \
+  --full-history
 ```
 
 ---
@@ -201,11 +223,10 @@ cd /Users/yzumbado/projects/cryptofolio/.claude/worktrees/nice-hermann
 git status    # should be clean
 cargo test    # should pass 341 tests
 
-# Only remaining task: Task #62 — manual validation with real Binance account
-# See "Remaining Tasks" section above for the test commands
+# Manual validation: follow VALIDATION_GUIDE_v0.4.0.md
 ```
 
 ---
 
-*Last updated: March 4, 2026*
-*Phase 4 complete — only manual validation with real Binance account remains (Task #62)*
+*Last updated: March 5, 2026*
+*v0.4.0 released — manual validation with real Binance account is the only remaining step*

@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Developed with Claude Code](https://img.shields.io/badge/developed%20with-Claude%20Code-blueviolet.svg)](https://claude.ai/claude-code)
@@ -17,6 +17,7 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
+✅ **Binance History Sync** - Full trade/deposit/withdrawal/fiat history import (NEW in v0.4.0)
 ✅ **Keychain Security (macOS)** - OS-encrypted storage with Touch ID support
 ✅ **Multi-Currency Support** - Track CRC, USD, EUR alongside BTC, ETH, USDT
 ✅ **Local-First & Private** - All data stays on your machine
@@ -66,7 +67,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.3.1
+# cryptofolio 0.4.0
 ```
 
 ### First Steps
@@ -161,7 +162,7 @@ Natural language commands powered by Claude or local Ollama.
 ```bash
 cryptofolio shell
 
-  🪙 Cryptofolio v0.3.1
+  🪙 Cryptofolio v0.4.0
   AI-Powered Portfolio Assistant
 
   💰 Portfolio: $61,442.89 (+109.57%)
@@ -326,9 +327,41 @@ $ cryptofolio pnl backfill
 - ✅ Holding period tracking (for tax reporting)
 - ✅ Per-asset and per-account breakdowns
 
+### 🔄 Binance History Sync (NEW in v0.4.0)
+
+Automatically import your complete Binance transaction history with a single command.
+
+```bash
+# First: store your API keys securely
+cryptofolio config set-secret binance.api_key
+cryptofolio config set-secret binance.api_secret
+
+# Dry-run: see what would be imported
+cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT --dry-run
+
+# Full import
+cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT --full-history
+
+# Incremental (only fetches new transactions since last sync)
+cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
+```
+
+**What's imported:**
+- ✅ **Spot trades** → Buy / Sell transactions with automatic P&L
+- ✅ **Crypto deposits** → Transfer In (updates holdings)
+- ✅ **Crypto withdrawals** → Transfer Out (reduces holdings)
+- ✅ **Fiat on-ramp orders** → Buy transactions (credit card, bank)
+- ✅ **Internal transfers** → Spot ↔ Earn wallet moves
+
+**Key features:**
+- Duplicate-safe: re-running never creates duplicate transactions
+- Incremental: watermarks remember last sync, only fetches what's new
+- `--full-history` re-imports everything from the beginning
+- `--dry-run` previews without writing anything
+
 ### ✨ Additional Features
 
-- ✅ **Binance Integration** - Auto-sync with read-only API (Spot + Alpha markets)
+- ✅ **Binance Integration** - Balance sync + full history import (trades, deposits, withdrawals)
 - ✅ **Transaction History** - CSV import/export with filtering
 - ✅ **Cost Basis Tracking** - Accurate P&L calculations with tax lot matching
 - ✅ **Testnet Support** - Practice without real funds
@@ -400,9 +433,9 @@ Claude: *Creates MULTI_CURRENCY_IMPLEMENTATION.md (687 lines)*
 
 | Metric | Value |
 |--------|-------|
-| **Total Tests** | 110+ (26 currency-specific) |
+| **Total Tests** | 341 (203 unit + 138 integration) |
 | **Test Pass Rate** | 100% |
-| **Development Time** | ~4 hours (vs 18-26 hours manual) |
+| **Development Time** | ~4 hours per feature (vs 18-26 hours manual) |
 | **Time Savings** | ~80% |
 | **Code Quality** | Rust compile-time guarantees + sqlx type safety |
 | **Documentation** | README + 5 guides + inline docs |
@@ -518,7 +551,25 @@ cryptofolio account add "Ledger" --type hardware_wallet --category cold-storage
 cryptofolio account add "Binance" --type exchange --category trading --sync
 cryptofolio account list
 cryptofolio account show Binance
-cryptofolio sync --account "Binance"   # Sync from API
+cryptofolio sync --account "Binance"   # Sync balances from API
+```
+
+**Binance History Sync (v0.4.0):**
+```bash
+# Import all transaction history
+cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
+
+# Dry-run preview
+cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run
+
+# Full re-import from scratch
+cryptofolio sync-history --account Binance --symbols BTCUSDT --full-history
+
+# Import from a specific date
+cryptofolio sync-history --account Binance --symbols BTCUSDT --from 2024-01-01
+
+# Skip specific record types
+cryptofolio sync-history --account Binance --symbols BTCUSDT --no-fiat --no-transfers
 ```
 
 **Configuration:**
@@ -698,15 +749,17 @@ jobs:
 
 [View v0.3.1 release notes →](CHANGELOG.md#031---2026-03-01)
 
-### v0.4.0 (Q2 2026) - Binance Deep Integration
-- [ ] Trade history import from Binance
-- [ ] Deposit/withdrawal history sync
-- [ ] P&L reporting commands
-- [ ] CoinGecko portfolio import
-- [ ] CoinMarketCap portfolio import
-- [ ] CSV report generation (customizable templates)
+### v0.4.0 (✅ Released - March 2026) - Binance Deep Integration
+- ✅ Complete trade history import (`sync-history` command)
+- ✅ Deposit / withdrawal / fiat order / internal transfer sync
+- ✅ Incremental sync with watermarks (only fetches new records)
+- ✅ Duplicate detection (safe to re-run at any time)
+- ✅ Dry-run mode (preview without writing)
+- ✅ 341 total tests (44 new integration tests), 100% passing
 
-### v0.4.0 (Q3 2026) - Visual Data Exploration (Experimental)
+[View v0.4.0 release notes →](RELEASE_NOTES_v0.4.0.md)
+
+### v0.5.0 (Planned) - Visual Data Exploration (Experimental)
 - [ ] Local Node.js dashboard (no external dependencies)
 - [ ] Rich data visualization (charts, graphs, trends)
 - [ ] Interactive portfolio explorer
@@ -798,6 +851,8 @@ We follow the [Contributor Covenant](CODE_OF_CONDUCT.md). Be respectful and incl
 2. **Enable ONLY:** ✅ Enable Reading
 3. **DISABLE:** ❌ Trading, ❌ Withdrawals, ❌ Transfers
 
+> ⚠️ **For `sync-history`**, your API key also needs **"Enable Spot & Margin Trading" permission disabled** but must have access to trade history and deposit/withdrawal endpoints. Read-only is sufficient — Binance grants trade history access on all read-only keys.
+
 **2. Configure Cryptofolio (Securely):**
 ```bash
 # Use set-secret for hidden input
@@ -813,10 +868,27 @@ Enter secret (hidden): ********
 cryptofolio account add "Binance" --type exchange --category trading --sync
 ```
 
-**4. Sync Holdings:**
+**4. Sync Current Balances:**
 ```bash
 cryptofolio sync --account "Binance"
 # ✓ Synced 3 assets from 'Binance'
+```
+
+**5. Import Full Transaction History (NEW in v0.4.0):**
+```bash
+# Dry-run first
+cryptofolio sync-history --account Binance \
+  --symbols BTCUSDT,ETHUSDT,BNBUSDT \
+  --full-history \
+  --dry-run
+
+# Real import
+cryptofolio sync-history --account Binance \
+  --symbols BTCUSDT,ETHUSDT,BNBUSDT \
+  --full-history
+
+# Incremental (daily use)
+cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
 ```
 
 **Testnet Mode:**
