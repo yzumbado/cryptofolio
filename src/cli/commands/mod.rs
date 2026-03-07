@@ -23,5 +23,5 @@ pub use pnl::handle_pnl_command;
 pub use portfolio::handle_portfolio_command;
 pub use price::handle_price_command;
 pub use status::run as handle_status_command;
-pub use sync::handle_sync_command;
+pub use sync::{handle_sync_command, handle_sync_history_command};
 pub use tx::handle_tx_command;

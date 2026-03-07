@@ -6,6 +6,7 @@ pub mod holdings;
 pub mod keychain;
 pub mod migrations;
 pub mod realized_pnl;
+pub mod sync_state;
 pub mod tax_lots;
 pub mod transactions;
 
@@ -18,6 +19,7 @@ pub use accounts::AccountRepository;
 pub use holdings::HoldingRepository;
 pub use keychain::KeychainKeyRepository;
 pub use realized_pnl::RealizedPnLRepository;
+pub use sync_state::SyncStateRepository;
 pub use tax_lots::TaxLotRepository;
 pub use transactions::TransactionRepository;
 

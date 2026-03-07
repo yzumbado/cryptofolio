@@ -578,6 +578,34 @@ impl Shell {
             Commands::Sync { account } => {
                 handle_sync_command(account, &self.pool, &opts).await?;
             }
+            Commands::SyncHistory {
+                account,
+                symbols,
+                full_history,
+                from,
+                no_trades,
+                no_deposits,
+                no_withdrawals,
+                no_fiat,
+                no_transfers,
+                dry_run,
+            } => {
+                handle_sync_history_command(
+                    account,
+                    symbols,
+                    full_history,
+                    from,
+                    no_trades,
+                    no_deposits,
+                    no_withdrawals,
+                    no_fiat,
+                    no_transfers,
+                    dry_run,
+                    &self.pool,
+                    &opts,
+                )
+                .await?;
+            }
             Commands::Import {
                 file,
                 account,
