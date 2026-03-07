@@ -199,7 +199,7 @@ async fn test_swap_handles_both_sides() -> Result<()> {
     ).await?;
 
     // Swap: 1.0 BTC → 15 ETH (BTC price = $50,000, ETH price = $3,333.33)
-    let mut swap_tx = Transaction {
+    let swap_tx = Transaction {
         id: 0,
         tx_type: TransactionType::Swap,
         from_account_id: Some(account_id.to_string()),
