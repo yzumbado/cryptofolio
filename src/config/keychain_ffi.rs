@@ -134,7 +134,6 @@ extern "C" {
     // Note: We load kSecAttrAccessibleWhenUnlocked dynamically via dlsym
     // instead of using extern static to avoid link-time issues
     fn dlsym(handle: *mut c_void, symbol: *const i8) -> *mut c_void;
-    fn dlopen(filename: *const i8, flag: i32) -> *mut c_void;
 }
 
 // RTLD_DEFAULT - search all loaded libraries
