@@ -27,6 +27,7 @@ struct TransactionOutput {
     price_usd: Option<String>,
     fee: Option<String>,
     fee_asset: Option<String>,
+    external_id: Option<String>,
     notes: Option<String>,
 }
 
@@ -84,6 +85,7 @@ pub async fn handle_tx_command(command: TxCommands, pool: &SqlitePool, opts: &Gl
                     price_usd: tx.price_usd.map(|p| p.to_string()),
                     fee: tx.fee.map(|f| f.to_string()),
                     fee_asset: tx.fee_asset.clone(),
+                    external_id: tx.external_id.clone(),
                     notes: tx.notes.clone(),
                 }).collect();
                 println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
