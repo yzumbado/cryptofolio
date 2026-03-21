@@ -91,11 +91,8 @@ impl<'a> TransactionImporter<'a> {
         };
 
         if dry_run {
-            let action = if trade.is_buyer { "Buy" } else { "Sell" };
-            return Ok(ImportResult::Skipped(format!(
-                "[dry-run] Would import {} {} {} @ {} (trade #{})",
-                action, trade.qty, base_asset, trade.price, trade.id
-            )));
+            // Return Created(0) to indicate "would create" in reporting
+            return Ok(ImportResult::Created(0));
         }
 
         let tx_id = if trade.is_buyer {
@@ -207,10 +204,8 @@ impl<'a> TransactionImporter<'a> {
         let timestamp = ms_to_datetime(deposit.insert_time)?;
 
         if dry_run {
-            return Ok(ImportResult::Skipped(format!(
-                "[dry-run] Would import deposit {} {} (deposit #{})",
-                deposit.amount, deposit.coin, deposit.id
-            )));
+            // Return Created(0) to indicate "would create" in reporting
+            return Ok(ImportResult::Created(0));
         }
 
         // Build a transfer_in transaction (no cost basis — it's a transfer)
@@ -289,10 +284,8 @@ impl<'a> TransactionImporter<'a> {
         let timestamp = ms_to_datetime(withdrawal.apply_time)?;
 
         if dry_run {
-            return Ok(ImportResult::Skipped(format!(
-                "[dry-run] Would import withdrawal {} {} (withdrawal #{})",
-                withdrawal.amount, withdrawal.coin, withdrawal.id
-            )));
+            // Return Created(0) to indicate "would create" in reporting
+            return Ok(ImportResult::Created(0));
         }
 
         // Total sent = amount + fee
@@ -373,10 +366,8 @@ impl<'a> TransactionImporter<'a> {
         let timestamp = ms_to_datetime(order.create_time)?;
 
         if dry_run {
-            return Ok(ImportResult::Skipped(format!(
-                "[dry-run] Would import fiat order {} {} via {} (order #{})",
-                order.amount, order.crypto_currency, order.method, order.order_no
-            )));
+            // Return Created(0) to indicate "would create" in reporting
+            return Ok(ImportResult::Created(0));
         }
 
         // Effective price per unit: fiat_amount / crypto_amount
@@ -477,10 +468,8 @@ impl<'a> TransactionImporter<'a> {
         let timestamp = ms_to_datetime(transfer.timestamp)?;
 
         if dry_run {
-            return Ok(ImportResult::Skipped(format!(
-                "[dry-run] Would import transfer {} {} type {} (tran #{})",
-                transfer.amount, transfer.asset, transfer.transfer_type, transfer.tran_id
-            )));
+            // Return Created(0) to indicate "would create" in reporting
+            return Ok(ImportResult::Created(0));
         }
 
         // Internal transfer — same account on both sides (sub-wallet not tracked)
@@ -748,7 +737,8 @@ mod tests {
         let trade = make_trade(3, "ETHUSDT", true);
 
         let result = importer.import_trade("acc", &trade, true).await.unwrap();
-        assert!(result.is_skipped()); // dry-run returns Skipped with description
+        // Dry-run returns Created(0) to indicate "would create" in reporting
+        assert!(result.is_created());
 
         // No holdings should have been created
         let holding_repo = HoldingRepository::new(&pool);

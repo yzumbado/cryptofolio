@@ -159,7 +159,16 @@ impl BinanceClient {
             return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
         }
 
-        Ok(response.json().await?)
+        // Try to deserialize, but provide better error context if it fails
+        match response.json::<T>().await {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                Err(CryptofolioError::ExchangeApi(format!(
+                    "Failed to parse API response from {}: {}. The API response format may have changed.",
+                    endpoint, e
+                )))
+            }
+        }
     }
 
     /// Normalize symbol to Binance format (e.g., "BTC" -> "BTCUSDT")

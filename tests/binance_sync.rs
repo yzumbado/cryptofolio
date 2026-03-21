@@ -384,8 +384,8 @@ async fn test_dry_run_trade_has_no_side_effects() -> Result<()> {
     let trade = make_trade(1, "BTCUSDT", "50000", "0.1", true);
     let result = importer.import_trade("acc-dry-trade", &trade, true).await?;
 
-    // Dry-run returns Skipped with a description
-    assert!(result.is_skipped());
+    // Dry-run returns Created(0) to indicate "would create" in reporting
+    assert!(result.is_created());
 
     // No holding created
     assert!(holding_repo.get("acc-dry-trade", "BTC").await?.is_none());
@@ -406,7 +406,8 @@ async fn test_dry_run_deposit_has_no_side_effects() -> Result<()> {
     let deposit = make_deposit("dep-dry", "BTC", "0.5", 1);
     let result = importer.import_deposit("acc-dry-dep", &deposit, true).await?;
 
-    assert!(result.is_skipped());
+    // Dry-run returns Created(0) to indicate "would create" in reporting
+    assert!(result.is_created());
     assert!(holding_repo.get("acc-dry-dep", "BTC").await?.is_none());
     assert_eq!(tx_repo.list_by_account("acc-dry-dep", None).await?.len(), 0);
 

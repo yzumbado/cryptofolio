@@ -91,11 +91,15 @@ impl Default for SyncOptions {
             sync_withdrawals: true,
             sync_fiat: true,
             sync_transfers: true,
+            // Note: Only include transfer types that are commonly available
+            // MAIN_UMFUTURE, UMFUTURE_MAIN have decoding issues
+            // MAIN_C2C, C2C_MAIN not available for all accounts
             transfer_types: vec![
-                "MAIN_UMFUTURE".to_string(),
-                "UMFUTURE_MAIN".to_string(),
-                "MAIN_C2C".to_string(),
-                "C2C_MAIN".to_string(),
+                // Disabled by default - uncomment if you have futures/C2C enabled:
+                // "MAIN_UMFUTURE".to_string(),
+                // "UMFUTURE_MAIN".to_string(),
+                // "MAIN_C2C".to_string(),
+                // "C2C_MAIN".to_string(),
             ],
             full_history: false,
             dry_run: false,
@@ -577,7 +581,8 @@ mod tests {
         assert!(!opts.full_history);
         assert!(!opts.dry_run);
         assert!(opts.symbols.is_empty());
-        assert!(!opts.transfer_types.is_empty());
+        // Transfer types are empty by default (problematic types disabled)
+        assert!(opts.transfer_types.is_empty());
     }
 
     #[test]

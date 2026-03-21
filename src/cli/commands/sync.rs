@@ -257,43 +257,50 @@ pub async fn handle_sync_history_command(
     // Print results
     if !opts.quiet {
         println!();
+        let verb = if dry_run { "would import" } else { "imported" };
+
         if report.trades_created > 0 || report.trades_skipped > 0 {
             println!(
-                "  {} Trades:      {} imported, {} skipped",
+                "  {} Trades:      {} {}, {} skipped",
                 "✓".green(),
                 report.trades_created,
+                verb,
                 report.trades_skipped
             );
         }
         if report.deposits_created > 0 || report.deposits_skipped > 0 {
             println!(
-                "  {} Deposits:    {} imported, {} skipped",
+                "  {} Deposits:    {} {}, {} skipped",
                 "✓".green(),
                 report.deposits_created,
+                verb,
                 report.deposits_skipped
             );
         }
         if report.withdrawals_created > 0 || report.withdrawals_skipped > 0 {
             println!(
-                "  {} Withdrawals: {} imported, {} skipped",
+                "  {} Withdrawals: {} {}, {} skipped",
                 "✓".green(),
                 report.withdrawals_created,
+                verb,
                 report.withdrawals_skipped
             );
         }
         if report.fiat_orders_created > 0 || report.fiat_orders_skipped > 0 {
             println!(
-                "  {} Fiat orders: {} imported, {} skipped",
+                "  {} Fiat orders: {} {}, {} skipped",
                 "✓".green(),
                 report.fiat_orders_created,
+                verb,
                 report.fiat_orders_skipped
             );
         }
         if report.transfers_created > 0 || report.transfers_skipped > 0 {
             println!(
-                "  {} Transfers:   {} imported, {} skipped",
+                "  {} Transfers:   {} {}, {} skipped",
                 "✓".green(),
                 report.transfers_created,
+                verb,
                 report.transfers_skipped
             );
         }
