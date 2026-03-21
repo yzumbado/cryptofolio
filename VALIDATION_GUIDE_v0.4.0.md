@@ -2,18 +2,26 @@
 
 **Purpose:** Step-by-step validation of the new `sync-history` command against a real Binance account.
 
-**Prerequisites:** API credentials stored, account created, `cargo build --release` done.
+**Prerequisites:** API credentials ready, Binance account exists, Xcode Command Line Tools installed.
 
 ---
 
-## 0. Build and Verify
+## 0. Build, Sign, and Verify
 
 ```bash
+# Navigate to project root
+cd /Users/yzumbado/projects/cryptofolio
+
 # Build release binary
 cargo build --release
 
+# Sign the binary (required for macOS Keychain access)
+# This script builds if needed, creates entitlements, and signs with ad-hoc identity
+./sign.sh
+# Expected: ✅ Binary signed successfully (ad-hoc)
+
 # Verify version
-./target/release/cryptofolio --version
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio --version
 # cryptofolio 0.4.0
 
 # Run full test suite
@@ -21,24 +29,31 @@ cargo test
 # test result: ok. 341 passed; 0 failed
 ```
 
+> **Why sign?** macOS requires a signed binary to access the Keychain API. Without signing,
+> `config set-secret` fails with `OSStatus -34018` (missing entitlement) and falls back to
+> storing credentials in plaintext in `config.toml`. Always run `./sign.sh` after building.
+
 ---
 
 ## 1. Credential Setup
 
 ```bash
 # Store API key securely in macOS Keychain
-cryptofolio config set-secret binance.api_key
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config set-secret binance.api_key
 # Enter secret (hidden): <paste key>
 # ✓ Stored in macOS Keychain
 
-cryptofolio config set-secret binance.api_secret
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config set-secret binance.api_secret
 # Enter secret (hidden): <paste secret>
 # ✓ Stored in macOS Keychain
 
 # Verify credentials are stored
-cryptofolio config keychain-status
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config keychain-status
 # Should show: binance.api_key ✓, binance.api_secret ✓
 ```
+
+> **Tip:** If you see `Warning: Failed to store in keychain: OSStatus -34018`, the binary
+> is not signed. Go back to step 0 and run `./sign.sh`.
 
 ---
 
@@ -46,14 +61,14 @@ cryptofolio config keychain-status
 
 ```bash
 # Create Binance exchange account (skip if already exists)
-cryptofolio account add "Binance" --type exchange --category trading --sync
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio account add "Binance" --type exchange --category trading --sync
 
 # Verify account exists
-cryptofolio account list
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio account list
 # Should show Binance in the list
 
 # Sync current balances to confirm API connectivity
-cryptofolio sync --account Binance
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync --account Binance
 # ✓ Synced N assets from 'Binance'
 ```
 
@@ -66,7 +81,7 @@ cryptofolio sync --account Binance
 This is always the right first step.
 
 ```bash
-cryptofolio sync-history --account Binance \
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance \
   --symbols BTCUSDT,ETHUSDT \
   --full-history \
   --dry-run
@@ -102,7 +117,7 @@ No changes written (dry run)
 ## 4. Full History Import
 
 ```bash
-cryptofolio sync-history --account Binance \
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance \
   --symbols BTCUSDT,ETHUSDT \
   --full-history
 ```
@@ -137,13 +152,13 @@ Total:       N transactions imported
 
 ```bash
 # List recent transactions
-cryptofolio tx list --limit 20
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --limit 20
 
 # List only buy transactions
-cryptofolio tx list --limit 20 --type buy
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --limit 20 --type buy
 
 # Verify an imported trade shows external ID
-cryptofolio tx list --limit 5 --json | jq '.[].external_id'
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --limit 5 --json | jq '.[].external_id'
 # Should show: "binance-trade-12345", "binance-deposit-abc", etc.
 ```
 
@@ -157,7 +172,7 @@ cryptofolio tx list --limit 5 --json | jq '.[].external_id'
 ## 6. Verify Holdings Were Updated
 
 ```bash
-cryptofolio holdings list
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio holdings list
 ```
 
 **Checks:**
@@ -176,13 +191,13 @@ cryptofolio holdings list
 
 ```bash
 # Check if P&L was calculated for trades
-cryptofolio pnl summary
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio pnl summary
 
 # Detailed realized gains
-cryptofolio pnl realized --limit 10
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio pnl realized --limit 10
 
 # Check tax lots created
-cryptofolio pnl unrealized
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio pnl unrealized
 ```
 
 **Checks:**
@@ -197,7 +212,7 @@ cryptofolio pnl unrealized
 Run the same command again immediately after the first import:
 
 ```bash
-cryptofolio sync-history --account Binance \
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance \
   --symbols BTCUSDT,ETHUSDT \
   --full-history
 ```
@@ -214,7 +229,7 @@ Total:       0 transactions imported
 
 **Checks:**
 - [ ] Zero new transactions created
-- [ ] Total transaction count is unchanged (verify with `cryptofolio tx list | wc -l`)
+- [ ] Total transaction count is unchanged (verify with `/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list | wc -l`)
 - [ ] No errors
 
 ---
@@ -224,7 +239,7 @@ Total:       0 transactions imported
 After the full import, run without `--full-history` to test watermarks:
 
 ```bash
-cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
 ```
 
 **Expected:**
@@ -247,7 +262,7 @@ Test importing for a single pair:
 
 ```bash
 # Only sync BNBUSDT trades
-cryptofolio sync-history --account Binance --symbols BNBUSDT
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance --symbols BNBUSDT
 ```
 
 **Checks:**
@@ -259,7 +274,7 @@ cryptofolio sync-history --account Binance --symbols BNBUSDT
 ## 11. Date Range Test
 
 ```bash
-cryptofolio sync-history --account Binance \
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance \
   --symbols BTCUSDT \
   --from 2024-01-01 \
   --dry-run
@@ -275,7 +290,7 @@ cryptofolio sync-history --account Binance \
 
 ```bash
 # Only import trades, skip everything else
-cryptofolio sync-history --account Binance \
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance \
   --symbols BTCUSDT \
   --no-deposits \
   --no-withdrawals \
@@ -306,11 +321,11 @@ Temporarily corrupt one API credential to test graceful failure:
 
 ```bash
 # Set a bad API key temporarily
-cryptofolio config set-secret binance.api_key
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config set-secret binance.api_key
 # Enter: BADKEY123
 
 # Try to sync
-cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run
 ```
 
 **Expected:**
@@ -328,7 +343,7 @@ Error fetching BTCUSDT trades: API error 401
 
 ```bash
 # Restore correct API key
-cryptofolio config set-secret binance.api_key
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config set-secret binance.api_key
 ```
 
 ---
@@ -339,16 +354,16 @@ After all tests:
 
 ```bash
 # Check final transaction count
-cryptofolio tx list --json | jq 'length'
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --json | jq 'length'
 
 # Check holdings summary
-cryptofolio holdings list
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio holdings list
 
 # Final P&L
-cryptofolio pnl summary
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio pnl summary
 
 # Spot check a specific transaction
-cryptofolio tx list --limit 5 --json | jq '.[0]'
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --limit 5 --json | jq '.[0]'
 # Should show: id, external_id, type, asset, quantity, price, date, notes
 ```
 
@@ -358,8 +373,8 @@ cryptofolio tx list --limit 5 --json | jq '.[0]'
 
 | Test | Status |
 |------|--------|
-| Build and version check | ⬜ |
-| Credential setup | ⬜ |
+| Build, sign, and version check | ⬜ |
+| Credential setup (Keychain) | ⬜ |
 | Account + balance sync | ⬜ |
 | Dry-run (no writes) | ⬜ |
 | Full history import | ⬜ |
@@ -393,7 +408,11 @@ cryptofolio tx list --limit 5 --json | jq '.[0]'
    Earn sub-wallet balance is not tracked separately.
 
 5. **Testnet** — `sync-history` works with testnet API too. Use
-   `cryptofolio config use-testnet` first.
+   `/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio config use-testnet` first.
+
+6. **Binary signing** — The release binary must be re-signed with `./sign.sh` after
+   every `cargo build --release`. Ad-hoc signing is machine-specific and will not
+   work if the binary is copied to another Mac.
 
 ---
 
@@ -403,10 +422,13 @@ If a test fails or produces unexpected results, capture:
 
 ```bash
 # Full command output
-cryptofolio sync-history --account Binance --symbols BTCUSDT 2>&1 | tee sync-debug.log
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio sync-history --account Binance --symbols BTCUSDT 2>&1 | tee /Users/yzumbado/projects/cryptofolio/sync-debug.log
 
 # Transaction count before and after
-cryptofolio tx list --json | jq 'length'
+/Users/yzumbado/projects/cryptofolio/target/release/cryptofolio tx list --json | jq 'length'
+
+# Check binary is signed
+codesign -dvvv /Users/yzumbado/projects/cryptofolio/target/release/cryptofolio 2>&1 | grep -E "Signature|Identifier"
 ```
 
 Then open an issue with:
@@ -414,3 +436,4 @@ Then open an issue with:
 - The output / error message
 - Your Binance account type (standard / sub-account / VIP)
 - Whether testnet or mainnet
+- Output of the `codesign` check above
