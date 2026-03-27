@@ -18,6 +18,9 @@ pub struct AppConfig {
     pub binance: BinanceConfig,
 
     #[serde(default)]
+    pub blockfrost: BlockfrostConfig,
+
+    #[serde(default)]
     pub display: DisplayConfig,
 
     #[serde(default)]
@@ -29,6 +32,7 @@ impl Default for AppConfig {
         Self {
             general: GeneralConfig::default(),
             binance: BinanceConfig::default(),
+            blockfrost: BlockfrostConfig::default(),
             display: DisplayConfig::default(),
             ai: Some(AiConfig::default()),
         }
@@ -122,6 +126,31 @@ impl Default for BinanceConfig {
         Self {
             api_key: None,
             api_secret: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockfrostConfig {
+    /// Blockfrost API key for Cardano mainnet
+    #[serde(default)]
+    pub mainnet_api_key: Option<String>,
+
+    /// Blockfrost API key for Cardano Preprod testnet
+    #[serde(default)]
+    pub preprod_api_key: Option<String>,
+
+    /// Blockfrost API key for Cardano Preview testnet
+    #[serde(default)]
+    pub preview_api_key: Option<String>,
+}
+
+impl Default for BlockfrostConfig {
+    fn default() -> Self {
+        Self {
+            mainnet_api_key: None,
+            preprod_api_key: None,
+            preview_api_key: None,
         }
     }
 }
@@ -236,6 +265,15 @@ impl AppConfig {
             "binance.api_secret" => {
                 self.binance.api_secret = Some(value.to_string());
             }
+            "blockfrost.mainnet_api_key" | "blockfrost.api_key" => {
+                self.blockfrost.mainnet_api_key = Some(value.to_string());
+            }
+            "blockfrost.preprod_api_key" => {
+                self.blockfrost.preprod_api_key = Some(value.to_string());
+            }
+            "blockfrost.preview_api_key" => {
+                self.blockfrost.preview_api_key = Some(value.to_string());
+            }
             "display.color" => {
                 self.display.color = value.parse().map_err(|_| {
                     CryptofolioError::Config("Invalid boolean value".into())
@@ -345,6 +383,9 @@ impl AppConfig {
         let value = match key {
             "binance.api_key" => self.binance.api_key.clone(),
             "binance.api_secret" => self.binance.api_secret.clone(),
+            "blockfrost.mainnet_api_key" | "blockfrost.api_key" => self.blockfrost.mainnet_api_key.clone(),
+            "blockfrost.preprod_api_key" => self.blockfrost.preprod_api_key.clone(),
+            "blockfrost.preview_api_key" => self.blockfrost.preview_api_key.clone(),
             "ai.claude_api_key" => self.ai.as_ref().and_then(|ai| ai.claude_api_key.clone()),
             _ => None,
         };
@@ -365,6 +406,34 @@ impl AppConfig {
     /// Get Claude API key (from keychain or TOML)
     pub fn get_claude_api_key(&self) -> Result<Option<String>> {
         self.get_secret("ai.claude_api_key")
+    }
+
+    /// Get Blockfrost API key based on network (mainnet/preprod/preview)
+    /// Falls back to environment variable BLOCKFROST_API_KEY if not in config
+    pub fn get_blockfrost_api_key(&self, is_testnet: bool, network: Option<&str>) -> Option<String> {
+        // First, check environment variable
+        if let Ok(env_key) = std::env::var("BLOCKFROST_API_KEY") {
+            if !env_key.is_empty() {
+                return Some(env_key);
+            }
+        }
+
+        // Then check config based on network
+        if is_testnet {
+            // For testnet, check network-specific key or default to preprod
+            match network {
+                Some("preview") => self.blockfrost.preview_api_key.clone(),
+                _ => self.blockfrost.preprod_api_key.clone(),
+            }
+        } else {
+            // For mainnet
+            self.blockfrost.mainnet_api_key.clone()
+        }
+    }
+
+    /// Check if Blockfrost API key is configured for the given network
+    pub fn has_blockfrost_key(&self, is_testnet: bool, network: Option<&str>) -> bool {
+        self.get_blockfrost_api_key(is_testnet, network).is_some()
     }
 
     /// Get Binance base URL based on testnet setting

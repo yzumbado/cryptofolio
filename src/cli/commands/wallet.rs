@@ -534,8 +534,19 @@ async fn sync_cardano_wallet(
     import_history: bool,
     opts: &GlobalOptions,
 ) -> Result<()> {
-    // Create Blockfrost client (no API key for now - would need to be configured)
-    let client = blockchain::cardano::BlockfrostClient::new(is_testnet, None);
+    // Load config and get Blockfrost API key
+    let config = crate::config::AppConfig::load()?;
+    let api_key = config.get_blockfrost_api_key(is_testnet, addr.network.as_deref());
+
+    // Check if API key is available
+    if api_key.is_none() {
+        return Err(crate::error::CryptofolioError::Config(
+            "Blockfrost API key not configured. Set it with:\n  cryptofolio config set blockfrost.preprod_api_key <your-key>\n  or set environment variable: BLOCKFROST_API_KEY".to_string()
+        ));
+    }
+
+    // Create Blockfrost client with API key
+    let client = blockchain::cardano::BlockfrostClient::new(is_testnet, api_key);
 
     // Fetch address info (balance + native tokens + stake info)
     match client.get_address_info(&addr.address).await {

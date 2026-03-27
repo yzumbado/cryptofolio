@@ -23,6 +23,7 @@ use crate::config::migration;
 struct ConfigOutput {
     general: GeneralConfig,
     binance: BinanceConfig,
+    blockfrost: BlockfrostConfigOutput,
     display: DisplayConfig,
     paths: PathsConfig,
 }
@@ -38,6 +39,13 @@ struct GeneralConfig {
 struct BinanceConfig {
     api_key_configured: bool,
     api_secret_configured: bool,
+}
+
+#[derive(Serialize)]
+struct BlockfrostConfigOutput {
+    mainnet_api_key_configured: bool,
+    preprod_api_key_configured: bool,
+    preview_api_key_configured: bool,
 }
 
 #[derive(Serialize)]
@@ -73,6 +81,11 @@ pub async fn handle_config_command(
                     binance: BinanceConfig {
                         api_key_configured: config.binance.api_key.is_some(),
                         api_secret_configured: config.binance.api_secret.is_some(),
+                    },
+                    blockfrost: BlockfrostConfigOutput {
+                        mainnet_api_key_configured: config.blockfrost.mainnet_api_key.is_some(),
+                        preprod_api_key_configured: config.blockfrost.preprod_api_key.is_some(),
+                        preview_api_key_configured: config.blockfrost.preview_api_key.is_some(),
                     },
                     display: DisplayConfig {
                         color: config.display.color,
@@ -123,6 +136,33 @@ pub async fn handle_config_command(
                 print_kv(
                     "api_secret",
                     if config.binance.api_secret.is_some() {
+                        "***configured***"
+                    } else {
+                        "-"
+                    },
+                );
+                println!();
+
+                println!("{}", "[blockfrost]".dimmed());
+                print_kv(
+                    "mainnet_api_key",
+                    if config.blockfrost.mainnet_api_key.is_some() {
+                        "***configured***"
+                    } else {
+                        "-"
+                    },
+                );
+                print_kv(
+                    "preprod_api_key",
+                    if config.blockfrost.preprod_api_key.is_some() {
+                        "***configured***"
+                    } else {
+                        "-"
+                    },
+                );
+                print_kv(
+                    "preview_api_key",
+                    if config.blockfrost.preview_api_key.is_some() {
                         "***configured***"
                     } else {
                         "-"
