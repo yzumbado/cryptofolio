@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Developed with Claude Code](https://img.shields.io/badge/developed%20with-Claude%20Code-blueviolet.svg)](https://claude.ai/claude-code)
@@ -17,7 +17,9 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
-✅ **Binance History Sync** - Full trade/deposit/withdrawal/fiat history import (NEW in v0.4.0)
+✅ **Ethereum Wallet Sync** - Automatic balance & ERC-20 token detection (NEW in v0.5.0)
+✅ **Bitcoin Blockchain Sync** - HD wallet & testnet support (v0.5.0)
+✅ **Binance History Sync** - Full trade/deposit/withdrawal/fiat history import
 ✅ **Keychain Security (macOS)** - OS-encrypted storage with Touch ID support
 ✅ **Multi-Currency Support** - Track CRC, USD, EUR alongside BTC, ETH, USDT
 ✅ **Local-First & Private** - All data stays on your machine
@@ -67,7 +69,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.4.0
+# cryptofolio 0.5.0
 ```
 
 ### First Steps
@@ -155,6 +157,103 @@ cryptofolio currency show-rate CRC USD --history  # Rate history
 
 [See full multi-currency guide →](docs/MULTI_CURRENCY_IMPLEMENTATION.md)
 
+### ₿ Bitcoin Wallet Tracking
+
+Track Bitcoin wallets with automatic blockchain synchronization (mainnet & testnet).
+
+**Add Bitcoin Wallets:**
+```bash
+# Mainnet wallet
+cryptofolio wallet add "My BTC" --blockchain bitcoin \
+  --address bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh
+
+# Testnet wallet (automatic detection)
+cryptofolio wallet add "Test Wallet" --blockchain bitcoin \
+  --address tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx
+
+# HD wallet with xpub
+cryptofolio wallet add "Hardware Wallet" --blockchain bitcoin \
+  --xpub xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKr...
+```
+
+**Sync Blockchain Data:**
+```bash
+# Sync single wallet
+cryptofolio wallet sync "My BTC"
+# ✓ Synced BITCOIN balance: 0.05420000
+# Transactions: 12
+# Total received: 0.15000000 BTC
+
+# Sync all wallets
+cryptofolio wallet sync --all
+
+# Import transaction history
+cryptofolio wallet sync "My BTC" --import-history
+# ✓ Imported 12 transactions
+```
+
+**Supported Address Formats:**
+- **Legacy (P2PKH):** 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+- **P2SH:** 3J98t1WpEZ73CNmYviecrnyiWrnqRhWNLy
+- **Bech32 (SegWit):** bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh
+- **Testnet:** tb1q..., m..., n..., 2...
+- **Extended Public Keys:** xpub, ypub, zpub, tpub, upub, vpub
+
+**Features:**
+- ✅ Automatic mainnet/testnet detection
+- ✅ Blockstream API integration (no local node required)
+- ✅ Balance and transaction history sync
+- ✅ Decimal precision (no floating-point errors)
+- ✅ Cross-chain validation (prevents ETH address on BTC wallet)
+
+[See blockchain sync guide →](BLOCKCHAIN_SYNC.md) • [Testnet setup →](TESTNET_SETUP_GUIDE.md) • [Testnet support →](TESTNET_SUPPORT.md)
+
+### Ξ Ethereum Wallet Tracking
+
+Track Ethereum wallets with automatic ERC-20 token detection (mainnet & Sepolia testnet).
+
+**Add Ethereum Wallets:**
+```bash
+# Mainnet wallet
+cryptofolio wallet add "My ETH" --blockchain ethereum \
+  --address 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0
+
+# Sepolia testnet wallet
+cryptofolio wallet add "Test Wallet" --blockchain ethereum \
+  --address 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0 \
+  --network testnet
+```
+
+**Sync Blockchain Data:**
+```bash
+# Sync single wallet
+cryptofolio wallet sync "My ETH"
+# ✓ Synced ETH balance: 2.5420
+# ✓ Found 3 tokens
+#   USDT: 1000.00
+#   USDC: 500.00
+#   LINK: 25.50
+
+# Import transaction history
+cryptofolio wallet sync "My ETH" --import-history
+# ✓ Imported 42 transactions
+```
+
+**ERC-20 Token Support:**
+- ✅ Automatic token detection from transaction history
+- ✅ Multi-decimal precision (6 for USDT/USDC, 18 for most tokens)
+- ✅ Token aggregation (calculates balance from all transfers)
+- ✅ Common tokens: USDT, USDC, DAI, LINK, UNI, AAVE, etc.
+
+**Features:**
+- ✅ Automatic mainnet/testnet detection
+- ✅ Etherscan API integration (no local node required)
+- ✅ Balance, token, and transaction history sync
+- ✅ Gas tracking for cost basis calculations
+- ✅ Checksum address validation
+
+[Testnet setup →](TESTNET_SETUP_GUIDE_ETHEREUM.md) • [Validation checklist →](VALIDATION_CHECKLIST_ETHEREUM.md)
+
 ### 🤖 AI-Powered Interface
 
 Natural language commands powered by Claude or local Ollama.
@@ -162,7 +261,7 @@ Natural language commands powered by Claude or local Ollama.
 ```bash
 cryptofolio shell
 
-  🪙 Cryptofolio v0.4.0
+  🪙 Cryptofolio v0.5.0
   AI-Powered Portfolio Assistant
 
   💰 Portfolio: $61,442.89 (+109.57%)
@@ -718,6 +817,8 @@ jobs:
 - [Validation Guide](docs/VALIDATION_GUIDE.md) - Testing scenarios
 
 ### Development
+- [Stability Plan](STABILITY_PLAN.md) - **Short-term development guide (NEW!)**
+- [Stability Checklist](STABILITY_CHECKLIST.md) - Quick reference for daily work
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](CHANGELOG.md)
 - [Roadmap](docs/ROADMAP.md)
