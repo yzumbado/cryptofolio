@@ -17,7 +17,10 @@ pub struct BinanceTicker24hResponse {
     pub last_price: Decimal,
     #[serde(rename = "priceChange", deserialize_with = "deserialize_decimal")]
     pub price_change: Decimal,
-    #[serde(rename = "priceChangePercent", deserialize_with = "deserialize_decimal")]
+    #[serde(
+        rename = "priceChangePercent",
+        deserialize_with = "deserialize_decimal"
+    )]
     pub price_change_percent: Decimal,
     #[serde(rename = "highPrice", deserialize_with = "deserialize_decimal")]
     pub high_price: Decimal,
@@ -121,22 +124,22 @@ pub struct BinanceWithdrawal {
     #[serde(rename = "txId")]
     pub tx_id: Option<String>,
     #[serde(rename = "applyTime")]
-    pub apply_time: String,  // Changed: Binance now returns datetime string "YYYY-MM-DD HH:MM:SS"
+    pub apply_time: String, // Changed: Binance now returns datetime string "YYYY-MM-DD HH:MM:SS"
     pub network: String,
     #[serde(rename = "withdrawOrderId")]
     pub withdraw_order_id: Option<String>,
     #[serde(rename = "transferType", default)]
-    pub transfer_type: Option<i32>,  // New field from API
+    pub transfer_type: Option<i32>, // New field from API
     #[serde(default)]
-    pub info: Option<String>,  // New field from API
+    pub info: Option<String>, // New field from API
     #[serde(rename = "confirmNo", default)]
-    pub confirm_no: Option<i32>,  // New field from API
+    pub confirm_no: Option<i32>, // New field from API
     #[serde(rename = "walletType", default)]
-    pub wallet_type: Option<i32>,  // New field from API
+    pub wallet_type: Option<i32>, // New field from API
     #[serde(rename = "txKey", default)]
-    pub tx_key: Option<String>,  // New field from API
+    pub tx_key: Option<String>, // New field from API
     #[serde(rename = "completeTime", default)]
-    pub complete_time: Option<String>,  // New field from API
+    pub complete_time: Option<String>, // New field from API
 }
 
 // Fiat deposit/withdrawal models

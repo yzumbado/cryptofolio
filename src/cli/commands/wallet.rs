@@ -1,6 +1,6 @@
 use crate::blockchain;
-use crate::cli::{GlobalOptions, WalletCommands};
 use crate::cli::output::{info, success};
+use crate::cli::{GlobalOptions, WalletCommands};
 use crate::core::account::{Account, AccountConfig, AccountType, WalletAddress};
 use crate::db::accounts::AccountRepository;
 use crate::error::{CryptofolioError, Result};
@@ -37,26 +37,18 @@ pub async fn handle_wallet_command(
             .await
         }
 
-        WalletCommands::List { blockchain } => {
-            handle_wallet_list(blockchain, pool, opts).await
-        }
+        WalletCommands::List { blockchain } => handle_wallet_list(blockchain, pool, opts).await,
 
-        WalletCommands::Show { name } => {
-            handle_wallet_show(name, pool, opts).await
-        }
+        WalletCommands::Show { name } => handle_wallet_show(name, pool, opts).await,
 
         WalletCommands::Sync {
             name,
             all,
             import_history,
             use_local_node,
-        } => {
-            handle_wallet_sync(name, all, import_history, use_local_node, pool, opts).await
-        }
+        } => handle_wallet_sync(name, all, import_history, use_local_node, pool, opts).await,
 
-        WalletCommands::Remove { name, yes } => {
-            handle_wallet_remove(name, yes, pool, opts).await
-        }
+        WalletCommands::Remove { name, yes } => handle_wallet_remove(name, yes, pool, opts).await,
     }
 }
 
@@ -100,9 +92,10 @@ async fn handle_wallet_add(
 
     // Check if account already exists
     if account_repo.get_account(&name).await?.is_some() {
-        return Err(CryptofolioError::Other(
-            format!("Wallet '{}' already exists", name),
-        ));
+        return Err(CryptofolioError::Other(format!(
+            "Wallet '{}' already exists",
+            name
+        )));
     }
 
     // Check for duplicate address
@@ -110,10 +103,14 @@ async fn handle_wallet_add(
         let all_accounts = account_repo.list_accounts().await?;
         for acc in all_accounts {
             let addresses = account_repo.list_addresses(&acc.id).await?;
-            if addresses.iter().any(|a| a.address == *addr && a.blockchain.eq_ignore_ascii_case(&blockchain)) {
-                return Err(CryptofolioError::Other(
-                    format!("Address already exists in wallet '{}'", acc.name),
-                ));
+            if addresses
+                .iter()
+                .any(|a| a.address == *addr && a.blockchain.eq_ignore_ascii_case(&blockchain))
+            {
+                return Err(CryptofolioError::Other(format!(
+                    "Address already exists in wallet '{}'",
+                    acc.name
+                )));
             }
         }
     }
@@ -153,31 +150,43 @@ async fn handle_wallet_add(
             Some("mainnet")
         }
     } else {
-        Some("mainnet")  // Default to mainnet for other chains
+        Some("mainnet") // Default to mainnet for other chains
     };
 
     // Add the wallet address
     if let Some(addr) = address {
-        account_repo.add_address_with_xpub(
-            &account_id,
-            &blockchain,
-            &addr,
-            label.as_deref(),
-            None,
-            None,
-            address_type.as_deref(),
-            network,
-        ).await?;
+        account_repo
+            .add_address_with_xpub(
+                &account_id,
+                &blockchain,
+                &addr,
+                label.as_deref(),
+                None,
+                None,
+                address_type.as_deref(),
+                network,
+            )
+            .await?;
 
-        let network_label = if network == Some("testnet") { " [TESTNET]" } else { "" };
+        let network_label = if network == Some("testnet") {
+            " [TESTNET]"
+        } else {
+            ""
+        };
 
         if opts.json {
             println!(
                 r#"{{"success": true, "wallet": "{}", "blockchain": "{}", "address": "{}", "network": "{}"}}"#,
-                name, blockchain, addr, network.unwrap_or("mainnet")
+                name,
+                blockchain,
+                addr,
+                network.unwrap_or("mainnet")
             );
         } else {
-            success(&format!("✓ Added wallet '{}' ({} address{})", name, blockchain, network_label));
+            success(&format!(
+                "✓ Added wallet '{}' ({} address{})",
+                name, blockchain, network_label
+            ));
             info(&format!("  Address: {}", addr));
             if network == Some("testnet") {
                 info("  ⚠️  This is a TESTNET address");
@@ -186,18 +195,24 @@ async fn handle_wallet_add(
     } else if let Some(xpub_val) = xpub {
         // For HD wallets, we'll derive the first address (for now just store xpub)
         // TODO: Implement xpub derivation
-        account_repo.add_address_with_xpub(
-            &account_id,
-            &blockchain,
-            &xpub_val[..20], // Temporary: use truncated xpub as placeholder
-            label.as_deref(),
-            Some(&xpub_val),
-            derivation_path.as_deref(),
-            address_type.as_deref(),
-            network,
-        ).await?;
+        account_repo
+            .add_address_with_xpub(
+                &account_id,
+                &blockchain,
+                &xpub_val[..20], // Temporary: use truncated xpub as placeholder
+                label.as_deref(),
+                Some(&xpub_val),
+                derivation_path.as_deref(),
+                address_type.as_deref(),
+                network,
+            )
+            .await?;
 
-        let network_label = if network == Some("testnet") { " [TESTNET]" } else { "" };
+        let network_label = if network == Some("testnet") {
+            " [TESTNET]"
+        } else {
+            ""
+        };
 
         if opts.json {
             println!(
@@ -208,7 +223,10 @@ async fn handle_wallet_add(
                 network.unwrap_or("mainnet")
             );
         } else {
-            success(&format!("✓ Added HD wallet '{}' ({} xpub{})", name, blockchain, network_label));
+            success(&format!(
+                "✓ Added HD wallet '{}' ({} xpub{})",
+                name, blockchain, network_label
+            ));
             info(&format!("  xpub: {}...", &xpub_val[..20]));
             if let Some(path) = derivation_path {
                 info(&format!("  Derivation path: {}", path));
@@ -277,10 +295,24 @@ async fn handle_wallet_list(
                     if let Some(ref xpub) = addr.xpub {
                         println!(r#"        "xpub": "{}","#, xpub);
                     }
-                    println!("      }}{}", if j < filtered_addresses.len() - 1 { "," } else { "" });
+                    println!(
+                        "      }}{}",
+                        if j < filtered_addresses.len() - 1 {
+                            ","
+                        } else {
+                            ""
+                        }
+                    );
                 }
                 println!("    ]");
-                println!("  }}{}", if i < wallet_accounts.len() - 1 { "," } else { "" });
+                println!(
+                    "  }}{}",
+                    if i < wallet_accounts.len() - 1 {
+                        ","
+                    } else {
+                        ""
+                    }
+                );
             }
         }
         println!("]");
@@ -304,7 +336,11 @@ async fn handle_wallet_list(
                 continue;
             }
 
-            println!("\n{} ({})", account.name.bold(), account.account_type.as_str());
+            println!(
+                "\n{} ({})",
+                account.name.bold(),
+                account.account_type.as_str()
+            );
             for addr in filtered_addresses {
                 let blockchain_icon = match addr.blockchain.as_str() {
                     "bitcoin" => "₿",
@@ -355,15 +391,21 @@ async fn handle_wallet_sync(
 
     // Get wallets to sync
     let wallets = if all {
-        account_repo.list_accounts().await?
+        account_repo
+            .list_accounts()
+            .await?
             .into_iter()
-            .filter(|a| matches!(
-                a.account_type,
-                AccountType::SoftwareWallet | AccountType::HardwareWallet
-            ))
+            .filter(|a| {
+                matches!(
+                    a.account_type,
+                    AccountType::SoftwareWallet | AccountType::HardwareWallet
+                )
+            })
             .collect::<Vec<_>>()
     } else if let Some(wallet_name) = name {
-        let account = account_repo.get_account(&wallet_name).await?
+        let account = account_repo
+            .get_account(&wallet_name)
+            .await?
             .ok_or_else(|| CryptofolioError::AccountNotFound(wallet_name))?;
         vec![account]
     } else {
@@ -404,7 +446,10 @@ async fn handle_wallet_sync(
                 sync_cardano_wallet(&wallet.name, &addr, is_testnet, import_history, opts).await?;
             } else {
                 if !opts.quiet {
-                    println!("  ⚠️  Blockchain {} not yet supported for sync", addr.blockchain);
+                    println!(
+                        "  ⚠️  Blockchain {} not yet supported for sync",
+                        addr.blockchain
+                    );
                 }
             }
         }
@@ -425,42 +470,49 @@ async fn sync_bitcoin_wallet(
 
     // Fetch address info
     match client.get_address_info(&addr.address).await {
-                Ok(addr_info) => {
-                    if opts.json {
-                        println!(
-                            r#"{{"wallet":"{}","address":"{}","balance":"{}","tx_count":{}}}"#,
-                            wallet_name, addr.address, addr_info.balance, addr_info.tx_count
-                        );
-                    } else {
-                        success(&format!("✓ Synced {} balance: {:.8}", addr.blockchain.to_uppercase(), addr_info.balance));
-                        info(&format!("  Transactions: {}", addr_info.tx_count));
-                        info(&format!("  Total received: {:.8} BTC", addr_info.total_received));
-                        info(&format!("  Total sent: {:.8} BTC", addr_info.total_sent));
-                    }
+        Ok(addr_info) => {
+            if opts.json {
+                println!(
+                    r#"{{"wallet":"{}","address":"{}","balance":"{}","tx_count":{}}}"#,
+                    wallet_name, addr.address, addr_info.balance, addr_info.tx_count
+                );
+            } else {
+                success(&format!(
+                    "✓ Synced {} balance: {:.8}",
+                    addr.blockchain.to_uppercase(),
+                    addr_info.balance
+                ));
+                info(&format!("  Transactions: {}", addr_info.tx_count));
+                info(&format!(
+                    "  Total received: {:.8} BTC",
+                    addr_info.total_received
+                ));
+                info(&format!("  Total sent: {:.8} BTC", addr_info.total_sent));
+            }
 
-                    // Import transaction history if requested
-                    if import_history {
-                        match client.get_transactions(&addr.address).await {
-                            Ok(txs) => {
-                                if !opts.quiet {
-                                    success(&format!("✓ Imported {} transactions", txs.len()));
-                                }
-                                // TODO: Save transactions to database
-                            }
-                            Err(e) => {
-                                if !opts.quiet {
-                                    println!("  ⚠️  Failed to fetch transactions: {}", e);
-                                }
-                            }
+            // Import transaction history if requested
+            if import_history {
+                match client.get_transactions(&addr.address).await {
+                    Ok(txs) => {
+                        if !opts.quiet {
+                            success(&format!("✓ Imported {} transactions", txs.len()));
+                        }
+                        // TODO: Save transactions to database
+                    }
+                    Err(e) => {
+                        if !opts.quiet {
+                            println!("  ⚠️  Failed to fetch transactions: {}", e);
                         }
                     }
                 }
-                Err(e) => {
-                    if !opts.quiet {
-                        println!("  ❌ Failed to sync {}: {}", addr.address, e);
-                    }
-                }
             }
+        }
+        Err(e) => {
+            if !opts.quiet {
+                println!("  ❌ Failed to sync {}: {}", addr.address, e);
+            }
+        }
+    }
 
     Ok(())
 }
@@ -685,9 +737,10 @@ fn validate_solana_address(address: &str) -> Result<()> {
     }
 
     // Base58 validation (no 0, O, I, l)
-    if !address.chars().all(|c| {
-        c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l'
-    }) {
+    if !address
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l')
+    {
         return Err(CryptofolioError::Other(
             "Invalid Solana address: invalid base58 characters".to_string(),
         ));

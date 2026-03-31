@@ -4,8 +4,8 @@ use sqlx::SqlitePool;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use crate::cli::{ConfigCommands, GlobalOptions};
 use crate::cli::output::{print_kv, success};
+use crate::cli::{ConfigCommands, GlobalOptions};
 use crate::config::secrets::{
     ensure_secure_permissions, is_secret_key, read_secret_from_env, read_secret_from_file,
     read_secret_from_stdin, read_secret_interactive, show_security_warning,
@@ -98,7 +98,10 @@ pub async fn handle_config_command(
                         database: AppConfig::database_path()?.display().to_string(),
                     },
                 };
-                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
             } else {
                 println!();
                 println!("{}", "Configuration".bold());
@@ -107,11 +110,7 @@ pub async fn handle_config_command(
                 println!("{}", "[general]".dimmed());
                 print_kv(
                     "default_account",
-                    config
-                        .general
-                        .default_account
-                        .as_deref()
-                        .unwrap_or("-"),
+                    config.general.default_account.as_deref().unwrap_or("-"),
                 );
                 print_kv(
                     "use_testnet",
@@ -171,10 +170,24 @@ pub async fn handle_config_command(
                 println!();
 
                 println!("{}", "[display]".dimmed());
-                print_kv("color", if config.display.color { "true" } else { "false" });
+                print_kv(
+                    "color",
+                    if config.display.color {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                );
                 print_kv("decimals", &config.display.decimals.to_string());
                 print_kv("price_decimals", &config.display.price_decimals.to_string());
-                print_kv("thousands_separator", if config.display.thousands_separator { "true" } else { "false" });
+                print_kv(
+                    "thousands_separator",
+                    if config.display.thousands_separator {
+                        "true"
+                    } else {
+                        "false"
+                    },
+                );
                 println!();
 
                 // Show paths
@@ -202,10 +215,16 @@ pub async fn handle_config_command(
                         .yellow()
                         .bold()
                 );
-                eprintln!("{}", "⚠️  Your secret will be visible in shell history.".yellow());
+                eprintln!(
+                    "{}",
+                    "⚠️  Your secret will be visible in shell history.".yellow()
+                );
                 eprintln!();
                 eprintln!("   Use this instead:");
-                eprintln!("   {}", format!("cryptofolio config set-secret {}", key).cyan());
+                eprintln!(
+                    "   {}",
+                    format!("cryptofolio config set-secret {}", key).cyan()
+                );
                 eprintln!();
                 print!("Continue anyway? [y/N] ");
                 io::stdout().flush()?;
@@ -391,7 +410,10 @@ async fn handle_set_secret_command(
                     level.as_display_str()
                 );
                 println!();
-                println!("  {}", "⚠️  Remember: Use READ-ONLY API keys only!".yellow());
+                println!(
+                    "  {}",
+                    "⚠️  Remember: Use READ-ONLY API keys only!".yellow()
+                );
                 println!();
 
                 return Ok(());
@@ -429,7 +451,10 @@ async fn handle_set_secret_command(
     // Success message
     println!("✓ Secret saved to ~/.config/cryptofolio/config.toml");
     println!();
-    println!("  {}", "⚠️  Remember: Use READ-ONLY API keys only!".yellow());
+    println!(
+        "  {}",
+        "⚠️  Remember: Use READ-ONLY API keys only!".yellow()
+    );
     println!();
 
     Ok(())
@@ -469,18 +494,27 @@ async fn handle_keychain_status_command(pool: &SqlitePool, opts: &GlobalOptions)
     if keys.is_empty() {
         println!("  No secrets tracked in keychain");
         println!();
-        println!("  Run {} to migrate secrets from config.toml", "cryptofolio config migrate-to-keychain".cyan());
+        println!(
+            "  Run {} to migrate secrets from config.toml",
+            "cryptofolio config migrate-to-keychain".cyan()
+        );
         println!();
         return Ok(());
     }
 
     // Print table header
-    println!("{}", "┌────────────────────────┬──────────────────┬────────────┐".dimmed());
+    println!(
+        "{}",
+        "┌────────────────────────┬──────────────────┬────────────┐".dimmed()
+    );
     println!(
         "{}",
         "│ Key                    │ Security Level   │ Status     │".dimmed()
     );
-    println!("{}", "├────────────────────────┼──────────────────┼────────────┤".dimmed());
+    println!(
+        "{}",
+        "├────────────────────────┼──────────────────┼────────────┤".dimmed()
+    );
 
     for key in &keys {
         let security_level = if key.storage_type == StorageType::Keychain {
@@ -506,18 +540,17 @@ async fn handle_keychain_status_command(pool: &SqlitePool, opts: &GlobalOptions)
         );
     }
 
-    println!("{}", "└────────────────────────┴──────────────────┴────────────┘".dimmed());
+    println!(
+        "{}",
+        "└────────────────────────┴──────────────────┴────────────┘".dimmed()
+    );
     println!();
 
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-async fn handle_upgrade_security_command(
-    key: String,
-    to: String,
-    pool: &SqlitePool,
-) -> Result<()> {
+async fn handle_upgrade_security_command(key: String, to: String, pool: &SqlitePool) -> Result<()> {
     let keychain = get_keychain();
 
     // Check if key exists in keychain
@@ -529,9 +562,8 @@ async fn handle_upgrade_security_command(
     }
 
     // Parse target security level
-    let target_level = KeychainSecurityLevel::from_str(&to).ok_or_else(|| {
-        CryptofolioError::Config(format!("Invalid security level: {}", to))
-    })?;
+    let target_level = KeychainSecurityLevel::from_str(&to)
+        .ok_or_else(|| CryptofolioError::Config(format!("Invalid security level: {}", to)))?;
 
     // Validate upgrade path
     if !matches!(
@@ -553,10 +585,16 @@ async fn handle_upgrade_security_command(
 
     // Update database
     let keychain_repo = KeychainKeyRepository::new(pool.clone());
-    keychain_repo.update_security_level(&key, target_level).await?;
+    keychain_repo
+        .update_security_level(&key, target_level)
+        .await?;
 
     println!();
-    success(&format!("Upgraded '{}' to {}", key, target_level.as_display_str()));
+    success(&format!(
+        "Upgraded '{}' to {}",
+        key,
+        target_level.as_display_str()
+    ));
     println!();
 
     Ok(())
@@ -579,9 +617,8 @@ async fn handle_downgrade_security_command(
     }
 
     // Parse target security level
-    let target_level = KeychainSecurityLevel::from_str(&to).ok_or_else(|| {
-        CryptofolioError::Config(format!("Invalid security level: {}", to))
-    })?;
+    let target_level = KeychainSecurityLevel::from_str(&to)
+        .ok_or_else(|| CryptofolioError::Config(format!("Invalid security level: {}", to)))?;
 
     println!();
     println!("  Downgrading security for: {}", key);
@@ -613,10 +650,16 @@ async fn handle_downgrade_security_command(
 
     // Update database
     let keychain_repo = KeychainKeyRepository::new(pool.clone());
-    keychain_repo.update_security_level(&key, target_level).await?;
+    keychain_repo
+        .update_security_level(&key, target_level)
+        .await?;
 
     println!();
-    success(&format!("Downgraded '{}' to {}", key, target_level.as_display_str()));
+    success(&format!(
+        "Downgraded '{}' to {}",
+        key,
+        target_level.as_display_str()
+    ));
     println!();
 
     Ok(())

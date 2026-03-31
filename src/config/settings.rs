@@ -252,9 +252,9 @@ impl AppConfig {
                 self.general.default_account = Some(value.to_string());
             }
             "general.use_testnet" => {
-                self.general.use_testnet = value.parse().map_err(|_| {
-                    CryptofolioError::Config("Invalid boolean value".into())
-                })?;
+                self.general.use_testnet = value
+                    .parse()
+                    .map_err(|_| CryptofolioError::Config("Invalid boolean value".into()))?;
             }
             "general.currency" => {
                 self.general.currency = value.to_string();
@@ -275,24 +275,24 @@ impl AppConfig {
                 self.blockfrost.preview_api_key = Some(value.to_string());
             }
             "display.color" => {
-                self.display.color = value.parse().map_err(|_| {
-                    CryptofolioError::Config("Invalid boolean value".into())
-                })?;
+                self.display.color = value
+                    .parse()
+                    .map_err(|_| CryptofolioError::Config("Invalid boolean value".into()))?;
             }
             "display.decimals" => {
-                self.display.decimals = value.parse().map_err(|_| {
-                    CryptofolioError::Config("Invalid number value".into())
-                })?;
+                self.display.decimals = value
+                    .parse()
+                    .map_err(|_| CryptofolioError::Config("Invalid number value".into()))?;
             }
             "display.price_decimals" => {
-                self.display.price_decimals = value.parse().map_err(|_| {
-                    CryptofolioError::Config("Invalid number value".into())
-                })?;
+                self.display.price_decimals = value
+                    .parse()
+                    .map_err(|_| CryptofolioError::Config("Invalid number value".into()))?;
             }
             "display.thousands_separator" => {
-                self.display.thousands_separator = value.parse().map_err(|_| {
-                    CryptofolioError::Config("Invalid boolean value".into())
-                })?;
+                self.display.thousands_separator = value
+                    .parse()
+                    .map_err(|_| CryptofolioError::Config("Invalid boolean value".into()))?;
             }
             "ai.mode" => {
                 self.ensure_ai_config();
@@ -325,7 +325,10 @@ impl AppConfig {
                 }
             }
             _ => {
-                return Err(CryptofolioError::Config(format!("Unknown config key: {}", key)));
+                return Err(CryptofolioError::Config(format!(
+                    "Unknown config key: {}",
+                    key
+                )));
             }
         }
         Ok(())
@@ -352,8 +355,8 @@ impl AppConfig {
         #[cfg(target_os = "macos")]
         {
             let keychain = get_keychain();
-            let has_keychain_creds = keychain.exists("binance.api_key")
-                && keychain.exists("binance.api_secret");
+            let has_keychain_creds =
+                keychain.exists("binance.api_key") && keychain.exists("binance.api_secret");
             return has_keychain_creds;
         }
 
@@ -383,7 +386,9 @@ impl AppConfig {
         let value = match key {
             "binance.api_key" => self.binance.api_key.clone(),
             "binance.api_secret" => self.binance.api_secret.clone(),
-            "blockfrost.mainnet_api_key" | "blockfrost.api_key" => self.blockfrost.mainnet_api_key.clone(),
+            "blockfrost.mainnet_api_key" | "blockfrost.api_key" => {
+                self.blockfrost.mainnet_api_key.clone()
+            }
             "blockfrost.preprod_api_key" => self.blockfrost.preprod_api_key.clone(),
             "blockfrost.preview_api_key" => self.blockfrost.preview_api_key.clone(),
             "ai.claude_api_key" => self.ai.as_ref().and_then(|ai| ai.claude_api_key.clone()),
@@ -410,7 +415,11 @@ impl AppConfig {
 
     /// Get Blockfrost API key based on network (mainnet/preprod/preview)
     /// Falls back to environment variable BLOCKFROST_API_KEY if not in config
-    pub fn get_blockfrost_api_key(&self, is_testnet: bool, network: Option<&str>) -> Option<String> {
+    pub fn get_blockfrost_api_key(
+        &self,
+        is_testnet: bool,
+        network: Option<&str>,
+    ) -> Option<String> {
         // First, check environment variable
         if let Ok(env_key) = std::env::var("BLOCKFROST_API_KEY") {
             if !env_key.is_empty() {

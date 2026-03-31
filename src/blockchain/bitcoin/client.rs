@@ -1,5 +1,4 @@
 /// Bitcoin blockchain clients (RPC and public APIs)
-
 use crate::error::{CryptofolioError, Result};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -10,7 +9,7 @@ pub struct BitcoinTransaction {
     pub txid: String,
     pub block_height: Option<u64>,
     pub timestamp: Option<i64>,
-    pub value: Decimal,  // In BTC
+    pub value: Decimal, // In BTC
     pub fee: Option<Decimal>,
     pub is_incoming: bool,
 }
@@ -19,7 +18,7 @@ pub struct BitcoinTransaction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressInfo {
     pub address: String,
-    pub balance: Decimal,  // In BTC
+    pub balance: Decimal, // In BTC
     pub total_received: Decimal,
     pub total_sent: Decimal,
     pub tx_count: u64,
@@ -51,9 +50,9 @@ impl BlockstreamClient {
     pub async fn get_address_info(&self, address: &str) -> Result<AddressInfo> {
         let url = format!("{}/address/{}", self.base_url, address);
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch address info: {}", e)))?;
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch address info: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(CryptofolioError::Network(format!(
@@ -68,9 +67,11 @@ impl BlockstreamClient {
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
         // Convert satoshis to BTC
-        let balance = Decimal::from(data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum)
-            / Decimal::from(100_000_000);
-        let total_received = Decimal::from(data.chain_stats.funded_txo_sum) / Decimal::from(100_000_000);
+        let balance =
+            Decimal::from(data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum)
+                / Decimal::from(100_000_000);
+        let total_received =
+            Decimal::from(data.chain_stats.funded_txo_sum) / Decimal::from(100_000_000);
         let total_sent = Decimal::from(data.chain_stats.spent_txo_sum) / Decimal::from(100_000_000);
 
         Ok(AddressInfo {
@@ -86,9 +87,9 @@ impl BlockstreamClient {
     pub async fn get_transactions(&self, address: &str) -> Result<Vec<BitcoinTransaction>> {
         let url = format!("{}/address/{}/txs", self.base_url, address);
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch transactions: {}", e)))?;
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch transactions: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(CryptofolioError::Network(format!(
@@ -97,10 +98,9 @@ impl BlockstreamClient {
             )));
         }
 
-        let txs: Vec<BlockstreamTransaction> = response
-            .json()
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to parse transactions: {}", e)))?;
+        let txs: Vec<BlockstreamTransaction> = response.json().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to parse transactions: {}", e))
+        })?;
 
         // Convert to our format
         let mut result = Vec::new();
@@ -116,7 +116,12 @@ impl BlockstreamClient {
             }
 
             for vin in &tx.vin {
-                if vin.prevout.as_ref().and_then(|p| p.scriptpubkey_address.as_deref()) == Some(address) {
+                if vin
+                    .prevout
+                    .as_ref()
+                    .and_then(|p| p.scriptpubkey_address.as_deref())
+                    == Some(address)
+                {
                     value_out += vin.prevout.as_ref().unwrap().value;
                 }
             }
@@ -125,7 +130,9 @@ impl BlockstreamClient {
             let is_incoming = net_value > 0;
             let value = Decimal::from(net_value.abs()) / Decimal::from(100_000_000);
 
-            let fee = tx.fee.map(|f| Decimal::from(f) / Decimal::from(100_000_000));
+            let fee = tx
+                .fee
+                .map(|f| Decimal::from(f) / Decimal::from(100_000_000));
 
             result.push(BitcoinTransaction {
                 txid: tx.txid,

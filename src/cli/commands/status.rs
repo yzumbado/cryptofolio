@@ -170,19 +170,15 @@ async fn test_ollama_connection(base_url: &str) -> std::result::Result<(), Strin
 
     let url = format!("{}/api/tags", base_url);
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_connect() {
-                "Not running".to_string()
-            } else if e.is_timeout() {
-                "Timeout".to_string()
-            } else {
-                format!("Connection failed: {}", e)
-            }
-        })?;
+    let response = client.get(&url).send().await.map_err(|e| {
+        if e.is_connect() {
+            "Not running".to_string()
+        } else if e.is_timeout() {
+            "Timeout".to_string()
+        } else {
+            format!("Connection failed: {}", e)
+        }
+    })?;
 
     if response.status().is_success() {
         Ok(())
@@ -331,9 +327,16 @@ mod tests {
 
         // Hybrid mode tests
         assert!(determine_effective_provider("hybrid", &claude_ok, &ollama_ok).contains("Hybrid"));
-        assert!(determine_effective_provider("hybrid", &claude_ok, &ollama_no).contains("Claude only"));
-        assert!(determine_effective_provider("hybrid", &claude_no, &ollama_ok).contains("Ollama only"));
-        assert!(determine_effective_provider("hybrid", &claude_no, &ollama_no).contains("Pattern-based"));
+        assert!(
+            determine_effective_provider("hybrid", &claude_ok, &ollama_no).contains("Claude only")
+        );
+        assert!(
+            determine_effective_provider("hybrid", &claude_no, &ollama_ok).contains("Ollama only")
+        );
+        assert!(
+            determine_effective_provider("hybrid", &claude_no, &ollama_no)
+                .contains("Pattern-based")
+        );
     }
 
     #[test]
@@ -355,7 +358,10 @@ mod tests {
 
         // Offline mode - only uses Ollama
         assert!(determine_effective_provider("offline", &claude_ok, &ollama_ok).contains("Ollama"));
-        assert!(determine_effective_provider("offline", &claude_ok, &ollama_no).contains("Pattern-based"));
+        assert!(
+            determine_effective_provider("offline", &claude_ok, &ollama_no)
+                .contains("Pattern-based")
+        );
     }
 
     #[test]
@@ -363,9 +369,18 @@ mod tests {
         let claude_ok = ProviderStatus::available("Claude", "claude-sonnet-4-20250514".to_string());
         let ollama_ok = ProviderStatus::available("Ollama", "llama3.2:3b".to_string());
 
-        assert_eq!(determine_effective_provider("disabled", &claude_ok, &ollama_ok), "Disabled");
-        assert_eq!(determine_effective_provider("off", &claude_ok, &ollama_ok), "Disabled");
-        assert_eq!(determine_effective_provider("none", &claude_ok, &ollama_ok), "Disabled");
+        assert_eq!(
+            determine_effective_provider("disabled", &claude_ok, &ollama_ok),
+            "Disabled"
+        );
+        assert_eq!(
+            determine_effective_provider("off", &claude_ok, &ollama_ok),
+            "Disabled"
+        );
+        assert_eq!(
+            determine_effective_provider("none", &claude_ok, &ollama_ok),
+            "Disabled"
+        );
     }
 
     #[test]

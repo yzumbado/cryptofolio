@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::{AiProvider, ProviderConfig};
 use crate::ai::conversation::ConversationState;
 use crate::ai::intent::{Entity, Intent, ParsedInput};
-use crate::config::AppConfig;
 use crate::cli::notifications;
+use crate::config::AppConfig;
 use crate::error::Result;
 
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
@@ -96,7 +96,10 @@ impl OllamaProvider {
         let _words: Vec<&str> = input_lower.split_whitespace().collect();
 
         // Price check patterns
-        if input_lower.contains("price") || input_lower.contains("worth") || input_lower.starts_with("how much") {
+        if input_lower.contains("price")
+            || input_lower.contains("worth")
+            || input_lower.starts_with("how much")
+        {
             let symbols = self.extract_symbols(input);
             return Ok(ParsedInput {
                 intent: Intent::PriceCheck,
@@ -114,7 +117,10 @@ impl OllamaProvider {
         }
 
         // Portfolio view patterns
-        if input_lower.contains("portfolio") || input_lower.contains("holdings") || input_lower.contains("what do i have") {
+        if input_lower.contains("portfolio")
+            || input_lower.contains("holdings")
+            || input_lower.contains("what do i have")
+        {
             return Ok(ParsedInput {
                 intent: Intent::PortfolioView,
                 entities: HashMap::new(),
@@ -125,7 +131,10 @@ impl OllamaProvider {
         }
 
         // Buy patterns
-        if input_lower.contains("bought") || input_lower.contains("buy") || input_lower.contains("purchased") {
+        if input_lower.contains("bought")
+            || input_lower.contains("buy")
+            || input_lower.contains("purchased")
+        {
             let mut entities = HashMap::new();
             let mut missing = vec![];
 
@@ -205,18 +214,29 @@ impl OllamaProvider {
         }
 
         // Transfer patterns
-        if input_lower.contains("transfer") || input_lower.contains("move") || input_lower.contains("send") {
+        if input_lower.contains("transfer")
+            || input_lower.contains("move")
+            || input_lower.contains("send")
+        {
             return Ok(ParsedInput {
                 intent: Intent::HoldingsMove,
                 entities: HashMap::new(),
-                missing: vec!["asset".to_string(), "quantity".to_string(), "from_account".to_string(), "to_account".to_string()],
+                missing: vec![
+                    "asset".to_string(),
+                    "quantity".to_string(),
+                    "from_account".to_string(),
+                    "to_account".to_string(),
+                ],
                 confidence: 0.5,
                 raw_input: input.to_string(),
             });
         }
 
         // Sync patterns
-        if input_lower.contains("sync") || input_lower.contains("refresh") || input_lower.contains("update") {
+        if input_lower.contains("sync")
+            || input_lower.contains("refresh")
+            || input_lower.contains("update")
+        {
             return Ok(ParsedInput {
                 intent: Intent::Sync,
                 entities: HashMap::new(),
@@ -361,13 +381,7 @@ impl OllamaProvider {
     /// Extract account name from text
     pub fn extract_account(&self, input: &str) -> Option<String> {
         let known_accounts = [
-            "binance",
-            "coinbase",
-            "kraken",
-            "ledger",
-            "trezor",
-            "metamask",
-            "phantom",
+            "binance", "coinbase", "kraken", "ledger", "trezor", "metamask", "phantom",
         ];
 
         let input_lower = input.to_lowercase();
@@ -410,7 +424,9 @@ impl OllamaProvider {
             "portfolio.view" | "portfolio_view" | "view_portfolio" | "portfolio" => {
                 Intent::PortfolioView
             }
-            "holdings.list" | "holdings_list" | "list_holdings" | "holdings" => Intent::HoldingsList,
+            "holdings.list" | "holdings_list" | "list_holdings" | "holdings" => {
+                Intent::HoldingsList
+            }
             "holdings.add" | "holdings_add" | "add_holdings" => Intent::HoldingsAdd,
             "holdings.remove" | "holdings_remove" => Intent::HoldingsRemove,
             "holdings.move" | "holdings_move" | "move_holdings" => Intent::HoldingsMove,

@@ -1,5 +1,4 @@
 /// Ethereum address validation
-
 use crate::error::{CryptofolioError, Result};
 
 /// Validate an Ethereum address

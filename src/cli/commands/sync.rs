@@ -14,7 +14,11 @@ use crate::error::{CryptofolioError, Result};
 use crate::exchange::binance::sync::{SyncOptions, SyncOrchestrator};
 use crate::exchange::{BinanceClient, Exchange};
 
-pub async fn handle_sync_command(account: Option<String>, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_sync_command(
+    account: Option<String>,
+    pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let config = AppConfig::load()?;
     let account_repo = AccountRepository::new(pool);
     let holding_repo = HoldingRepository::new(pool);
@@ -126,7 +130,10 @@ pub async fn handle_sync_command(account: Option<String>, pool: &SqlitePool, opt
         }
 
         if !opts.quiet {
-            success(&format!("Synced {} assets from '{}'", synced_count, acc.name));
+            success(&format!(
+                "Synced {} assets from '{}'",
+                synced_count, acc.name
+            ));
         }
     }
 
@@ -187,10 +194,7 @@ pub async fn handle_sync_history_command(
         .map(|s| {
             NaiveDate::parse_from_str(s, "%Y-%m-%d")
                 .map_err(|_| {
-                    CryptofolioError::Other(format!(
-                        "Invalid date '{}'. Expected YYYY-MM-DD.",
-                        s
-                    ))
+                    CryptofolioError::Other(format!("Invalid date '{}'. Expected YYYY-MM-DD.", s))
                 })
                 .map(|d| Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0).unwrap()))
         })
@@ -315,7 +319,11 @@ pub async fn handle_sync_history_command(
             println!();
         }
 
-        let label = if dry_run { "[dry-run] Would import" } else { "Imported" };
+        let label = if dry_run {
+            "[dry-run] Would import"
+        } else {
+            "Imported"
+        };
         success(&format!(
             "{} {} transactions from '{}' ({} skipped)",
             label,
@@ -327,7 +335,10 @@ pub async fn handle_sync_history_command(
         if report.total_created() > 0 && !dry_run {
             println!();
             println!("  Run {} to see results.", "cryptofolio tx list".cyan());
-            println!("  Run {} to see updated P&L.", "cryptofolio pnl summary".cyan());
+            println!(
+                "  Run {} to see updated P&L.",
+                "cryptofolio pnl summary".cyan()
+            );
         }
     }
 

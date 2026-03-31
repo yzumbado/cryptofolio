@@ -75,20 +75,23 @@ impl<'a> TaxLotRepository<'a> {
             order_clause
         );
 
-        let rows = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            bool,
-            String,
-            String,
-        )>(&query)
+        let rows = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                bool,
+                String,
+                String,
+            ),
+        >(&query)
         .bind(account_id)
         .bind(asset)
         .fetch_all(self.pool)
@@ -130,20 +133,23 @@ impl<'a> TaxLotRepository<'a> {
         account_id: &str,
         asset: &str,
     ) -> Result<Vec<TaxLot>> {
-        let rows = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            bool,
-            String,
-            String,
-        )>(
+        let rows = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                bool,
+                String,
+                String,
+            ),
+        >(
             r#"
             SELECT id, account_id, asset, quantity, remaining_quantity, acquisition_price,
                    acquisition_date, acquisition_tx_id, cost_basis_method, fully_disposed,
@@ -163,20 +169,23 @@ impl<'a> TaxLotRepository<'a> {
 
     /// List all lots for a specific account
     pub async fn list_by_account(&self, account_id: &str) -> Result<Vec<TaxLot>> {
-        let rows = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            bool,
-            String,
-            String,
-        )>(
+        let rows = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                bool,
+                String,
+                String,
+            ),
+        >(
             r#"
             SELECT id, account_id, asset, quantity, remaining_quantity, acquisition_price,
                    acquisition_date, acquisition_tx_id, cost_basis_method, fully_disposed,
@@ -243,8 +252,8 @@ impl<'a> TaxLotRepository<'a> {
             String,
         ),
     ) -> Result<TaxLot> {
-        let quantity = Decimal::from_str(&quantity)
-            .map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
+        let quantity =
+            Decimal::from_str(&quantity).map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
 
         let remaining_quantity = Decimal::from_str(&remaining_quantity)
             .map_err(|_| CryptofolioError::InvalidAmount(remaining_quantity))?;
@@ -255,10 +264,7 @@ impl<'a> TaxLotRepository<'a> {
         let acquisition_date = DateTime::parse_from_rfc3339(&acquisition_date)
             .map(|dt| dt.with_timezone(&Utc))
             .map_err(|_| {
-                CryptofolioError::Other(format!(
-                    "Invalid acquisition date: {}",
-                    acquisition_date
-                ))
+                CryptofolioError::Other(format!("Invalid acquisition date: {}", acquisition_date))
             })?;
 
         let cost_basis_method = self.string_to_cost_basis_method(&cost_basis_method)?;
@@ -442,9 +448,21 @@ mod tests {
             .await?;
 
         assert_eq!(fifo_lots.len(), 3, "Should have 3 available lots");
-        assert_eq!(fifo_lots[0].acquisition_price, dec("40000"), "First lot should be oldest");
-        assert_eq!(fifo_lots[1].acquisition_price, dec("45000"), "Second lot should be middle");
-        assert_eq!(fifo_lots[2].acquisition_price, dec("50000"), "Third lot should be newest");
+        assert_eq!(
+            fifo_lots[0].acquisition_price,
+            dec("40000"),
+            "First lot should be oldest"
+        );
+        assert_eq!(
+            fifo_lots[1].acquisition_price,
+            dec("45000"),
+            "Second lot should be middle"
+        );
+        assert_eq!(
+            fifo_lots[2].acquisition_price,
+            dec("50000"),
+            "Third lot should be newest"
+        );
 
         Ok(())
     }
@@ -527,9 +545,21 @@ mod tests {
             .await?;
 
         assert_eq!(lifo_lots.len(), 3, "Should have 3 available lots");
-        assert_eq!(lifo_lots[0].acquisition_price, dec("50000"), "First lot should be newest");
-        assert_eq!(lifo_lots[1].acquisition_price, dec("45000"), "Second lot should be middle");
-        assert_eq!(lifo_lots[2].acquisition_price, dec("40000"), "Third lot should be oldest");
+        assert_eq!(
+            lifo_lots[0].acquisition_price,
+            dec("50000"),
+            "First lot should be newest"
+        );
+        assert_eq!(
+            lifo_lots[1].acquisition_price,
+            dec("45000"),
+            "Second lot should be middle"
+        );
+        assert_eq!(
+            lifo_lots[2].acquisition_price,
+            dec("40000"),
+            "Third lot should be oldest"
+        );
 
         Ok(())
     }
@@ -572,8 +602,16 @@ mod tests {
 
         // Verify update
         let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
-        assert_eq!(lots[0].remaining_quantity, dec("0.3"), "Remaining quantity should be updated");
-        assert_eq!(lots[0].quantity, dec("1.0"), "Original quantity should not change");
+        assert_eq!(
+            lots[0].remaining_quantity,
+            dec("0.3"),
+            "Remaining quantity should be updated"
+        );
+        assert_eq!(
+            lots[0].quantity,
+            dec("1.0"),
+            "Original quantity should not change"
+        );
 
         Ok(())
     }
@@ -616,7 +654,10 @@ mod tests {
 
         // Verify it's marked as disposed
         let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
-        assert_eq!(lots[0].fully_disposed, true, "Lot should be marked as fully disposed");
+        assert_eq!(
+            lots[0].fully_disposed, true,
+            "Lot should be marked as fully disposed"
+        );
 
         // Verify it's excluded from available lots
         let available = repo
@@ -633,17 +674,44 @@ mod tests {
         let repo = TaxLotRepository::new(&pool);
 
         // Test to_string
-        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::Fifo), "fifo");
-        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::Lifo), "lifo");
-        assert_eq!(repo.cost_basis_method_to_string(&CostBasisMethod::AverageCost), "average");
+        assert_eq!(
+            repo.cost_basis_method_to_string(&CostBasisMethod::Fifo),
+            "fifo"
+        );
+        assert_eq!(
+            repo.cost_basis_method_to_string(&CostBasisMethod::Lifo),
+            "lifo"
+        );
+        assert_eq!(
+            repo.cost_basis_method_to_string(&CostBasisMethod::AverageCost),
+            "average"
+        );
 
         // Test from_string
-        assert!(matches!(repo.string_to_cost_basis_method("fifo")?, CostBasisMethod::Fifo));
-        assert!(matches!(repo.string_to_cost_basis_method("FIFO")?, CostBasisMethod::Fifo));
-        assert!(matches!(repo.string_to_cost_basis_method("lifo")?, CostBasisMethod::Lifo));
-        assert!(matches!(repo.string_to_cost_basis_method("LIFO")?, CostBasisMethod::Lifo));
-        assert!(matches!(repo.string_to_cost_basis_method("average")?, CostBasisMethod::AverageCost));
-        assert!(matches!(repo.string_to_cost_basis_method("AVERAGE")?, CostBasisMethod::AverageCost));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("fifo")?,
+            CostBasisMethod::Fifo
+        ));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("FIFO")?,
+            CostBasisMethod::Fifo
+        ));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("lifo")?,
+            CostBasisMethod::Lifo
+        ));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("LIFO")?,
+            CostBasisMethod::Lifo
+        ));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("average")?,
+            CostBasisMethod::AverageCost
+        ));
+        assert!(matches!(
+            repo.string_to_cost_basis_method("AVERAGE")?,
+            CostBasisMethod::AverageCost
+        ));
 
         // Test invalid method
         let result = repo.string_to_cost_basis_method("invalid");
@@ -703,7 +771,11 @@ mod tests {
 
         // List all lots for account
         let all_lots = repo.list_by_account("test_acct").await?;
-        assert_eq!(all_lots.len(), 2, "Should have 2 lots across different assets");
+        assert_eq!(
+            all_lots.len(),
+            2,
+            "Should have 2 lots across different assets"
+        );
 
         // Verify we have both BTC and ETH
         let assets: Vec<&str> = all_lots.iter().map(|lot| lot.asset.as_str()).collect();

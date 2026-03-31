@@ -82,7 +82,13 @@ fn make_deposit(id: &str, coin: &str, amount: &str, status: i32) -> BinanceDepos
     }
 }
 
-fn make_withdrawal(id: &str, coin: &str, amount: &str, fee: &str, status: i32) -> BinanceWithdrawal {
+fn make_withdrawal(
+    id: &str,
+    coin: &str,
+    amount: &str,
+    fee: &str,
+    status: i32,
+) -> BinanceWithdrawal {
     BinanceWithdrawal {
         id: id.to_string(),
         amount: dec(amount),
@@ -97,13 +103,19 @@ fn make_withdrawal(id: &str, coin: &str, amount: &str, fee: &str, status: i32) -
     }
 }
 
-fn make_fiat_order(order_no: &str, crypto: &str, amount: &str, fiat: &str, status: &str) -> BinanceFiatOrder {
+fn make_fiat_order(
+    order_no: &str,
+    crypto: &str,
+    amount: &str,
+    fiat: &str,
+    status: &str,
+) -> BinanceFiatOrder {
     BinanceFiatOrder {
         order_no: order_no.to_string(),
         fiat_currency: fiat.to_string(),
         indicated_amount: dec("500"), // fiat amount paid
-        amount: dec(amount),         // crypto received
-        total_fee: dec("5"),         // fee in fiat
+        amount: dec(amount),          // crypto received
+        total_fee: dec("5"),          // fee in fiat
         method: "Card".to_string(),
         status: status.to_string(),
         crypto_currency: crypto.to_string(),
@@ -129,27 +141,42 @@ fn make_transfer(tran_id: i64, asset: &str, amount: &str, status: &str) -> Binan
 
 #[test]
 fn test_parse_symbol_btcusdt() {
-    assert_eq!(parse_symbol("BTCUSDT").unwrap(), ("BTC".into(), "USDT".into()));
+    assert_eq!(
+        parse_symbol("BTCUSDT").unwrap(),
+        ("BTC".into(), "USDT".into())
+    );
 }
 
 #[test]
 fn test_parse_symbol_ethbtc() {
-    assert_eq!(parse_symbol("ETHBTC").unwrap(), ("ETH".into(), "BTC".into()));
+    assert_eq!(
+        parse_symbol("ETHBTC").unwrap(),
+        ("ETH".into(), "BTC".into())
+    );
 }
 
 #[test]
 fn test_parse_symbol_adabusd() {
-    assert_eq!(parse_symbol("ADABUSD").unwrap(), ("ADA".into(), "BUSD".into()));
+    assert_eq!(
+        parse_symbol("ADABUSD").unwrap(),
+        ("ADA".into(), "BUSD".into())
+    );
 }
 
 #[test]
 fn test_parse_symbol_lowercase() {
-    assert_eq!(parse_symbol("ethusdt").unwrap(), ("ETH".into(), "USDT".into()));
+    assert_eq!(
+        parse_symbol("ethusdt").unwrap(),
+        ("ETH".into(), "USDT".into())
+    );
 }
 
 #[test]
 fn test_parse_symbol_bnbeth() {
-    assert_eq!(parse_symbol("BNBETH").unwrap(), ("BNB".into(), "ETH".into()));
+    assert_eq!(
+        parse_symbol("BNBETH").unwrap(),
+        ("BNB".into(), "ETH".into())
+    );
 }
 
 #[test]
@@ -304,7 +331,10 @@ async fn test_import_sell_without_prior_buy_does_not_panic() -> Result<()> {
 
     let sell = make_trade(99, "BTCUSDT", "60000", "0.5", false);
     let result = importer.import_trade("acc-noprior", &sell, false).await?;
-    assert!(result.is_created(), "Should still create the transaction record");
+    assert!(
+        result.is_created(),
+        "Should still create the transaction record"
+    );
 
     Ok(())
 }
@@ -321,8 +351,12 @@ async fn test_duplicate_trade_is_skipped() -> Result<()> {
 
     let trade = make_trade(42, "ETHUSDT", "3000", "0.5", true);
 
-    let r1 = importer.import_trade("acc-dup-trade", &trade, false).await?;
-    let r2 = importer.import_trade("acc-dup-trade", &trade, false).await?;
+    let r1 = importer
+        .import_trade("acc-dup-trade", &trade, false)
+        .await?;
+    let r2 = importer
+        .import_trade("acc-dup-trade", &trade, false)
+        .await?;
 
     assert!(r1.is_created());
     assert!(r2.is_skipped());
@@ -342,8 +376,12 @@ async fn test_duplicate_deposit_is_skipped() -> Result<()> {
 
     let deposit = make_deposit("dep-001", "ETH", "2.0", 1);
 
-    let r1 = importer.import_deposit("acc-dup-dep", &deposit, false).await?;
-    let r2 = importer.import_deposit("acc-dup-dep", &deposit, false).await?;
+    let r1 = importer
+        .import_deposit("acc-dup-dep", &deposit, false)
+        .await?;
+    let r2 = importer
+        .import_deposit("acc-dup-dep", &deposit, false)
+        .await?;
 
     assert!(r1.is_created());
     assert!(r2.is_skipped());
@@ -361,8 +399,12 @@ async fn test_duplicate_withdrawal_is_skipped() -> Result<()> {
 
     let withdrawal = make_withdrawal("wd-001", "BTC", "0.5", "0.0005", 6);
 
-    let r1 = importer.import_withdrawal("acc-dup-wd", &withdrawal, false).await?;
-    let r2 = importer.import_withdrawal("acc-dup-wd", &withdrawal, false).await?;
+    let r1 = importer
+        .import_withdrawal("acc-dup-wd", &withdrawal, false)
+        .await?;
+    let r2 = importer
+        .import_withdrawal("acc-dup-wd", &withdrawal, false)
+        .await?;
 
     assert!(r1.is_created());
     assert!(r2.is_skipped());
@@ -391,7 +433,10 @@ async fn test_dry_run_trade_has_no_side_effects() -> Result<()> {
     assert!(holding_repo.get("acc-dry-trade", "BTC").await?.is_none());
 
     // No transaction created
-    assert_eq!(tx_repo.list_by_account("acc-dry-trade", None).await?.len(), 0);
+    assert_eq!(
+        tx_repo.list_by_account("acc-dry-trade", None).await?.len(),
+        0
+    );
 
     Ok(())
 }
@@ -404,7 +449,9 @@ async fn test_dry_run_deposit_has_no_side_effects() -> Result<()> {
     let tx_repo = TransactionRepository::new(&pool);
 
     let deposit = make_deposit("dep-dry", "BTC", "0.5", 1);
-    let result = importer.import_deposit("acc-dry-dep", &deposit, true).await?;
+    let result = importer
+        .import_deposit("acc-dry-dep", &deposit, true)
+        .await?;
 
     // Dry-run returns Created(0) to indicate "would create" in reporting
     assert!(result.is_created());
@@ -456,7 +503,9 @@ async fn test_import_pending_deposit_is_skipped() -> Result<()> {
     let holding_repo = HoldingRepository::new(&pool);
 
     let deposit = make_deposit("dep-003", "BTC", "0.5", 0); // 0 = pending
-    let result = importer.import_deposit("acc-dep-pending", &deposit, false).await?;
+    let result = importer
+        .import_deposit("acc-dep-pending", &deposit, false)
+        .await?;
 
     assert!(result.is_skipped());
     assert!(holding_repo.get("acc-dep-pending", "BTC").await?.is_none());
@@ -522,7 +571,9 @@ async fn test_import_non_success_withdrawal_skipped() -> Result<()> {
 
     // status 2 = awaiting approval
     let wd = make_withdrawal("wd-002", "ETH", "1.0", "0.005", 2);
-    let result = importer.import_withdrawal("acc-wd-skip", &wd, false).await?;
+    let result = importer
+        .import_withdrawal("acc-wd-skip", &wd, false)
+        .await?;
     assert!(result.is_skipped());
 
     Ok(())
@@ -536,7 +587,9 @@ async fn test_import_withdrawal_no_holding_does_not_error() -> Result<()> {
     let importer = TransactionImporter::new(&pool);
 
     let wd = make_withdrawal("wd-003", "ADA", "100.0", "1.0", 6);
-    let result = importer.import_withdrawal("acc-wd-nohold", &wd, false).await?;
+    let result = importer
+        .import_withdrawal("acc-wd-nohold", &wd, false)
+        .await?;
     assert!(result.is_created(), "Should still record the transaction");
 
     Ok(())
@@ -555,7 +608,9 @@ async fn test_import_completed_fiat_order_creates_buy() -> Result<()> {
 
     // Buying 0.01 BTC with a credit card (paying $500 USD)
     let order = make_fiat_order("fiat-001", "BTC", "0.01", "USD", "Completed");
-    let result = importer.import_fiat_order("acc-fiat", &order, false).await?;
+    let result = importer
+        .import_fiat_order("acc-fiat", &order, false)
+        .await?;
     assert!(result.is_created());
 
     let h = holding_repo.get("acc-fiat", "BTC").await?.unwrap();
@@ -566,7 +621,10 @@ async fn test_import_completed_fiat_order_creates_buy() -> Result<()> {
     assert_eq!(txs[0].to_asset, Some("BTC".to_string()));
     // Price = 500 fiat / 0.01 crypto = 50000
     assert_eq!(txs[0].price_usd, Some(dec("50000")));
-    assert_eq!(txs[0].external_id, Some("binance-fiat-fiat-001".to_string()));
+    assert_eq!(
+        txs[0].external_id,
+        Some("binance-fiat-fiat-001".to_string())
+    );
 
     Ok(())
 }
@@ -577,7 +635,9 @@ async fn test_import_incomplete_fiat_order_skipped() -> Result<()> {
     let importer = TransactionImporter::new(&pool);
 
     let order = make_fiat_order("fiat-002", "ETH", "0.1", "USD", "Processing");
-    let result = importer.import_fiat_order("acc-fiat-skip", &order, false).await?;
+    let result = importer
+        .import_fiat_order("acc-fiat-skip", &order, false)
+        .await?;
     assert!(result.is_skipped());
 
     Ok(())
@@ -589,8 +649,12 @@ async fn test_import_fiat_order_duplicate_skipped() -> Result<()> {
     let importer = TransactionImporter::new(&pool);
 
     let order = make_fiat_order("fiat-003", "USDT", "100", "EUR", "Completed");
-    let r1 = importer.import_fiat_order("acc-fiat-dup", &order, false).await?;
-    let r2 = importer.import_fiat_order("acc-fiat-dup", &order, false).await?;
+    let r1 = importer
+        .import_fiat_order("acc-fiat-dup", &order, false)
+        .await?;
+    let r2 = importer
+        .import_fiat_order("acc-fiat-dup", &order, false)
+        .await?;
 
     assert!(r1.is_created());
     assert!(r2.is_skipped());
@@ -609,7 +673,9 @@ async fn test_import_confirmed_transfer_creates_transaction() -> Result<()> {
     let tx_repo = TransactionRepository::new(&pool);
 
     let transfer = make_transfer(9001, "USDT", "500", "CONFIRMED");
-    let result = importer.import_transfer("acc-tran", &transfer, false).await?;
+    let result = importer
+        .import_transfer("acc-tran", &transfer, false)
+        .await?;
     assert!(result.is_created());
 
     let txs = tx_repo.list_by_account("acc-tran", None).await?;
@@ -617,7 +683,10 @@ async fn test_import_confirmed_transfer_creates_transaction() -> Result<()> {
     assert_eq!(txs[0].from_account_id, Some("acc-tran".to_string()));
     assert_eq!(txs[0].to_account_id, Some("acc-tran".to_string()));
     assert_eq!(txs[0].from_asset, Some("USDT".to_string()));
-    assert_eq!(txs[0].external_id, Some("binance-transfer-9001".to_string()));
+    assert_eq!(
+        txs[0].external_id,
+        Some("binance-transfer-9001".to_string())
+    );
 
     Ok(())
 }
@@ -628,7 +697,9 @@ async fn test_import_pending_transfer_is_skipped() -> Result<()> {
     let importer = TransactionImporter::new(&pool);
 
     let transfer = make_transfer(9002, "BNB", "1.0", "PENDING");
-    let result = importer.import_transfer("acc-tran-pending", &transfer, false).await?;
+    let result = importer
+        .import_transfer("acc-tran-pending", &transfer, false)
+        .await?;
     assert!(result.is_skipped());
 
     Ok(())
@@ -671,7 +742,9 @@ async fn test_mixed_import_sequence() -> Result<()> {
 
     // 1. Fiat purchase: buy 100 USDT with credit card
     let fiat = make_fiat_order("fiat-seq-1", "USDT", "100", "USD", "Completed");
-    let r1 = importer.import_fiat_order("acc-mixed", &fiat, false).await?;
+    let r1 = importer
+        .import_fiat_order("acc-mixed", &fiat, false)
+        .await?;
     assert!(r1.is_created());
 
     // 2. Buy 0.001 BTC with USDT
@@ -884,7 +957,9 @@ async fn test_import_withdrawal_note_contains_address_prefix() -> Result<()> {
     holding_repo_seed(&pool, "acc-wd-note", "BTC", "1.0").await;
 
     let wd = make_withdrawal("wd-note-1", "BTC", "0.1", "0.001", 6);
-    importer.import_withdrawal("acc-wd-note", &wd, false).await?;
+    importer
+        .import_withdrawal("acc-wd-note", &wd, false)
+        .await?;
 
     let txs = tx_repo.list_by_account("acc-wd-note", None).await?;
     let notes = txs[0].notes.as_deref().unwrap_or("");

@@ -26,16 +26,22 @@ impl<'a> TransactionRepository<'a> {
             FROM transactions
             ORDER BY timestamp DESC
             LIMIT ?
-            "#
+            "#,
         )
         .bind(limit)
         .fetch_all(self.pool)
         .await?;
 
-        rows.into_iter().map(|r| self.parse_transaction(r)).collect()
+        rows.into_iter()
+            .map(|r| self.parse_transaction(r))
+            .collect()
     }
 
-    pub async fn list_by_account(&self, account_id: &str, limit: Option<i64>) -> Result<Vec<Transaction>> {
+    pub async fn list_by_account(
+        &self,
+        account_id: &str,
+        limit: Option<i64>,
+    ) -> Result<Vec<Transaction>> {
         let limit = limit.unwrap_or(50);
 
         let rows = sqlx::query_as::<_, TransactionRow>(
@@ -47,7 +53,7 @@ impl<'a> TransactionRepository<'a> {
             WHERE from_account_id = ? OR to_account_id = ?
             ORDER BY timestamp DESC
             LIMIT ?
-            "#
+            "#,
         )
         .bind(account_id)
         .bind(account_id)
@@ -55,7 +61,9 @@ impl<'a> TransactionRepository<'a> {
         .fetch_all(self.pool)
         .await?;
 
-        rows.into_iter().map(|r| self.parse_transaction(r)).collect()
+        rows.into_iter()
+            .map(|r| self.parse_transaction(r))
+            .collect()
     }
 
     pub async fn insert(&self, tx: &Transaction) -> Result<i64> {
@@ -66,7 +74,7 @@ impl<'a> TransactionRepository<'a> {
                 to_account_id, to_asset, to_quantity, price_usd, fee, fee_asset,
                 external_id, notes, timestamp
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(tx.tx_type.as_str())
         .bind(&tx.from_account_id)
@@ -88,8 +96,9 @@ impl<'a> TransactionRepository<'a> {
     }
 
     fn parse_transaction(&self, row: TransactionRow) -> Result<Transaction> {
-        let tx_type = TransactionType::from_str(&row.tx_type)
-            .ok_or_else(|| CryptofolioError::Other(format!("Invalid transaction type: {}", row.tx_type)))?;
+        let tx_type = TransactionType::from_str(&row.tx_type).ok_or_else(|| {
+            CryptofolioError::Other(format!("Invalid transaction type: {}", row.tx_type))
+        })?;
 
         let parse_decimal = |s: Option<String>| -> Result<Option<Decimal>> {
             s.map(|v| Decimal::from_str(&v).map_err(|_| CryptofolioError::InvalidAmount(v)))
@@ -106,9 +115,9 @@ impl<'a> TransactionRepository<'a> {
             to_asset: row.to_asset,
             to_quantity: parse_decimal(row.to_quantity)?,
             price_usd: parse_decimal(row.price_usd)?,
-            price_currency: None, // TODO: Load from database
-            price_amount: None,   // TODO: Load from database
-            exchange_rate: None,  // TODO: Load from database
+            price_currency: None,     // TODO: Load from database
+            price_amount: None,       // TODO: Load from database
+            exchange_rate: None,      // TODO: Load from database
             exchange_rate_pair: None, // TODO: Load from database
             fee: parse_decimal(row.fee)?,
             fee_asset: row.fee_asset,
@@ -208,7 +217,10 @@ mod tests {
         assert_eq!(transactions.len(), 1);
         assert_eq!(transactions[0].tx_type, TransactionType::Buy);
         assert_eq!(transactions[0].to_asset, Some("BTC".to_string()));
-        assert_eq!(transactions[0].to_quantity, Some(Decimal::from_str("1.5").unwrap()));
+        assert_eq!(
+            transactions[0].to_quantity,
+            Some(Decimal::from_str("1.5").unwrap())
+        );
         assert_eq!(transactions[0].external_id, Some("EXT123".to_string()));
 
         Ok(())
@@ -248,7 +260,10 @@ mod tests {
         assert_eq!(transactions.len(), 1);
         assert_eq!(transactions[0].tx_type, TransactionType::Sell);
         assert_eq!(transactions[0].from_asset, Some("ETH".to_string()));
-        assert_eq!(transactions[0].from_quantity, Some(Decimal::from_str("2.0").unwrap()));
+        assert_eq!(
+            transactions[0].from_quantity,
+            Some(Decimal::from_str("2.0").unwrap())
+        );
 
         Ok(())
     }
@@ -286,8 +301,14 @@ mod tests {
         let transactions = repo.list(Some(10)).await?;
         assert_eq!(transactions.len(), 1);
         assert_eq!(transactions[0].tx_type, TransactionType::TransferInternal);
-        assert_eq!(transactions[0].from_account_id, Some("test-acc-1".to_string()));
-        assert_eq!(transactions[0].to_account_id, Some("test-acc-2".to_string()));
+        assert_eq!(
+            transactions[0].from_account_id,
+            Some("test-acc-1".to_string())
+        );
+        assert_eq!(
+            transactions[0].to_account_id,
+            Some("test-acc-2".to_string())
+        );
 
         Ok(())
     }
@@ -368,9 +389,18 @@ mod tests {
         assert_eq!(transactions.len(), 3);
 
         // Should be ordered by timestamp DESC (most recent first)
-        assert_eq!(transactions[0].price_usd, Some(Decimal::from_str("45000").unwrap()));
-        assert_eq!(transactions[1].price_usd, Some(Decimal::from_str("44000").unwrap()));
-        assert_eq!(transactions[2].price_usd, Some(Decimal::from_str("43000").unwrap()));
+        assert_eq!(
+            transactions[0].price_usd,
+            Some(Decimal::from_str("45000").unwrap())
+        );
+        assert_eq!(
+            transactions[1].price_usd,
+            Some(Decimal::from_str("44000").unwrap())
+        );
+        assert_eq!(
+            transactions[2].price_usd,
+            Some(Decimal::from_str("43000").unwrap())
+        );
 
         Ok(())
     }
@@ -494,9 +524,18 @@ mod tests {
 
         let transactions = repo.list(Some(10)).await?;
         assert_eq!(transactions.len(), 1);
-        assert_eq!(transactions[0].to_quantity, Some(Decimal::from_str("0.12345678").unwrap()));
-        assert_eq!(transactions[0].price_usd, Some(Decimal::from_str("45123.456789").unwrap()));
-        assert_eq!(transactions[0].fee, Some(Decimal::from_str("0.00000001").unwrap()));
+        assert_eq!(
+            transactions[0].to_quantity,
+            Some(Decimal::from_str("0.12345678").unwrap())
+        );
+        assert_eq!(
+            transactions[0].price_usd,
+            Some(Decimal::from_str("45123.456789").unwrap())
+        );
+        assert_eq!(
+            transactions[0].fee,
+            Some(Decimal::from_str("0.00000001").unwrap())
+        );
 
         Ok(())
     }

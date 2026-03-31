@@ -163,11 +163,7 @@ impl<'a> PnLCalculator<'a> {
     }
 
     /// Get total available quantity for an asset (sum of all tax lot remaining quantities)
-    pub async fn get_available_quantity(
-        &self,
-        account_id: &str,
-        asset: &str,
-    ) -> Result<Decimal> {
+    pub async fn get_available_quantity(&self, account_id: &str, asset: &str) -> Result<Decimal> {
         let lots = self
             .tax_lot_repo
             .list_by_account_asset(account_id, asset)
@@ -197,9 +193,7 @@ impl<'a> PnLCalculator<'a> {
         let unrealized: Decimal = lots
             .iter()
             .filter(|lot| !lot.fully_disposed && lot.remaining_quantity > Decimal::ZERO)
-            .map(|lot| {
-                (current_price - lot.acquisition_price) * lot.remaining_quantity
-            })
+            .map(|lot| (current_price - lot.acquisition_price) * lot.remaining_quantity)
             .sum();
 
         Ok(unrealized)
@@ -209,8 +203,8 @@ impl<'a> PnLCalculator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{init_memory_pool, AccountRepository};
     use crate::core::account::{Account, AccountType};
+    use crate::db::{init_memory_pool, AccountRepository};
     use std::str::FromStr;
 
     /// Helper to create a Decimal from a string (for test readability)
@@ -224,7 +218,10 @@ mod tests {
 
         // Create a test category if it doesn't exist
         if account_repo.get_category("test").await.unwrap().is_none() {
-            account_repo.create_category("test", "Test Category").await.unwrap();
+            account_repo
+                .create_category("test", "Test Category")
+                .await
+                .unwrap();
         }
 
         // Create the test account
@@ -241,7 +238,12 @@ mod tests {
     }
 
     /// Helper to create a minimal transaction record (to satisfy foreign key constraints)
-    async fn create_test_transaction(pool: &sqlx::SqlitePool, tx_id: i64, account_id: &str, asset: &str) {
+    async fn create_test_transaction(
+        pool: &sqlx::SqlitePool,
+        tx_id: i64,
+        account_id: &str,
+        asset: &str,
+    ) {
         // Insert a minimal transaction record to satisfy foreign key constraints
         sqlx::query(
             r#"INSERT INTO transactions (id, timestamp, tx_type, to_account_id, to_asset, to_quantity)
@@ -535,7 +537,10 @@ mod tests {
             .await;
 
         // Verify error
-        assert!(result.is_err(), "Should fail when selling more than available");
+        assert!(
+            result.is_err(),
+            "Should fail when selling more than available"
+        );
 
         match result.unwrap_err() {
             CryptofolioError::InsufficientTaxLots {
@@ -613,7 +618,11 @@ mod tests {
             .get_available_quantity("test_account", "BTC")
             .await
             .unwrap();
-        assert_eq!(available_after_first, dec("0.7"), "Should have 0.7 BTC left");
+        assert_eq!(
+            available_after_first,
+            dec("0.7"),
+            "Should have 0.7 BTC left"
+        );
 
         // Transaction 3: Sell remaining 0.7 BTC @ $55,000
         create_test_transaction(&pool, 3, "test_account", "BTC").await;
@@ -872,8 +881,7 @@ mod tests {
 
         // Different accounts should have different P&L even at same sale price
         assert_ne!(
-            pnls_a[0].realized_gain,
-            pnls_b[0].realized_gain,
+            pnls_a[0].realized_gain, pnls_b[0].realized_gain,
             "Different accounts should have different gains"
         );
     }

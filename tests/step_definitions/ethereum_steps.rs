@@ -1,5 +1,5 @@
-use cucumber::given;
 use crate::support::world::CryptofolioWorld;
+use cucumber::given;
 
 /// Ethereum-specific step definitions
 
@@ -7,7 +7,10 @@ use crate::support::world::CryptofolioWorld;
 async fn mock_ethereum_balance(world: &mut CryptofolioWorld, balance: f64) {
     // Setup blockchain mock if not already done
     if world.ethereum_mock.is_none() {
-        world.setup_ethereum_mock().await.expect("Failed to setup Ethereum mock");
+        world
+            .setup_ethereum_mock()
+            .await
+            .expect("Failed to setup Ethereum mock");
     }
 
     // Mock the address info for the test wallet
@@ -22,7 +25,10 @@ async fn mock_ethereum_balance(world: &mut CryptofolioWorld, balance: f64) {
 async fn mock_erc20_tokens(world: &mut CryptofolioWorld, token_count: u32) {
     // Setup blockchain mock if not already done
     if world.ethereum_mock.is_none() {
-        world.setup_ethereum_mock().await.expect("Failed to setup Ethereum mock");
+        world
+            .setup_ethereum_mock()
+            .await
+            .expect("Failed to setup Ethereum mock");
     }
 
     let address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
@@ -53,7 +59,10 @@ async fn mock_erc20_tokens(world: &mut CryptofolioWorld, token_count: u32) {
 async fn mock_specific_ethereum_token(world: &mut CryptofolioWorld, amount: f64, symbol: String) {
     // Setup blockchain mock if not already done
     if world.ethereum_mock.is_none() {
-        world.setup_ethereum_mock().await.expect("Failed to setup Ethereum mock");
+        world
+            .setup_ethereum_mock()
+            .await
+            .expect("Failed to setup Ethereum mock");
     }
 
     let decimals = match symbol.as_str() {
@@ -71,14 +80,19 @@ async fn mock_specific_ethereum_token(world: &mut CryptofolioWorld, amount: f64,
     };
 
     // Accumulate tokens instead of mocking immediately
-    world.accumulated_tokens.push((symbol.clone(), name.to_string(), amount, decimals));
+    world
+        .accumulated_tokens
+        .push((symbol.clone(), name.to_string(), amount, decimals));
 }
 
 #[given(expr = "the blockchain shows {int} incoming and {int} outgoing transactions")]
 async fn mock_eth_transactions(world: &mut CryptofolioWorld, incoming: u32, outgoing: u32) {
     // Setup blockchain mock if not already done
     if world.ethereum_mock.is_none() {
-        world.setup_ethereum_mock().await.expect("Failed to setup Ethereum mock");
+        world
+            .setup_ethereum_mock()
+            .await
+            .expect("Failed to setup Ethereum mock");
     }
 
     let address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
@@ -88,6 +102,7 @@ async fn mock_eth_transactions(world: &mut CryptofolioWorld, incoming: u32, outg
         // Mock no tokens (this scenario is about transactions, not tokens)
         mock.mock_no_tokens(address).await;
         // Mock transactions
-        mock.mock_transactions(address, (incoming + outgoing) as usize).await;
+        mock.mock_transactions(address, (incoming + outgoing) as usize)
+            .await;
     }
 }

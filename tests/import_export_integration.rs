@@ -57,7 +57,9 @@ async fn test_csv_import_creates_transactions_and_holdings() -> Result<()> {
     // Create test account
     let account_id = "import_test_account";
     if account_repo.get_category("test").await?.is_none() {
-        account_repo.create_category("test", "Test Category").await?;
+        account_repo
+            .create_category("test", "Test Category")
+            .await?;
     }
     let account = Account {
         id: account_id.to_string(),
@@ -95,7 +97,9 @@ async fn test_csv_import_creates_transactions_and_holdings() -> Result<()> {
         tx_repo.insert(&tx).await?;
 
         // Update holding
-        holding_repo.add_quantity(account_id, &row.asset, quantity, Some(price_usd)).await?;
+        holding_repo
+            .add_quantity(account_id, &row.asset, quantity, Some(price_usd))
+            .await?;
 
         imported += 1;
     }
@@ -108,11 +112,19 @@ async fn test_csv_import_creates_transactions_and_holdings() -> Result<()> {
     // Verify holdings created
     let btc_holding = holding_repo.get(account_id, "BTC").await?;
     assert!(btc_holding.is_some(), "Should have BTC holding");
-    assert_eq!(btc_holding.unwrap().quantity, dec("1.5"), "Should have 1.5 BTC total");
+    assert_eq!(
+        btc_holding.unwrap().quantity,
+        dec("1.5"),
+        "Should have 1.5 BTC total"
+    );
 
     let eth_holding = holding_repo.get(account_id, "ETH").await?;
     assert!(eth_holding.is_some(), "Should have ETH holding");
-    assert_eq!(eth_holding.unwrap().quantity, dec("10.0"), "Should have 10 ETH");
+    assert_eq!(
+        eth_holding.unwrap().quantity,
+        dec("10.0"),
+        "Should have 10 ETH"
+    );
 
     Ok(())
 }
@@ -127,7 +139,9 @@ async fn test_csv_export_produces_valid_output() -> Result<()> {
     // Create test account
     let account_id = "export_test_account";
     if account_repo.get_category("test").await?.is_none() {
-        account_repo.create_category("test", "Test Category").await?;
+        account_repo
+            .create_category("test", "Test Category")
+            .await?;
     }
     let account = Account {
         id: account_id.to_string(),
@@ -168,7 +182,8 @@ async fn test_csv_export_produces_valid_output() -> Result<()> {
             tx.from_quantity.unwrap_or(Decimal::ZERO)
         };
 
-        content.push_str(&format!("{},{},{},{},{}\n",
+        content.push_str(&format!(
+            "{},{},{},{},{}\n",
             tx.timestamp.format("%Y-%m-%d"),
             tx_type_str,
             asset,
@@ -185,7 +200,10 @@ async fn test_csv_export_produces_valid_output() -> Result<()> {
 
     // Count lines (excluding header)
     let line_count = file_content.lines().count();
-    assert!(line_count >= 3, "Should have header + at least 2 transaction records");
+    assert!(
+        line_count >= 3,
+        "Should have header + at least 2 transaction records"
+    );
 
     Ok(())
 }
@@ -201,7 +219,9 @@ async fn test_roundtrip_preserves_data() -> Result<()> {
     // Create test account
     let account_id = "roundtrip_test_account";
     if account_repo.get_category("test").await?.is_none() {
-        account_repo.create_category("test", "Test Category").await?;
+        account_repo
+            .create_category("test", "Test Category")
+            .await?;
     }
     let account = Account {
         id: account_id.to_string(),
@@ -247,9 +267,13 @@ async fn test_roundtrip_preserves_data() -> Result<()> {
 
         // Update holdings
         if row.tx_type == "buy" {
-            holding_repo.add_quantity(account_id, &row.asset, quantity, Some(price_usd)).await?;
+            holding_repo
+                .add_quantity(account_id, &row.asset, quantity, Some(price_usd))
+                .await?;
         } else {
-            holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
+            holding_repo
+                .remove_quantity(account_id, &row.asset, quantity)
+                .await?;
         }
     }
 
@@ -272,7 +296,8 @@ async fn test_roundtrip_preserves_data() -> Result<()> {
             tx.from_quantity.unwrap_or(Decimal::ZERO)
         };
 
-        content.push_str(&format!("{},{},{},{},{}\n",
+        content.push_str(&format!(
+            "{},{},{},{},{}\n",
             tx.timestamp.format("%Y-%m-%d"),
             tx_type_str,
             asset,
@@ -292,13 +317,24 @@ async fn test_roundtrip_preserves_data() -> Result<()> {
         exported_count += 1;
     }
 
-    assert_eq!(exported_count, original_data.len(), "Exported transaction count should match original");
+    assert_eq!(
+        exported_count,
+        original_data.len(),
+        "Exported transaction count should match original"
+    );
 
     // STEP 5: Verify holdings are correct
     let btc_holding = holding_repo.get(account_id, "BTC").await?;
-    assert!(btc_holding.is_some(), "Should have BTC holding after round-trip");
+    assert!(
+        btc_holding.is_some(),
+        "Should have BTC holding after round-trip"
+    );
     // Bought 2.0, sold 0.5 = 1.5 remaining
-    assert_eq!(btc_holding.unwrap().quantity, dec("1.5"), "Should have 1.5 BTC after round-trip");
+    assert_eq!(
+        btc_holding.unwrap().quantity,
+        dec("1.5"),
+        "Should have 1.5 BTC after round-trip"
+    );
 
     Ok(())
 }
@@ -314,7 +350,9 @@ async fn test_import_handles_multiple_transaction_types() -> Result<()> {
     // Create test account
     let account_id = "multi_type_account";
     if account_repo.get_category("test").await?.is_none() {
-        account_repo.create_category("test", "Test Category").await?;
+        account_repo
+            .create_category("test", "Test Category")
+            .await?;
     }
     let account = Account {
         id: account_id.to_string(),
@@ -349,14 +387,20 @@ async fn test_import_handles_multiple_transaction_types() -> Result<()> {
 
         match row.tx_type.as_str() {
             "buy" => {
-                let tx = Transaction::new_buy(account_id, &row.asset, quantity, price_usd, Utc::now());
+                let tx =
+                    Transaction::new_buy(account_id, &row.asset, quantity, price_usd, Utc::now());
                 tx_repo.insert(&tx).await?;
-                holding_repo.add_quantity(account_id, &row.asset, quantity, Some(price_usd)).await?;
+                holding_repo
+                    .add_quantity(account_id, &row.asset, quantity, Some(price_usd))
+                    .await?;
             }
             "sell" => {
-                let tx = Transaction::new_sell(account_id, &row.asset, quantity, price_usd, Utc::now());
+                let tx =
+                    Transaction::new_sell(account_id, &row.asset, quantity, price_usd, Utc::now());
                 tx_repo.insert(&tx).await?;
-                holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
+                holding_repo
+                    .remove_quantity(account_id, &row.asset, quantity)
+                    .await?;
             }
             "swap" => {
                 let to_quantity = dec(&row.to_quantity);
@@ -383,8 +427,12 @@ async fn test_import_handles_multiple_transaction_types() -> Result<()> {
                     created_at: Utc::now(),
                 };
                 tx_repo.insert(&tx).await?;
-                holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
-                holding_repo.add_quantity(account_id, &row.to_asset, to_quantity, None).await?;
+                holding_repo
+                    .remove_quantity(account_id, &row.asset, quantity)
+                    .await?;
+                holding_repo
+                    .add_quantity(account_id, &row.to_asset, to_quantity, None)
+                    .await?;
             }
             _ => {}
         }
@@ -398,12 +446,20 @@ async fn test_import_handles_multiple_transaction_types() -> Result<()> {
     // BTC: buy 1.0, sell 0.3, swap out 0.2 = 0.5 remaining
     let btc_holding = holding_repo.get(account_id, "BTC").await?;
     assert!(btc_holding.is_some(), "Should have BTC holding");
-    assert_eq!(btc_holding.unwrap().quantity, dec("0.5"), "Should have 0.5 BTC");
+    assert_eq!(
+        btc_holding.unwrap().quantity,
+        dec("0.5"),
+        "Should have 0.5 BTC"
+    );
 
     // ETH: buy 10.0, swap in 3.0 = 13.0 total
     let eth_holding = holding_repo.get(account_id, "ETH").await?;
     assert!(eth_holding.is_some(), "Should have ETH holding");
-    assert_eq!(eth_holding.unwrap().quantity, dec("13.0"), "Should have 13 ETH");
+    assert_eq!(
+        eth_holding.unwrap().quantity,
+        dec("13.0"),
+        "Should have 13 ETH"
+    );
 
     Ok(())
 }
@@ -418,7 +474,9 @@ async fn test_empty_csv_import() -> Result<()> {
     // Create test account
     let account_id = "empty_csv_account";
     if account_repo.get_category("test").await?.is_none() {
-        account_repo.create_category("test", "Test Category").await?;
+        account_repo
+            .create_category("test", "Test Category")
+            .await?;
     }
     let account = Account {
         id: account_id.to_string(),
@@ -433,7 +491,8 @@ async fn test_empty_csv_import() -> Result<()> {
 
     // Create empty CSV (only header)
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
-    let csv_content = "date,type,asset,quantity,price_usd,fee,fee_asset,notes,to_asset,to_quantity\n";
+    let csv_content =
+        "date,type,asset,quantity,price_usd,fee,fee_asset,notes,to_asset,to_quantity\n";
     let csv_path = create_test_csv(&temp_dir, "empty.csv", csv_content);
 
     // Process empty CSV

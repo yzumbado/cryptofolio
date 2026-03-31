@@ -188,7 +188,13 @@ pub fn format_pnl_percent(value: Decimal, with_color: bool) -> String {
 /// Format a price change with color
 pub fn format_price_change(value: Decimal, percent: Decimal, with_color: bool) -> String {
     let sign = if value >= Decimal::ZERO { "+" } else { "" };
-    let formatted = format!("{}{} ({}{}%)", sign, format_usd(value.abs()), sign, format!("{:.2}", percent));
+    let formatted = format!(
+        "{}{} ({}{}%)",
+        sign,
+        format_usd(value.abs()),
+        sign,
+        format!("{:.2}", percent)
+    );
 
     if with_color && colors_enabled() {
         if value > Decimal::ZERO {
@@ -311,10 +317,7 @@ pub fn find_similar<'a>(input: &str, candidates: &[&'a str], threshold: f64) -> 
         .collect();
 
     // Sort by score descending, treating NaN as lowest priority
-    matches.sort_by(|a, b| {
-        b.1.partial_cmp(&a.1)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     matches.into_iter().take(3).map(|(s, _)| s).collect()
 }
 
@@ -381,15 +384,24 @@ mod tests {
     #[test]
     fn test_format_usd() {
         setup();
-        assert_eq!(format_usd(Decimal::from_str("1234.56").unwrap()), "$1234.56");
+        assert_eq!(
+            format_usd(Decimal::from_str("1234.56").unwrap()),
+            "$1234.56"
+        );
         assert_eq!(format_usd(Decimal::from_str("0.99").unwrap()), "$0.99");
-        assert_eq!(format_usd(Decimal::from_str("1000000").unwrap()), "$1000000.00");
+        assert_eq!(
+            format_usd(Decimal::from_str("1000000").unwrap()),
+            "$1000000.00"
+        );
     }
 
     #[test]
     fn test_format_usd_negative() {
         setup();
-        assert_eq!(format_usd(Decimal::from_str("-123.45").unwrap()), "$-123.45");
+        assert_eq!(
+            format_usd(Decimal::from_str("-123.45").unwrap()),
+            "$-123.45"
+        );
     }
 
     #[test]
@@ -432,9 +444,15 @@ mod tests {
     #[test]
     fn test_format_percent() {
         setup();
-        assert_eq!(format_percent(Decimal::from_str("12.345").unwrap()), "12.34%");
+        assert_eq!(
+            format_percent(Decimal::from_str("12.345").unwrap()),
+            "12.34%"
+        );
         assert_eq!(format_percent(Decimal::from_str("0.5").unwrap()), "0.50%");
-        assert_eq!(format_percent(Decimal::from_str("-5.67").unwrap()), "-5.67%");
+        assert_eq!(
+            format_percent(Decimal::from_str("-5.67").unwrap()),
+            "-5.67%"
+        );
     }
 
     #[test]
@@ -485,7 +503,10 @@ mod tests {
         setup();
         let value = Decimal::from_str("50.00").unwrap();
         let percent = Decimal::from_str("5.5").unwrap();
-        assert_eq!(format_price_change(value, percent, false), "+$50.00 (+5.50%)");
+        assert_eq!(
+            format_price_change(value, percent, false),
+            "+$50.00 (+5.50%)"
+        );
     }
 
     #[test]
@@ -493,7 +514,10 @@ mod tests {
         setup();
         let value = Decimal::from_str("-30.00").unwrap();
         let percent = Decimal::from_str("-3.0").unwrap();
-        assert_eq!(format_price_change(value, percent, false), "$30.00 (-3.00%)");
+        assert_eq!(
+            format_price_change(value, percent, false),
+            "$30.00 (-3.00%)"
+        );
     }
 
     #[test]
@@ -502,7 +526,10 @@ mod tests {
         let value = Decimal::ZERO;
         let percent = Decimal::ZERO;
         // Zero gets + sign because it's >= 0
-        assert_eq!(format_price_change(value, percent, false), "+$0.00 (+0.00%)");
+        assert_eq!(
+            format_price_change(value, percent, false),
+            "+$0.00 (+0.00%)"
+        );
     }
 
     #[test]

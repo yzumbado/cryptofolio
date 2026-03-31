@@ -1,6 +1,6 @@
-use wiremock::{Mock, MockServer, ResponseTemplate};
-use wiremock::matchers::{method, path, query_param};
 use serde_json::json;
+use wiremock::matchers::{method, path, query_param};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Mock Etherscan/Ethereum API server for testing
 pub struct EthereumMock {
@@ -74,8 +74,16 @@ impl EthereumMock {
     }
 
     /// Mock single token balance
-    pub async fn mock_single_token(&self, address: &str, symbol: &str, name: &str, balance: f64, decimals: u8) {
-        self.mock_tokens(address, &[(symbol, name, balance, decimals)]).await;
+    pub async fn mock_single_token(
+        &self,
+        address: &str,
+        symbol: &str,
+        name: &str,
+        balance: f64,
+        decimals: u8,
+    ) {
+        self.mock_tokens(address, &[(symbol, name, balance, decimals)])
+            .await;
     }
 
     /// Mock no tokens for an address
@@ -173,10 +181,14 @@ mod tests {
         let mock = EthereumMock::new().await;
         let address = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
 
-        mock.mock_tokens(address, &[
-            ("USDT", "Tether USD", 1000.0, 6),
-            ("USDC", "USD Coin", 500.0, 6),
-        ]).await;
+        mock.mock_tokens(
+            address,
+            &[
+                ("USDT", "Tether USD", 1000.0, 6),
+                ("USDC", "USD Coin", 500.0, 6),
+            ],
+        )
+        .await;
 
         let url = format!(
             "{}/api?module=account&action=tokentx&address={}",

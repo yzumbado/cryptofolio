@@ -73,11 +73,12 @@ impl<'a> SyncStateRepository<'a> {
         .await?;
 
         // Fetch the newly-created row
-        self.get(account_id)
-            .await?
-            .ok_or_else(|| crate::error::CryptofolioError::Other(
-                format!("Failed to create sync state for account '{}'", account_id)
+        self.get(account_id).await?.ok_or_else(|| {
+            crate::error::CryptofolioError::Other(format!(
+                "Failed to create sync state for account '{}'",
+                account_id
             ))
+        })
     }
 
     /// Fetch sync state for an account (returns None if no row exists).
@@ -85,16 +86,16 @@ impl<'a> SyncStateRepository<'a> {
         let row = sqlx::query_as::<
             _,
             (
-                String,          // account_id
-                Option<String>,  // last_trade_sync
-                Option<String>,  // last_deposit_sync
-                Option<String>,  // last_withdrawal_sync
-                Option<String>,  // last_fiat_sync
-                Option<String>,  // last_transfer_sync
-                Option<i64>,     // last_trade_id
-                Option<String>,  // last_sync_symbol
-                String,          // created_at
-                String,          // updated_at
+                String,         // account_id
+                Option<String>, // last_trade_sync
+                Option<String>, // last_deposit_sync
+                Option<String>, // last_withdrawal_sync
+                Option<String>, // last_fiat_sync
+                Option<String>, // last_transfer_sync
+                Option<i64>,    // last_trade_id
+                Option<String>, // last_sync_symbol
+                String,         // created_at
+                String,         // updated_at
             ),
         >(
             r#"
@@ -198,11 +199,7 @@ impl<'a> SyncStateRepository<'a> {
     }
 
     /// Mark fiat orders as synced up to `timestamp`.
-    pub async fn update_fiat_sync(
-        &self,
-        account_id: &str,
-        timestamp: DateTime<Utc>,
-    ) -> Result<()> {
+    pub async fn update_fiat_sync(&self, account_id: &str, timestamp: DateTime<Utc>) -> Result<()> {
         let ts = timestamp.to_rfc3339();
         sqlx::query(
             r#"
@@ -325,8 +322,7 @@ fn parse_datetime(s: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
         .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
-                .map(|ndt| ndt.and_utc())
+            chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").map(|ndt| ndt.and_utc())
         })
         .unwrap_or_else(|_| Utc::now())
 }
@@ -397,7 +393,8 @@ mod tests {
         repo.get_or_create("acc-1").await?;
 
         let ts = Utc::now();
-        repo.update_trade_sync("acc-1", ts, Some(99999), Some("BTCUSDT")).await?;
+        repo.update_trade_sync("acc-1", ts, Some(99999), Some("BTCUSDT"))
+            .await?;
 
         let state = repo.get("acc-1").await?.unwrap();
         assert!(state.last_trade_sync.is_some());
@@ -447,7 +444,8 @@ mod tests {
         repo.get_or_create("acc-1").await?;
 
         let ts = Utc::now();
-        repo.update_trade_sync("acc-1", ts, Some(42), Some("ETHUSDT")).await?;
+        repo.update_trade_sync("acc-1", ts, Some(42), Some("ETHUSDT"))
+            .await?;
         repo.update_deposit_sync("acc-1", ts).await?;
         repo.update_withdrawal_sync("acc-1", ts).await?;
 

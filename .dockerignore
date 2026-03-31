@@ -1,0 +1,36 @@
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+target/
+*.o
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+docs/
+
+# CI/CD
+.github/
+
+# Test data
+test_data/
+*.db
+*.db-shm
+*.db-wal
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*

@@ -145,9 +145,8 @@ pub async fn migrate_secret_to_keychain(
         _ => None,
     };
 
-    let value = value.ok_or_else(|| {
-        CryptofolioError::Config(format!("Secret '{}' has no value", secret.key))
-    })?;
+    let value = value
+        .ok_or_else(|| CryptofolioError::Config(format!("Secret '{}' has no value", secret.key)))?;
 
     // Store in keychain
     let keychain = get_keychain();
@@ -174,7 +173,10 @@ pub async fn migrate_secret_to_keychain(
 }
 
 /// Clear secrets from TOML config
-pub fn clear_secrets_from_config(config: &mut AppConfig, secrets: &[SecretToMigrate]) -> Result<()> {
+pub fn clear_secrets_from_config(
+    config: &mut AppConfig,
+    secrets: &[SecretToMigrate],
+) -> Result<()> {
     for secret in secrets {
         match secret.key.as_str() {
             "binance.api_key" => {
@@ -236,7 +238,11 @@ pub async fn run_migration(keychain_repo: &KeychainKeyRepository) -> Result<()> 
         return Ok(());
     }
 
-    println!("  Found {} secret{} in config.toml:", secrets.len(), if secrets.len() == 1 { "" } else { "s" });
+    println!(
+        "  Found {} secret{} in config.toml:",
+        secrets.len(),
+        if secrets.len() == 1 { "" } else { "s" }
+    );
     for secret in &secrets {
         println!("    • {}", secret.display_name);
     }

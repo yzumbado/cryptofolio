@@ -2,10 +2,9 @@ use clap::Parser;
 
 use cryptofolio::cli::commands::{
     handle_account_command, handle_category_command, handle_config_command,
-    handle_currency_command, handle_holdings_command, handle_import_command,
-    handle_market_command, handle_pnl_command, handle_portfolio_command, handle_price_command,
-    handle_status_command, handle_sync_command, handle_sync_history_command, handle_tx_command,
-    handle_wallet_command,
+    handle_currency_command, handle_holdings_command, handle_import_command, handle_market_command,
+    handle_pnl_command, handle_portfolio_command, handle_price_command, handle_status_command,
+    handle_sync_command, handle_sync_history_command, handle_tx_command, handle_wallet_command,
 };
 use cryptofolio::cli::output::init_color;
 use cryptofolio::cli::{Cli, Commands, GlobalOptions};
@@ -62,7 +61,8 @@ async fn run() -> Result<()> {
             account,
             category,
         } => {
-            handle_portfolio_command(by_account, by_category, account, category, &pool, &opts).await?;
+            handle_portfolio_command(by_account, by_category, account, category, &pool, &opts)
+                .await?;
         }
 
         Commands::Tx { command } => {

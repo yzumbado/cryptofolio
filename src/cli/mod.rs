@@ -77,7 +77,9 @@ LEARN MORE:
 #[command(author = "Your Name")]
 #[command(version)]
 #[command(about = "A CLI tool for managing crypto portfolios across exchanges and wallets")]
-#[command(long_about = "Cryptofolio helps you track cryptocurrency holdings across multiple locations - exchanges, hardware wallets, and software wallets - with real-time P&L calculations.")]
+#[command(
+    long_about = "Cryptofolio helps you track cryptocurrency holdings across multiple locations - exchanges, hardware wallets, and software wallets - with real-time P&L calculations."
+)]
 #[command(after_help = AFTER_HELP)]
 #[command(after_long_help = AFTER_LONG_HELP)]
 pub struct Cli {
@@ -108,7 +110,9 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Get current price for one or more cryptocurrencies
-    #[command(after_help = "EXAMPLES:\n    # Get single price\n    cryptofolio price BTC\n\n    # Get multiple prices\n    cryptofolio price BTC ETH SOL\n\n    # JSON output for scripting\n    cryptofolio price BTC --json\n    cryptofolio price BTC ETH --json | jq '.[0].price'")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Get single price\n    cryptofolio price BTC\n\n    # Get multiple prices\n    cryptofolio price BTC ETH SOL\n\n    # JSON output for scripting\n    cryptofolio price BTC --json\n    cryptofolio price BTC ETH --json | jq '.[0].price'"
+    )]
     Price {
         /// Cryptocurrency symbols (e.g., BTC ETH SOL)
         #[arg(required = true)]
@@ -116,7 +120,9 @@ pub enum Commands {
     },
 
     /// Get detailed market data for a cryptocurrency
-    #[command(after_help = "EXAMPLES:\n    # Get current market price\n    cryptofolio market BTC\n    cryptofolio market ETHUSDT\n\n    # Include 24-hour statistics\n    cryptofolio market BTC --24h\n\n    # JSON output with 24h data\n    cryptofolio market BTCUSDT --24h --json")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Get current market price\n    cryptofolio market BTC\n    cryptofolio market ETHUSDT\n\n    # Include 24-hour statistics\n    cryptofolio market BTC --24h\n\n    # JSON output with 24h data\n    cryptofolio market BTCUSDT --24h --json"
+    )]
     Market {
         /// Cryptocurrency symbol (e.g., BTC, BTCUSDT)
         symbol: String,
@@ -127,28 +133,36 @@ pub enum Commands {
     },
 
     /// Manage accounts (exchanges, wallets)
-    #[command(after_help = "EXAMPLES:\n    # List all accounts\n    cryptofolio account list\n    cryptofolio account list --json\n\n    # Add different account types\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account add \"Binance\" --type exchange --category trading --sync\n    cryptofolio account add \"MetaMask\" --type software_wallet --category hot-wallets\n\n    # Show account details\n    cryptofolio account show \"Ledger\"\n    cryptofolio account show \"Binance\" --json")]
+    #[command(
+        after_help = "EXAMPLES:\n    # List all accounts\n    cryptofolio account list\n    cryptofolio account list --json\n\n    # Add different account types\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account add \"Binance\" --type exchange --category trading --sync\n    cryptofolio account add \"MetaMask\" --type software_wallet --category hot-wallets\n\n    # Show account details\n    cryptofolio account show \"Ledger\"\n    cryptofolio account show \"Binance\" --json"
+    )]
     Account {
         #[command(subcommand)]
         command: AccountCommands,
     },
 
     /// Manage categories for organizing accounts
-    #[command(after_help = "EXAMPLES:\n    cryptofolio category list\n    cryptofolio category add \"DeFi\"")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio category list\n    cryptofolio category add \"DeFi\""
+    )]
     Category {
         #[command(subcommand)]
         command: CategoryCommands,
     },
 
     /// Manage holdings across accounts
-    #[command(after_help = "EXAMPLES:\n    # List all holdings\n    cryptofolio holdings list\n    cryptofolio holdings list --account Binance\n    cryptofolio holdings list --json\n\n    # Add holdings with cost basis\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings add ETH 2.0 --account MetaMask --cost 2800\n\n    # Move holdings between accounts\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger --yes")]
+    #[command(
+        after_help = "EXAMPLES:\n    # List all holdings\n    cryptofolio holdings list\n    cryptofolio holdings list --account Binance\n    cryptofolio holdings list --json\n\n    # Add holdings with cost basis\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings add ETH 2.0 --account MetaMask --cost 2800\n\n    # Move holdings between accounts\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger --yes"
+    )]
     Holdings {
         #[command(subcommand)]
         command: HoldingsCommands,
     },
 
     /// View portfolio with P&L calculations
-    #[command(after_help = "EXAMPLES:\n    # View full portfolio\n    cryptofolio portfolio\n\n    # Group by category or account\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --by-account\n\n    # Filter by account or category\n    cryptofolio portfolio --account Binance\n    cryptofolio portfolio --category cold-storage\n\n    # JSON output for automation\n    cryptofolio portfolio --json\n    cryptofolio portfolio --json | jq '.total_value_usd'")]
+    #[command(
+        after_help = "EXAMPLES:\n    # View full portfolio\n    cryptofolio portfolio\n\n    # Group by category or account\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --by-account\n\n    # Filter by account or category\n    cryptofolio portfolio --account Binance\n    cryptofolio portfolio --category cold-storage\n\n    # JSON output for automation\n    cryptofolio portfolio --json\n    cryptofolio portfolio --json | jq '.total_value_usd'"
+    )]
     Portfolio {
         /// Group by account
         #[arg(long = "by-account")]
@@ -168,14 +182,18 @@ pub enum Commands {
     },
 
     /// Record and view transactions
-    #[command(after_help = "EXAMPLES:\n    # List transactions\n    cryptofolio tx list\n    cryptofolio tx list --limit 50 --json\n    cryptofolio tx list --account Binance\n\n    # Record buy/sell transactions\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000 --notes \"DCA purchase\"\n    cryptofolio tx sell ETH 1.0 --account Binance --price 3200\n\n    # Record transfers between accounts\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger --fee 0.0001\n\n    # Record swaps\n    cryptofolio tx swap --from-asset ETH --from-quantity 1.0 --to-asset BTC --to-quantity 0.05 --account Binance\n\n    # Export transactions to CSV\n    cryptofolio tx export transactions.csv\n    cryptofolio tx export 2024-trades.csv --from 2024-01-01 --to 2024-12-31")]
+    #[command(
+        after_help = "EXAMPLES:\n    # List transactions\n    cryptofolio tx list\n    cryptofolio tx list --limit 50 --json\n    cryptofolio tx list --account Binance\n\n    # Record buy/sell transactions\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000 --notes \"DCA purchase\"\n    cryptofolio tx sell ETH 1.0 --account Binance --price 3200\n\n    # Record transfers between accounts\n    cryptofolio tx transfer BTC 0.5 --from Binance --to Ledger --fee 0.0001\n\n    # Record swaps\n    cryptofolio tx swap --from-asset ETH --from-quantity 1.0 --to-asset BTC --to-quantity 0.05 --account Binance\n\n    # Export transactions to CSV\n    cryptofolio tx export transactions.csv\n    cryptofolio tx export 2024-trades.csv --from 2024-01-01 --to 2024-12-31"
+    )]
     Tx {
         #[command(subcommand)]
         command: TxCommands,
     },
 
     /// Sync holdings from exchange accounts
-    #[command(after_help = "EXAMPLES:\n    cryptofolio sync\n    cryptofolio sync --account \"Binance\"")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio sync\n    cryptofolio sync --account \"Binance\""
+    )]
     Sync {
         /// Account to sync (syncs all exchange accounts if not specified)
         #[arg(long)]
@@ -184,7 +202,9 @@ pub enum Commands {
 
     /// Import full transaction history from Binance (trades, deposits, withdrawals, fiat, transfers)
     #[command(name = "sync-history")]
-    #[command(after_help = "EXAMPLES:\n    # Import all history (all time)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT\n\n    # Full re-import (ignore previous sync watermarks)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT --full-history\n\n    # Preview what would be imported\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run\n\n    # Only import since a specific date\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --from 2024-01-01\n\n    # Skip certain endpoints\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --no-fiat --no-transfers")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Import all history (all time)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT\n\n    # Full re-import (ignore previous sync watermarks)\n    cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT --full-history\n\n    # Preview what would be imported\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --dry-run\n\n    # Only import since a specific date\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --from 2024-01-01\n\n    # Skip certain endpoints\n    cryptofolio sync-history --account Binance --symbols BTCUSDT --no-fiat --no-transfers"
+    )]
     SyncHistory {
         /// Account name (must be an exchange account with sync enabled)
         #[arg(long, required = true)]
@@ -228,7 +248,9 @@ pub enum Commands {
     },
 
     /// Import transactions from CSV file
-    #[command(after_help = "EXAMPLES:\n    cryptofolio import transactions.csv --account Ledger\n\nCSV FORMAT:\n    date,type,asset,quantity,price_usd,fee,notes\n    2024-01-15,buy,BTC,0.5,45000,0.001,First purchase")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio import transactions.csv --account Ledger\n\nCSV FORMAT:\n    date,type,asset,quantity,price_usd,fee,notes\n    2024-01-15,buy,BTC,0.5,45000,0.001,First purchase"
+    )]
     Import {
         /// Path to CSV file
         file: String,
@@ -243,35 +265,45 @@ pub enum Commands {
     },
 
     /// Manage configuration settings
-    #[command(after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet")]
+    #[command(
+        after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet"
+    )]
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
     },
 
     /// Manage currencies and exchange rates
-    #[command(after_help = "EXAMPLES:\n    # List all currencies\n    cryptofolio currency list\n    cryptofolio currency list --enabled\n    cryptofolio currency list --json\n\n    # Add a new currency\n    cryptofolio currency add MXN --name \"Mexican Peso\" --symbol \"₱\" --decimals 2 --type fiat\n\n    # Show currency details\n    cryptofolio currency show USD\n\n    # Set exchange rate\n    cryptofolio currency set-rate CRC USD 550 --notes \"Bank rate\"\n    cryptofolio currency show-rate CRC USD\n    cryptofolio currency show-rate CRC USD --history")]
+    #[command(
+        after_help = "EXAMPLES:\n    # List all currencies\n    cryptofolio currency list\n    cryptofolio currency list --enabled\n    cryptofolio currency list --json\n\n    # Add a new currency\n    cryptofolio currency add MXN --name \"Mexican Peso\" --symbol \"₱\" --decimals 2 --type fiat\n\n    # Show currency details\n    cryptofolio currency show USD\n\n    # Set exchange rate\n    cryptofolio currency set-rate CRC USD 550 --notes \"Bank rate\"\n    cryptofolio currency show-rate CRC USD\n    cryptofolio currency show-rate CRC USD --history"
+    )]
     Currency {
         #[command(subcommand)]
         command: CurrencyCommands,
     },
 
     /// View profit and loss reports
-    #[command(after_help = "EXAMPLES:\n    # View P&L summary\n    cryptofolio pnl summary\n    cryptofolio pnl summary --account Binance\n    cryptofolio pnl summary --from 2024-01-01 --to 2024-12-31\n\n    # View realized gains/losses\n    cryptofolio pnl realized\n    cryptofolio pnl realized --account Binance --limit 100\n    cryptofolio pnl realized --asset BTC\n\n    # View unrealized P&L\n    cryptofolio pnl unrealized\n    cryptofolio pnl unrealized --account Binance\n\n    # View P&L by asset\n    cryptofolio pnl by-asset BTC\n\n    # Backfill P&L from historical transactions\n    cryptofolio pnl backfill --yes\n    cryptofolio pnl backfill --account Binance --yes")]
+    #[command(
+        after_help = "EXAMPLES:\n    # View P&L summary\n    cryptofolio pnl summary\n    cryptofolio pnl summary --account Binance\n    cryptofolio pnl summary --from 2024-01-01 --to 2024-12-31\n\n    # View realized gains/losses\n    cryptofolio pnl realized\n    cryptofolio pnl realized --account Binance --limit 100\n    cryptofolio pnl realized --asset BTC\n\n    # View unrealized P&L\n    cryptofolio pnl unrealized\n    cryptofolio pnl unrealized --account Binance\n\n    # View P&L by asset\n    cryptofolio pnl by-asset BTC\n\n    # Backfill P&L from historical transactions\n    cryptofolio pnl backfill --yes\n    cryptofolio pnl backfill --account Binance --yes"
+    )]
     Pnl {
         #[command(subcommand)]
         command: PnlCommands,
     },
 
     /// Manage wallet addresses and sync from blockchain
-    #[command(after_help = "EXAMPLES:\n    # Add a Bitcoin wallet\n    cryptofolio wallet add \"My Ledger\" --blockchain bitcoin --address bc1qxy...\n\n    # Add a Bitcoin HD wallet (xpub)\n    cryptofolio wallet add \"Sparrow\" --blockchain bitcoin --xpub zpub6rFR...\n\n    # Add an Ethereum wallet\n    cryptofolio wallet add \"MetaMask\" --blockchain ethereum --address 0x742d...\n\n    # List all wallets\n    cryptofolio wallet list\n    cryptofolio wallet list --blockchain bitcoin\n\n    # Sync wallet from blockchain\n    cryptofolio wallet sync \"My Ledger\"\n    cryptofolio wallet sync --all")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Add a Bitcoin wallet\n    cryptofolio wallet add \"My Ledger\" --blockchain bitcoin --address bc1qxy...\n\n    # Add a Bitcoin HD wallet (xpub)\n    cryptofolio wallet add \"Sparrow\" --blockchain bitcoin --xpub zpub6rFR...\n\n    # Add an Ethereum wallet\n    cryptofolio wallet add \"MetaMask\" --blockchain ethereum --address 0x742d...\n\n    # List all wallets\n    cryptofolio wallet list\n    cryptofolio wallet list --blockchain bitcoin\n\n    # Sync wallet from blockchain\n    cryptofolio wallet sync \"My Ledger\"\n    cryptofolio wallet sync --all"
+    )]
     Wallet {
         #[command(subcommand)]
         command: WalletCommands,
     },
 
     /// Start interactive shell mode
-    #[command(after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)"
+    )]
     Shell,
 
     /// Show system status and diagnostics
@@ -279,7 +311,9 @@ pub enum Commands {
     /// Displays information about the current configuration, database location,
     /// AI provider status (Claude API, Ollama), and network mode (testnet/mainnet).
     /// Useful for troubleshooting connectivity issues or verifying setup.
-    #[command(after_help = "EXAMPLES:\n    cryptofolio status\n    cryptofolio status --check\n\nThis command shows:\n    - Configuration file location\n    - Database file location\n    - Testnet/Mainnet mode\n    - Claude API connection status\n    - Ollama local LLM status\n    - Active AI provider")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio status\n    cryptofolio status --check\n\nThis command shows:\n    - Configuration file location\n    - Database file location\n    - Testnet/Mainnet mode\n    - Claude API connection status\n    - Ollama local LLM status\n    - Active AI provider"
+    )]
     Status {
         /// Run connectivity checks for AI providers
         #[arg(long)]
@@ -293,7 +327,9 @@ pub enum AccountCommands {
     List,
 
     /// Add a new account
-    #[command(after_help = "EXAMPLES:\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account add \"Binance\" --type exchange --category trading --sync --testnet")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio account add \"Ledger\" --type hardware_wallet --category cold-storage\n    cryptofolio account add \"Binance\" --type exchange --category trading --sync --testnet"
+    )]
     Add {
         /// Account name
         name: String,
@@ -509,7 +545,9 @@ pub enum HoldingsCommands {
     },
 
     /// Add to holdings
-    #[command(after_help = "EXAMPLES:\n    cryptofolio holdings add BTC 0.5 --account Ledger\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio holdings add BTC 0.5 --account Ledger\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000"
+    )]
     Add {
         /// Asset symbol (e.g., BTC)
         asset: String,
@@ -596,7 +634,9 @@ pub enum TxCommands {
     },
 
     /// Record a buy transaction
-    #[command(after_help = "EXAMPLES:\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000\n    cryptofolio tx buy ETH 2.0 --account Binance --price 3200 --notes \"DCA\"")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio tx buy BTC 0.1 --account Binance --price 95000\n    cryptofolio tx buy ETH 2.0 --account Binance --price 3200 --notes \"DCA\""
+    )]
     Buy {
         /// Asset symbol (e.g., BTC)
         asset: String,
@@ -707,7 +747,9 @@ pub enum TxCommands {
     },
 
     /// Export transactions to file
-    #[command(after_help = "EXAMPLES:\n    # Export all transactions to CSV\n    cryptofolio tx export transactions.csv\n\n    # Export to JSON format\n    cryptofolio tx export transactions.json --format json\n\n    # Export to SQL format\n    cryptofolio tx export transactions.sql --format sql\n\n    # Export filtered transactions\n    cryptofolio tx export binance-2024.csv --account Binance\n    cryptofolio tx export btc-trades.json --asset BTC --format json\n\n    # Export with date range\n    cryptofolio tx export q1-2024.csv --from 2024-01-01 --to 2024-03-31\n\nFORMATS:\n    csv  - CSV format (default, compatible with import)\n    json - JSON array format\n    sql  - SQL INSERT statements")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Export all transactions to CSV\n    cryptofolio tx export transactions.csv\n\n    # Export to JSON format\n    cryptofolio tx export transactions.json --format json\n\n    # Export to SQL format\n    cryptofolio tx export transactions.sql --format sql\n\n    # Export filtered transactions\n    cryptofolio tx export binance-2024.csv --account Binance\n    cryptofolio tx export btc-trades.json --asset BTC --format json\n\n    # Export with date range\n    cryptofolio tx export q1-2024.csv --from 2024-01-01 --to 2024-03-31\n\nFORMATS:\n    csv  - CSV format (default, compatible with import)\n    json - JSON array format\n    sql  - SQL INSERT statements"
+    )]
     Export {
         /// Output file path
         file: String,
@@ -744,7 +786,9 @@ pub enum ConfigCommands {
     Show,
 
     /// Set a configuration value
-    #[command(after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n    cryptofolio config set display.decimals 6\n    cryptofolio config set display.thousands_separator true\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet          Enable testnet mode (true/false)\n    general.default_account       Default account name\n    display.color                 Enable colors (true/false)\n    display.decimals              Decimal places for quantities (0-18, default: 8)\n    display.price_decimals        Decimal places for prices (0-18, default: 2)\n    display.thousands_separator   Use thousands separator (true/false, default: true)")]
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n    cryptofolio config set display.decimals 6\n    cryptofolio config set display.thousands_separator true\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet          Enable testnet mode (true/false)\n    general.default_account       Default account name\n    display.color                 Enable colors (true/false)\n    display.decimals              Decimal places for quantities (0-18, default: 8)\n    display.price_decimals        Decimal places for prices (0-18, default: 2)\n    display.thousands_separator   Use thousands separator (true/false, default: true)"
+    )]
     Set {
         /// Configuration key (e.g., general.use_testnet)
         key: String,
@@ -768,7 +812,9 @@ pub enum ConfigCommands {
     ///   3. Disable: Trading, Withdrawals, Internal Transfer
     ///   4. IP restrictions recommended (optional but safer)
     #[command(name = "set-secret")]
-    #[command(after_help = "EXAMPLES:\n    # Interactive (hidden input)\n    cryptofolio config set-secret binance.api_secret\n\n    # macOS: Store with Touch ID protection\n    cryptofolio config set-secret binance.api_secret --security-level touchid\n\n    # From stdin (for scripts)\n    echo \"secret\" | cryptofolio config set-secret binance.api_secret\n\n    # From file\n    cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key\n\n    # From environment variable\n    cryptofolio config set-secret binance.api_secret --from-env MY_SECRET\n\nSECURITY LEVELS (macOS only):\n    standard          Protected by macOS encryption (good for automation)\n    touchid           Require Touch ID or password (recommended)\n    touchid-only      ONLY Touch ID, no password fallback (maximum security)")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Interactive (hidden input)\n    cryptofolio config set-secret binance.api_secret\n\n    # macOS: Store with Touch ID protection\n    cryptofolio config set-secret binance.api_secret --security-level touchid\n\n    # From stdin (for scripts)\n    echo \"secret\" | cryptofolio config set-secret binance.api_secret\n\n    # From file\n    cryptofolio config set-secret binance.api_secret --secret-file ~/.secrets/key\n\n    # From environment variable\n    cryptofolio config set-secret binance.api_secret --from-env MY_SECRET\n\nSECURITY LEVELS (macOS only):\n    standard          Protected by macOS encryption (good for automation)\n    touchid           Require Touch ID or password (recommended)\n    touchid-only      ONLY Touch ID, no password fallback (maximum security)"
+    )]
     SetSecret {
         /// Config key (e.g., binance.api_secret)
         key: String,
@@ -805,7 +851,9 @@ pub enum ConfigCommands {
     ///   - Protected from casual file access and backups
     ///   - Integration with macOS security features
     #[command(name = "migrate-to-keychain")]
-    #[command(after_help = "EXAMPLES:\n    # Migrate all secrets to keychain\n    cryptofolio config migrate-to-keychain\n\n    # The wizard will:\n    #   1. Show all secrets found in config.toml\n    #   2. Let you choose security level (Standard, Touch ID, Touch ID Only)\n    #   3. Create a backup of config.toml\n    #   4. Migrate secrets to keychain\n    #   5. Clear secrets from config.toml\n\nSECURITY LEVELS:\n    Standard          Unlocked with Mac (good for automation)\n    Touch ID          Require Touch ID or password (recommended)\n    Touch ID Only     ONLY biometric, no password fallback")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Migrate all secrets to keychain\n    cryptofolio config migrate-to-keychain\n\n    # The wizard will:\n    #   1. Show all secrets found in config.toml\n    #   2. Let you choose security level (Standard, Touch ID, Touch ID Only)\n    #   3. Create a backup of config.toml\n    #   4. Migrate secrets to keychain\n    #   5. Clear secrets from config.toml\n\nSECURITY LEVELS:\n    Standard          Unlocked with Mac (good for automation)\n    Touch ID          Require Touch ID or password (recommended)\n    Touch ID Only     ONLY biometric, no password fallback"
+    )]
     MigrateToKeychain,
 
     /// Show keychain status and security levels (macOS only)
@@ -815,7 +863,9 @@ pub enum ConfigCommands {
     ///   - TOML config file
     ///   - Environment variables
     #[command(name = "keychain-status")]
-    #[command(after_help = "EXAMPLES:\n    # Show all secrets and their locations\n    cryptofolio config keychain-status\n\n    # JSON output\n    cryptofolio config keychain-status --json\n\nOUTPUT:\n    Shows a table with:\n      - Key name (e.g., binance.api_secret)\n      - Storage type (keychain, toml, env)\n      - Security level (for keychain entries)\n      - Last accessed timestamp")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Show all secrets and their locations\n    cryptofolio config keychain-status\n\n    # JSON output\n    cryptofolio config keychain-status --json\n\nOUTPUT:\n    Shows a table with:\n      - Key name (e.g., binance.api_secret)\n      - Storage type (keychain, toml, env)\n      - Security level (for keychain entries)\n      - Last accessed timestamp"
+    )]
     KeychainStatus,
 
     /// Upgrade security level for a keychain entry (macOS only)
@@ -823,7 +873,9 @@ pub enum ConfigCommands {
     /// Increases the security level for an existing keychain secret.
     /// Requires authentication with current security level.
     #[command(name = "upgrade-security")]
-    #[command(after_help = "EXAMPLES:\n    # Upgrade to Touch ID protection\n    cryptofolio config upgrade-security binance.api_secret --to touchid\n\n    # Upgrade to Touch ID only (maximum security)\n    cryptofolio config upgrade-security binance.api_secret --to touchid-only\n\nWARNING:\n    Touch ID Only mode has no password fallback.\n    You won't be able to access the secret in SSH sessions or without Touch ID.")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Upgrade to Touch ID protection\n    cryptofolio config upgrade-security binance.api_secret --to touchid\n\n    # Upgrade to Touch ID only (maximum security)\n    cryptofolio config upgrade-security binance.api_secret --to touchid-only\n\nWARNING:\n    Touch ID Only mode has no password fallback.\n    You won't be able to access the secret in SSH sessions or without Touch ID."
+    )]
     UpgradeSecurity {
         /// Secret key to upgrade (e.g., binance.api_secret)
         key: String,
@@ -838,7 +890,9 @@ pub enum ConfigCommands {
     /// Decreases the security level for an existing keychain secret.
     /// Requires authentication with current security level.
     #[command(name = "downgrade-security")]
-    #[command(after_help = "EXAMPLES:\n    # Downgrade to standard keychain\n    cryptofolio config downgrade-security binance.api_secret --to standard\n\n    # Downgrade to Touch ID Protected (from Touch ID Only)\n    cryptofolio config downgrade-security binance.api_secret --to touchid\n\nUSE CASES:\n    - Enable automation (scripts, cron jobs need Standard level)\n    - Resolve SSH access issues")]
+    #[command(
+        after_help = "EXAMPLES:\n    # Downgrade to standard keychain\n    cryptofolio config downgrade-security binance.api_secret --to standard\n\n    # Downgrade to Touch ID Protected (from Touch ID Only)\n    cryptofolio config downgrade-security binance.api_secret --to touchid\n\nUSE CASES:\n    - Enable automation (scripts, cron jobs need Standard level)\n    - Resolve SSH access issues"
+    )]
     DowngradeSecurity {
         /// Secret key to downgrade (e.g., binance.api_secret)
         key: String,

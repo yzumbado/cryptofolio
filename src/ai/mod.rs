@@ -6,8 +6,8 @@ pub mod providers;
 mod tools;
 
 pub use conversation::{ConversationAction, ConversationManager, ConversationState};
-pub use intent::{Intent, ParsedInput};
 pub use intent::Entity;
+pub use intent::{Intent, ParsedInput};
 pub use providers::{AiProvider, OllamaProvider};
 
 use crate::config::AppConfig;
@@ -95,8 +95,7 @@ impl AiService {
 
     /// Check if AI features are available
     pub fn is_available(&self) -> bool {
-        !matches!(self.mode, AiMode::Disabled)
-            && (self.claude.is_some() || self.ollama.is_some())
+        !matches!(self.mode, AiMode::Disabled) && (self.claude.is_some() || self.ollama.is_some())
     }
 
     /// Get current AI mode
@@ -105,7 +104,11 @@ impl AiService {
     }
 
     /// Parse natural language input
-    pub async fn parse_input(&self, input: &str, context: &ConversationState) -> Result<ParsedInput> {
+    pub async fn parse_input(
+        &self,
+        input: &str,
+        context: &ConversationState,
+    ) -> Result<ParsedInput> {
         let complexity = self.assess_complexity(input);
 
         match self.select_provider(&complexity) {

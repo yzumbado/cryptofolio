@@ -156,20 +156,19 @@ impl KeychainStorage for MacOSKeychain {
             KeychainSecurityLevel::TouchIdProtected => {
                 // Touch ID OR password fallback
                 if !self.is_touchid_available() {
-                    eprintln!("Warning: Touch ID not available. Falling back to standard keychain.");
+                    eprintln!(
+                        "Warning: Touch ID not available. Falling back to standard keychain."
+                    );
                     (None, None)
                 } else {
-                    let ac = create_access_control(K_SEC_ACCESS_CONTROL_USER_PRESENCE)
-                        .map_err(|e| {
+                    let ac =
+                        create_access_control(K_SEC_ACCESS_CONTROL_USER_PRESENCE).map_err(|e| {
                             CryptofolioError::Keychain(format!(
                                 "Failed to create Touch ID access control: {}",
                                 e
                             ))
                         })?;
-                    (
-                        Some(ac),
-                        Some("Cryptofolio needs access to this secret"),
-                    )
+                    (Some(ac), Some("Cryptofolio needs access to this secret"))
                 }
             }
             KeychainSecurityLevel::TouchIdOnly => {
@@ -180,13 +179,12 @@ impl KeychainStorage for MacOSKeychain {
                             .to_string(),
                     ));
                 }
-                let ac =
-                    create_access_control(K_SEC_ACCESS_CONTROL_BIOMETRY_ANY).map_err(|e| {
-                        CryptofolioError::Keychain(format!(
-                            "Failed to create Touch ID access control: {}",
-                            e
-                        ))
-                    })?;
+                let ac = create_access_control(K_SEC_ACCESS_CONTROL_BIOMETRY_ANY).map_err(|e| {
+                    CryptofolioError::Keychain(format!(
+                        "Failed to create Touch ID access control: {}",
+                        e
+                    ))
+                })?;
                 (
                     Some(ac),
                     Some("Cryptofolio needs access to this secret (Touch ID required)"),
@@ -195,9 +193,9 @@ impl KeychainStorage for MacOSKeychain {
         };
 
         // Store the password with access control
-        keychain_add_password(SERVICE_NAME, key, secret, access_control, prompt).map_err(
-            |e| CryptofolioError::Keychain(format!("Failed to store secret '{}': {}", key, e)),
-        )?;
+        keychain_add_password(SERVICE_NAME, key, secret, access_control, prompt).map_err(|e| {
+            CryptofolioError::Keychain(format!("Failed to store secret '{}': {}", key, e))
+        })?;
 
         // Clear cache when updating
         self.clear_cached(key);

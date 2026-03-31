@@ -200,10 +200,7 @@ impl KeychainStorage for SecurityCliKeychain {
             ])
             .output()
             .map_err(|e| {
-                CryptofolioError::Keychain(format!(
-                    "Failed to run security command: {}",
-                    e
-                ))
+                CryptofolioError::Keychain(format!("Failed to run security command: {}", e))
             })?;
 
         if !output.status.success() {
@@ -221,9 +218,7 @@ impl KeychainStorage for SecurityCliKeychain {
             }
         }
 
-        let secret = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string();
+        let secret = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
         if secret.is_empty() {
             return Err(CryptofolioError::Keychain(format!(
@@ -240,19 +235,10 @@ impl KeychainStorage for SecurityCliKeychain {
 
     fn delete(&self, key: &str) -> Result<()> {
         let output = Command::new("security")
-            .args(&[
-                "delete-generic-password",
-                "-s",
-                SERVICE_NAME,
-                "-a",
-                key,
-            ])
+            .args(&["delete-generic-password", "-s", SERVICE_NAME, "-a", key])
             .output()
             .map_err(|e| {
-                CryptofolioError::Keychain(format!(
-                    "Failed to run security command: {}",
-                    e
-                ))
+                CryptofolioError::Keychain(format!("Failed to run security command: {}", e))
             })?;
 
         // Don't error if not found - deletion is idempotent
@@ -306,14 +292,7 @@ impl KeychainStorage for SecurityCliKeychain {
 
     fn exists(&self, key: &str) -> bool {
         let output = Command::new("security")
-            .args(&[
-                "find-generic-password",
-                "-s",
-                SERVICE_NAME,
-                "-a",
-                key,
-                "-w",
-            ])
+            .args(&["find-generic-password", "-s", SERVICE_NAME, "-a", key, "-w"])
             .output();
 
         match output {

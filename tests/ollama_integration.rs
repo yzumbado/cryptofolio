@@ -176,7 +176,9 @@ fn test_convert_entities_number() {
     let mut map = HashMap::new();
     map.insert("quantity".to_string(), serde_json::json!(0.5));
     let result = p.convert_entities(&Some(map));
-    assert!(matches!(result.get("quantity"), Some(Entity::Number(n)) if (*n - 0.5).abs() < f64::EPSILON));
+    assert!(
+        matches!(result.get("quantity"), Some(Entity::Number(n)) if (*n - 0.5).abs() < f64::EPSILON)
+    );
 }
 
 #[test]
@@ -199,7 +201,10 @@ fn test_convert_entities_boolean() {
     let mut map = HashMap::new();
     map.insert("show_24h".to_string(), serde_json::json!(true));
     let result = p.convert_entities(&Some(map));
-    assert!(matches!(result.get("show_24h"), Some(Entity::Boolean(true))));
+    assert!(matches!(
+        result.get("show_24h"),
+        Some(Entity::Boolean(true))
+    ));
 }
 
 #[test]
@@ -335,7 +340,9 @@ fn test_extract_account_none() {
 #[test]
 fn test_fallback_price() {
     let p = default_provider();
-    let result = p.rule_based_fallback("what is the price of bitcoin").unwrap();
+    let result = p
+        .rule_based_fallback("what is the price of bitcoin")
+        .unwrap();
     assert_eq!(result.intent, Intent::PriceCheck);
     assert!(result.confidence > 0.0);
 }
@@ -424,7 +431,8 @@ fn test_parse_response_valid_json() {
 #[test]
 fn test_parse_response_noisy_json() {
     let p = default_provider();
-    let json = r#"Sure! {"intent":"tx.buy","entities":{"asset":"ETH"},"confidence":0.8} There you go."#;
+    let json =
+        r#"Sure! {"intent":"tx.buy","entities":{"asset":"ETH"},"confidence":0.8} There you go."#;
     let result = p.parse_response(json, "buy eth").unwrap();
     assert_eq!(result.intent, Intent::TxBuy);
 }
@@ -432,7 +440,9 @@ fn test_parse_response_noisy_json() {
 #[test]
 fn test_parse_response_invalid_falls_back() {
     let p = default_provider();
-    let result = p.parse_response("not json at all", "show my portfolio").unwrap();
+    let result = p
+        .parse_response("not json at all", "show my portfolio")
+        .unwrap();
     // Should fall back to rule-based, which matches "portfolio"
     assert_eq!(result.intent, Intent::PortfolioView);
 }
@@ -601,8 +611,6 @@ async fn test_ollama_graceful_fallback_on_garbage() {
     let provider = default_provider();
     let ctx = empty_context();
     // Should not panic or error, just return some result
-    let result = provider
-        .parse_input("🎲🎲🎲 xyzzy plugh", &ctx)
-        .await;
+    let result = provider.parse_input("🎲🎲🎲 xyzzy plugh", &ctx).await;
     assert!(result.is_ok(), "garbage input should not cause an error");
 }

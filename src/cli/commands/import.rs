@@ -42,7 +42,10 @@ pub async fn handle_import_command(
     opts: &GlobalOptions,
 ) -> Result<()> {
     if format != "csv" {
-        return Err(CryptofolioError::Config(format!("Unsupported format: {}. Only 'csv' is supported.", format)));
+        return Err(CryptofolioError::Config(format!(
+            "Unsupported format: {}. Only 'csv' is supported.",
+            format
+        )));
     }
 
     let account_repo = AccountRepository::new(pool);
@@ -50,13 +53,18 @@ pub async fn handle_import_command(
     let tx_repo = TransactionRepository::new(pool);
 
     // Get account
-    let acc = account_repo.get_account(&account).await?
+    let acc = account_repo
+        .get_account(&account)
+        .await?
         .ok_or_else(|| CryptofolioError::AccountNotFound(account.clone()))?;
 
     // Check file exists
     let path = Path::new(&file);
     if !path.exists() {
-        return Err(CryptofolioError::Config(format!("File not found: {}", file)));
+        return Err(CryptofolioError::Config(format!(
+            "File not found: {}",
+            file
+        )));
     }
 
     if !opts.quiet {
@@ -112,7 +120,10 @@ pub async fn handle_import_command(
 
     if errors > 0 {
         println!();
-        success(&format!("Imported {} transactions ({} errors)", imported, errors));
+        success(&format!(
+            "Imported {} transactions ({} errors)",
+            imported, errors
+        ));
     } else {
         success(&format!("Imported {} transactions", imported));
     }
@@ -133,8 +144,9 @@ async fn process_row(
     let row = result.map_err(|e| CryptofolioError::Csv(e))?;
 
     // Parse transaction type
-    let tx_type = TransactionType::from_str(&row.tx_type)
-        .ok_or_else(|| CryptofolioError::Other(format!("Invalid transaction type: {}", row.tx_type)))?;
+    let tx_type = TransactionType::from_str(&row.tx_type).ok_or_else(|| {
+        CryptofolioError::Other(format!("Invalid transaction type: {}", row.tx_type))
+    })?;
 
     // Parse date - try multiple formats
     let timestamp = if let Ok(dt) = DateTime::parse_from_rfc3339(&row.date) {
@@ -165,19 +177,22 @@ async fn process_row(
         .map_err(|_| CryptofolioError::InvalidAmount(row.quantity.clone()))?;
 
     // Parse optional fields
-    let price_usd = row.price_usd
+    let price_usd = row
+        .price_usd
         .filter(|s| !s.is_empty())
         .map(|s| Decimal::from_str(&s))
         .transpose()
         .map_err(|_| CryptofolioError::InvalidAmount("price_usd".to_string()))?;
 
-    let fee = row.fee
+    let fee = row
+        .fee
         .filter(|s| !s.is_empty())
         .map(|s| Decimal::from_str(&s))
         .transpose()
         .map_err(|_| CryptofolioError::InvalidAmount("fee".to_string()))?;
 
-    let to_quantity = row.to_quantity
+    let to_quantity = row
+        .to_quantity
         .filter(|s| !s.is_empty())
         .map(|s| Decimal::from_str(&s))
         .transpose()
@@ -186,21 +201,33 @@ async fn process_row(
     // Update holdings based on transaction type
     match tx_type {
         TransactionType::Buy | TransactionType::Receive => {
-            holding_repo.add_quantity(account_id, &row.asset, quantity, price_usd).await?;
+            holding_repo
+                .add_quantity(account_id, &row.asset, quantity, price_usd)
+                .await?;
         }
         TransactionType::Sell => {
-            holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
+            holding_repo
+                .remove_quantity(account_id, &row.asset, quantity)
+                .await?;
         }
         TransactionType::TransferIn => {
-            holding_repo.add_quantity(account_id, &row.asset, quantity, price_usd).await?;
+            holding_repo
+                .add_quantity(account_id, &row.asset, quantity, price_usd)
+                .await?;
         }
         TransactionType::TransferOut => {
-            holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
+            holding_repo
+                .remove_quantity(account_id, &row.asset, quantity)
+                .await?;
         }
         TransactionType::Swap => {
             if let (Some(to_asset), Some(to_qty)) = (&row.to_asset, to_quantity) {
-                holding_repo.remove_quantity(account_id, &row.asset, quantity).await?;
-                holding_repo.add_quantity(account_id, to_asset, to_qty, None).await?;
+                holding_repo
+                    .remove_quantity(account_id, &row.asset, quantity)
+                    .await?;
+                holding_repo
+                    .add_quantity(account_id, to_asset, to_qty, None)
+                    .await?;
             }
         }
         _ => {}
@@ -229,9 +256,10 @@ async fn process_row(
             _ => None,
         },
         to_account_id: match tx_type {
-            TransactionType::Buy | TransactionType::Receive | TransactionType::TransferIn | TransactionType::Swap => {
-                Some(account_id.to_string())
-            }
+            TransactionType::Buy
+            | TransactionType::Receive
+            | TransactionType::TransferIn
+            | TransactionType::Swap => Some(account_id.to_string()),
             _ => None,
         },
         to_asset: match tx_type {

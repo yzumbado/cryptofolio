@@ -1,5 +1,5 @@
-use cucumber::given;
 use crate::support::world::CryptofolioWorld;
+use cucumber::given;
 
 /// Cardano-specific step definitions
 
@@ -7,7 +7,10 @@ use crate::support::world::CryptofolioWorld;
 async fn mock_cardano_transactions(world: &mut CryptofolioWorld, incoming: u32, outgoing: u32) {
     // Setup blockchain mock if not already done
     if world.cardano_mock.is_none() {
-        world.setup_cardano_mock().await.expect("Failed to setup Cardano mock");
+        world
+            .setup_cardano_mock()
+            .await
+            .expect("Failed to setup Cardano mock");
     }
 
     let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
@@ -17,7 +20,8 @@ async fn mock_cardano_transactions(world: &mut CryptofolioWorld, incoming: u32, 
         // Mock no tokens
         mock.mock_no_tokens(address).await;
         // Mock transactions
-        mock.mock_transactions(address, (incoming + outgoing) as usize).await;
+        mock.mock_transactions(address, (incoming + outgoing) as usize)
+            .await;
     }
 }
 
@@ -25,7 +29,10 @@ async fn mock_cardano_transactions(world: &mut CryptofolioWorld, incoming: u32, 
 async fn mock_cardano_balance(world: &mut CryptofolioWorld, balance: f64) {
     // Setup blockchain mock if not already done
     if world.cardano_mock.is_none() {
-        world.setup_cardano_mock().await.expect("Failed to setup Cardano mock");
+        world
+            .setup_cardano_mock()
+            .await
+            .expect("Failed to setup Cardano mock");
     }
 
     // Mock the address info for the test wallet
@@ -40,7 +47,10 @@ async fn mock_cardano_balance(world: &mut CryptofolioWorld, balance: f64) {
 async fn mock_native_tokens(world: &mut CryptofolioWorld, token_count: u32) {
     // Setup blockchain mock if not already done
     if world.cardano_mock.is_none() {
-        world.setup_cardano_mock().await.expect("Failed to setup Cardano mock");
+        world
+            .setup_cardano_mock()
+            .await
+            .expect("Failed to setup Cardano mock");
     }
 
     let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
@@ -71,7 +81,10 @@ async fn mock_native_tokens(world: &mut CryptofolioWorld, token_count: u32) {
 async fn mock_specific_cardano_token(world: &mut CryptofolioWorld, amount: f64, symbol: String) {
     // Setup blockchain mock if not already done
     if world.cardano_mock.is_none() {
-        world.setup_cardano_mock().await.expect("Failed to setup Cardano mock");
+        world
+            .setup_cardano_mock()
+            .await
+            .expect("Failed to setup Cardano mock");
     }
 
     let decimals = match symbol.as_str() {
@@ -83,14 +96,19 @@ async fn mock_specific_cardano_token(world: &mut CryptofolioWorld, amount: f64, 
     };
 
     // Accumulate tokens instead of mocking immediately
-    world.accumulated_cardano_tokens.push((symbol.clone(), format!("{}", amount), decimals));
+    world
+        .accumulated_cardano_tokens
+        .push((symbol.clone(), format!("{}", amount), decimals));
 }
 
 #[given(expr = "the wallet is delegated to stake pool {string}")]
 async fn mock_stake_delegation(world: &mut CryptofolioWorld, pool_ticker: String) {
     // Setup blockchain mock if not already done
     if world.cardano_mock.is_none() {
-        world.setup_cardano_mock().await.expect("Failed to setup Cardano mock");
+        world
+            .setup_cardano_mock()
+            .await
+            .expect("Failed to setup Cardano mock");
     }
 
     let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";

@@ -140,7 +140,10 @@ impl ExchangeRate {
             rate: Decimal::ONE / self.rate,
             timestamp: self.timestamp,
             source: "calculated".to_string(),
-            notes: Some(format!("Inverse of {}/{}", self.from_currency, self.to_currency)),
+            notes: Some(format!(
+                "Inverse of {}/{}",
+                self.from_currency, self.to_currency
+            )),
             created_at: Utc::now(),
         }
     }
@@ -160,7 +163,10 @@ mod tests {
     fn test_asset_type_from_str() {
         assert_eq!(AssetType::from_str("fiat"), Some(AssetType::Fiat));
         assert_eq!(AssetType::from_str("crypto"), Some(AssetType::Crypto));
-        assert_eq!(AssetType::from_str("stablecoin"), Some(AssetType::Stablecoin));
+        assert_eq!(
+            AssetType::from_str("stablecoin"),
+            Some(AssetType::Stablecoin)
+        );
         assert_eq!(AssetType::from_str("FIAT"), Some(AssetType::Fiat));
         assert_eq!(AssetType::from_str("Crypto"), Some(AssetType::Crypto));
         assert_eq!(AssetType::from_str("invalid"), None);
@@ -241,7 +247,10 @@ mod tests {
         assert_eq!(exchange_rate.rate, rate);
         assert_eq!(exchange_rate.timestamp, timestamp);
         assert_eq!(exchange_rate.source, "manual");
-        assert_eq!(exchange_rate.notes, Some("Costa Rica bank rate".to_string()));
+        assert_eq!(
+            exchange_rate.notes,
+            Some("Costa Rica bank rate".to_string())
+        );
     }
 
     #[test]
@@ -305,8 +314,14 @@ mod tests {
     #[test]
     fn test_asset_type_from_str_aliases() {
         // Test "cryptocurrency" alias
-        assert_eq!(AssetType::from_str("cryptocurrency"), Some(AssetType::Crypto));
-        assert_eq!(AssetType::from_str("Cryptocurrency"), Some(AssetType::Crypto));
+        assert_eq!(
+            AssetType::from_str("cryptocurrency"),
+            Some(AssetType::Crypto)
+        );
+        assert_eq!(
+            AssetType::from_str("Cryptocurrency"),
+            Some(AssetType::Crypto)
+        );
 
         // Test "stable" alias
         assert_eq!(AssetType::from_str("stable"), Some(AssetType::Stablecoin));

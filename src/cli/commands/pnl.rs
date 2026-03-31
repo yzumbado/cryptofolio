@@ -3,10 +3,10 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::cli::{GlobalOptions, PnlCommands};
 use crate::cli::output::{
     format_pnl, format_quantity, format_usd, info, print_header, print_row, success, warning,
 };
+use crate::cli::{GlobalOptions, PnlCommands};
 use crate::config::AppConfig;
 use crate::core::pnl::{CostBasisMethod, PnLCalculator};
 use crate::db::{HoldingRepository, RealizedPnLRepository, TransactionRepository};
@@ -103,8 +103,7 @@ async fn handle_summary(
         .await?;
 
     // Get unrealized P&L
-    let total_unrealized =
-        calculate_total_unrealized(account.as_deref(), None, pool, opts).await?;
+    let total_unrealized = calculate_total_unrealized(account.as_deref(), None, pool, opts).await?;
 
     let net_pnl = total_realized + total_unrealized;
 
@@ -364,7 +363,10 @@ async fn handle_unrealized(
         }
 
         println!();
-        println!("Total Unrealized P&L: {}", format_pnl(total_unrealized, true));
+        println!(
+            "Total Unrealized P&L: {}",
+            format_pnl(total_unrealized, true)
+        );
     }
 
     Ok(())
@@ -446,9 +448,7 @@ async fn handle_backfill(
     }
 
     // Clear existing P&L data
-    sqlx::query("DELETE FROM tax_lots")
-        .execute(pool)
-        .await?;
+    sqlx::query("DELETE FROM tax_lots").execute(pool).await?;
     sqlx::query("DELETE FROM realized_pnl")
         .execute(pool)
         .await?;

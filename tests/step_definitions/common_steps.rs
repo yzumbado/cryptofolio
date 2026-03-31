@@ -1,18 +1,21 @@
-use cucumber::{given, then, when};
 use crate::support::world::CryptofolioWorld;
+use cucumber::{given, then, when};
 
 /// Common step definitions shared across features
 
 #[given("I have a clean test database")]
 async fn setup_database(world: &mut CryptofolioWorld) {
-    world.setup_db().await.expect("Failed to setup test database");
+    world
+        .setup_db()
+        .await
+        .expect("Failed to setup test database");
 }
 
 #[given(expr = "I have an account {string}")]
 async fn create_account(world: &mut CryptofolioWorld, account_name: String) {
-    use cryptofolio::db::accounts::AccountRepository;
-    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
     use chrono::Utc;
+    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
+    use cryptofolio::db::accounts::AccountRepository;
 
     let pool = world.pool();
     let repo = AccountRepository::new(pool);
@@ -93,8 +96,8 @@ async fn handle_wallet_command_test(
     args: &[&str],
     output: &mut Vec<u8>,
 ) -> anyhow::Result<()> {
-    use cryptofolio::cli::WalletCommands;
     use cryptofolio::cli::commands::wallet::*;
+    use cryptofolio::cli::WalletCommands;
     use std::io::Write;
 
     let pool = world.pool();
@@ -114,7 +117,8 @@ async fn handle_wallet_command_test(
     match args[0] {
         "add" => {
             // Parse: wallet add 'Name' --blockchain bitcoin --address bc1...
-            let name = args.get(1)
+            let name = args
+                .get(1)
                 .map(|s| s.trim_matches('\''))
                 .ok_or_else(|| anyhow::anyhow!("Missing wallet name"))?;
 
@@ -148,7 +152,9 @@ async fn handle_wallet_command_test(
 
             let cmd = WalletCommands::Add {
                 name: name.to_string(),
-                blockchain: blockchain.ok_or_else(|| anyhow::anyhow!("Missing --blockchain"))?.to_string(),
+                blockchain: blockchain
+                    .ok_or_else(|| anyhow::anyhow!("Missing --blockchain"))?
+                    .to_string(),
                 address: address.map(String::from),
                 xpub: xpub.map(String::from),
                 derivation_path: None,
@@ -158,11 +164,15 @@ async fn handle_wallet_command_test(
 
             handle_wallet_command(cmd, pool, &opts).await?;
 
-            let testnet_tag = if network == Some("testnet") { " [TESTNET]" } else { "" };
-            if xpub.is_some() {
-                writeln!(output, "[OK] ✓ Added HD wallet '{}'{}",  name, testnet_tag)?;
+            let testnet_tag = if network == Some("testnet") {
+                " [TESTNET]"
             } else {
-                writeln!(output, "[OK] ✓ Added wallet '{}'{}",  name, testnet_tag)?;
+                ""
+            };
+            if xpub.is_some() {
+                writeln!(output, "[OK] ✓ Added HD wallet '{}'{}", name, testnet_tag)?;
+            } else {
+                writeln!(output, "[OK] ✓ Added wallet '{}'{}", name, testnet_tag)?;
             }
         }
         "list" => {
@@ -184,7 +194,8 @@ async fn handle_wallet_command_test(
         }
         "sync" => {
             // Parse: wallet sync 'Name' [--import-history]
-            let name = args.get(1)
+            let name = args
+                .get(1)
                 .map(|s| s.trim_matches('\''))
                 .ok_or_else(|| anyhow::anyhow!("Missing wallet name"))?;
 
@@ -213,7 +224,10 @@ async fn handle_wallet_command_test(
 
             // Get the mock server URLs if available
             let btc_mock_url = world.blockchain_mock_url();
-            let eth_mock_url = world.ethereum_mock.as_ref().map(|m| format!("{}/api", m.url()));
+            let eth_mock_url = world
+                .ethereum_mock
+                .as_ref()
+                .map(|m| format!("{}/api", m.url()));
             let ada_mock_url = world.cardano_mock.as_ref().map(|m| m.url());
 
             // Set up accumulated ERC-20 tokens if any
@@ -223,7 +237,9 @@ async fn handle_wallet_command_test(
                     // Mock ETH balance
                     mock.mock_balance(address, 0.5).await;
                     // Mock all accumulated tokens
-                    let tokens_ref: Vec<(&str, &str, f64, u8)> = world.accumulated_tokens.iter()
+                    let tokens_ref: Vec<(&str, &str, f64, u8)> = world
+                        .accumulated_tokens
+                        .iter()
                         .map(|(s, n, b, d)| (s.as_str(), n.as_str(), *b, *d))
                         .collect();
                     mock.mock_tokens(address, &tokens_ref).await;
@@ -239,7 +255,9 @@ async fn handle_wallet_command_test(
                     // Mock ADA balance
                     mock.mock_balance(address, 100.0).await;
                     // Mock all accumulated tokens
-                    let tokens_ref: Vec<(&str, &str, u8)> = world.accumulated_cardano_tokens.iter()
+                    let tokens_ref: Vec<(&str, &str, u8)> = world
+                        .accumulated_cardano_tokens
+                        .iter()
                         .map(|(s, q, d)| (s.as_str(), q.as_str(), *d))
                         .collect();
                     mock.mock_tokens(address, &tokens_ref).await;
@@ -263,18 +281,38 @@ async fn handle_wallet_command_test(
                     // Fetch address info
                     match client.get_address_info(&addr.address).await {
                         Ok(addr_info) => {
-                            writeln!(output, "[OK] ✓ Synced BTC balance: {:.4}", addr_info.balance)?;
+                            writeln!(
+                                output,
+                                "[OK] ✓ Synced BTC balance: {:.4}",
+                                addr_info.balance
+                            )?;
                             writeln!(output, "[INFO]   Transactions: {}", addr_info.tx_count)?;
-                            writeln!(output, "[INFO]   Total received: {:.8} BTC", addr_info.total_received)?;
-                            writeln!(output, "[INFO]   Total sent: {:.8} BTC", addr_info.total_sent)?;
+                            writeln!(
+                                output,
+                                "[INFO]   Total received: {:.8} BTC",
+                                addr_info.total_received
+                            )?;
+                            writeln!(
+                                output,
+                                "[INFO]   Total sent: {:.8} BTC",
+                                addr_info.total_sent
+                            )?;
 
                             if import_history {
                                 match client.get_transactions(&addr.address).await {
                                     Ok(txs) => {
-                                        writeln!(output, "[OK] ✓ Imported {} transactions", txs.len())?;
+                                        writeln!(
+                                            output,
+                                            "[OK] ✓ Imported {} transactions",
+                                            txs.len()
+                                        )?;
                                     }
                                     Err(e) => {
-                                        writeln!(output, "[ERROR] Failed to fetch transactions: {}", e)?;
+                                        writeln!(
+                                            output,
+                                            "[ERROR] Failed to fetch transactions: {}",
+                                            e
+                                        )?;
                                     }
                                 }
                             }
@@ -296,7 +334,11 @@ async fn handle_wallet_command_test(
                     // Fetch address info (balance + tokens)
                     match client.get_address_info(&addr.address).await {
                         Ok(addr_info) => {
-                            writeln!(output, "[OK] ✓ Synced ETH balance: {:.4}", addr_info.balance)?;
+                            writeln!(
+                                output,
+                                "[OK] ✓ Synced ETH balance: {:.4}",
+                                addr_info.balance
+                            )?;
 
                             // Show token balances
                             if addr_info.tokens.is_empty() {
@@ -304,17 +346,29 @@ async fn handle_wallet_command_test(
                             } else {
                                 writeln!(output, "[OK] ✓ Found {} tokens", addr_info.tokens.len())?;
                                 for token in &addr_info.tokens {
-                                    writeln!(output, "[INFO]   {}: {:.2}", token.symbol, token.balance)?;
+                                    writeln!(
+                                        output,
+                                        "[INFO]   {}: {:.2}",
+                                        token.symbol, token.balance
+                                    )?;
                                 }
                             }
 
                             if import_history {
                                 match client.get_transactions(&addr.address).await {
                                     Ok(txs) => {
-                                        writeln!(output, "[OK] ✓ Imported {} transactions", txs.len())?;
+                                        writeln!(
+                                            output,
+                                            "[OK] ✓ Imported {} transactions",
+                                            txs.len()
+                                        )?;
                                     }
                                     Err(e) => {
-                                        writeln!(output, "[ERROR] Failed to fetch transactions: {}", e)?;
+                                        writeln!(
+                                            output,
+                                            "[ERROR] Failed to fetch transactions: {}",
+                                            e
+                                        )?;
                                     }
                                 }
                             }
@@ -344,7 +398,11 @@ async fn handle_wallet_command_test(
                             } else {
                                 writeln!(output, "[OK] ✓ Found {} tokens", addr_info.tokens.len())?;
                                 for token in &addr_info.tokens {
-                                    writeln!(output, "[INFO]   {}: {:.2}", token.display_name, token.balance)?;
+                                    writeln!(
+                                        output,
+                                        "[INFO]   {}: {:.2}",
+                                        token.display_name, token.balance
+                                    )?;
                                 }
                             }
 
@@ -356,10 +414,18 @@ async fn handle_wallet_command_test(
                             if import_history {
                                 match client.get_transactions(&addr.address).await {
                                     Ok(txs) => {
-                                        writeln!(output, "[OK] ✓ Imported {} transactions", txs.len())?;
+                                        writeln!(
+                                            output,
+                                            "[OK] ✓ Imported {} transactions",
+                                            txs.len()
+                                        )?;
                                     }
                                     Err(e) => {
-                                        writeln!(output, "[ERROR] Failed to fetch transactions: {}", e)?;
+                                        writeln!(
+                                            output,
+                                            "[ERROR] Failed to fetch transactions: {}",
+                                            e
+                                        )?;
                                     }
                                 }
                             }
@@ -370,12 +436,17 @@ async fn handle_wallet_command_test(
                         }
                     }
                 } else {
-                    writeln!(output, "[WARN] Blockchain {} not yet supported for sync", addr.blockchain)?;
+                    writeln!(
+                        output,
+                        "[WARN] Blockchain {} not yet supported for sync",
+                        addr.blockchain
+                    )?;
                 }
             }
         }
         "remove" => {
-            let name = args.get(1)
+            let name = args
+                .get(1)
                 .map(|s| s.trim_matches('\''))
                 .ok_or_else(|| anyhow::anyhow!("Missing wallet name"))?;
 
@@ -399,17 +470,18 @@ async fn handle_wallet_command_test(
 #[then("the command should succeed")]
 fn command_succeeds(world: &mut CryptofolioWorld) {
     assert_eq!(
-        world.last_exit_code,
-        0,
+        world.last_exit_code, 0,
         "Command failed with exit code {}. Output: {}",
-        world.last_exit_code,
-        world.last_output
+        world.last_exit_code, world.last_output
     );
 }
 
 #[then("the command should fail")]
 fn command_fails(world: &mut CryptofolioWorld) {
-    assert_ne!(world.last_exit_code, 0, "Command succeeded but was expected to fail");
+    assert_ne!(
+        world.last_exit_code, 0,
+        "Command succeeded but was expected to fail"
+    );
 }
 
 #[then(expr = "I should see {string}")]

@@ -265,8 +265,7 @@ pub fn keychain_add_password(
             // Standard keychain access (no Touch ID)
             attributes_dict.set(
                 CFString::from_static_string(K_SEC_ATTR_ACCESSIBLE).as_CFTypeRef(),
-                CFString::from_static_string(K_SEC_ATTR_ACCESSIBLE_WHEN_UNLOCKED)
-                    .as_CFTypeRef(),
+                CFString::from_static_string(K_SEC_ATTR_ACCESSIBLE_WHEN_UNLOCKED).as_CFTypeRef(),
             );
         }
 
@@ -281,9 +280,9 @@ pub fn keychain_add_password(
             ERR_SEC_USER_CANCELED => Err(CryptofolioError::Config(
                 "Touch ID authentication canceled by user".to_string(),
             )),
-            ERR_SEC_AUTH_FAILED => {
-                Err(CryptofolioError::Config("Touch ID authentication failed".to_string()))
-            }
+            ERR_SEC_AUTH_FAILED => Err(CryptofolioError::Config(
+                "Touch ID authentication failed".to_string(),
+            )),
             _ => Err(CryptofolioError::Config(format!(
                 "Failed to add keychain item: OSStatus {}",
                 status
@@ -346,7 +345,9 @@ pub fn keychain_get_password(service: &str, account: &str, prompt: Option<&str>)
         match status {
             ERR_SEC_SUCCESS => {
                 if result.is_null() {
-                    return Err(CryptofolioError::Config("Keychain returned null data".to_string()));
+                    return Err(CryptofolioError::Config(
+                        "Keychain returned null data".to_string(),
+                    ));
                 }
 
                 let data = CFData::wrap_under_create_rule(result as *const _);
@@ -357,15 +358,15 @@ pub fn keychain_get_password(service: &str, account: &str, prompt: Option<&str>)
 
                 Ok(password)
             }
-            ERR_SEC_ITEM_NOT_FOUND => {
-                Err(CryptofolioError::Config("Keychain item not found".to_string()))
-            }
+            ERR_SEC_ITEM_NOT_FOUND => Err(CryptofolioError::Config(
+                "Keychain item not found".to_string(),
+            )),
             ERR_SEC_USER_CANCELED => Err(CryptofolioError::Config(
                 "Touch ID authentication canceled by user".to_string(),
             )),
-            ERR_SEC_AUTH_FAILED => {
-                Err(CryptofolioError::Config("Touch ID authentication failed".to_string()))
-            }
+            ERR_SEC_AUTH_FAILED => Err(CryptofolioError::Config(
+                "Touch ID authentication failed".to_string(),
+            )),
             _ => Err(CryptofolioError::Config(format!(
                 "Failed to retrieve keychain item: OSStatus {}",
                 status
@@ -486,9 +487,9 @@ fn keychain_update_password(
             ERR_SEC_USER_CANCELED => Err(CryptofolioError::Config(
                 "Touch ID authentication canceled by user".to_string(),
             )),
-            ERR_SEC_AUTH_FAILED => {
-                Err(CryptofolioError::Config("Touch ID authentication failed".to_string()))
-            }
+            ERR_SEC_AUTH_FAILED => Err(CryptofolioError::Config(
+                "Touch ID authentication failed".to_string(),
+            )),
             _ => Err(CryptofolioError::Config(format!(
                 "Failed to update keychain item: OSStatus {}",
                 status
@@ -508,7 +509,10 @@ mod tests {
     #[test]
     fn test_create_access_control_user_presence() {
         let ac = create_access_control(K_SEC_ACCESS_CONTROL_USER_PRESENCE);
-        assert!(ac.is_ok(), "Should create access control with user presence");
+        assert!(
+            ac.is_ok(),
+            "Should create access control with user presence"
+        );
     }
 
     #[test]

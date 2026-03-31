@@ -41,8 +41,8 @@ impl Shell {
             .edit_mode(rustyline::EditMode::Emacs)
             .build();
 
-        let mut editor: Editor<CryptofolioCompleter, DefaultHistory> =
-            Editor::with_config(config).map_err(|e| crate::error::CryptofolioError::Shell(e.to_string()))?;
+        let mut editor: Editor<CryptofolioCompleter, DefaultHistory> = Editor::with_config(config)
+            .map_err(|e| crate::error::CryptofolioError::Shell(e.to_string()))?;
 
         // Set up completer with available commands and accounts
         let completer = CryptofolioCompleter::new(&pool).await?;
@@ -140,7 +140,10 @@ impl Shell {
     async fn print_welcome(&self) -> Result<()> {
         println!();
         if colors_enabled() {
-            println!("  \x1b[1;36m🪙 Cryptofolio\x1b[0m v{}", env!("CARGO_PKG_VERSION"));
+            println!(
+                "  \x1b[1;36m🪙 Cryptofolio\x1b[0m v{}",
+                env!("CARGO_PKG_VERSION")
+            );
         } else {
             println!("  Cryptofolio v{}", env!("CARGO_PKG_VERSION"));
         }
@@ -212,8 +215,17 @@ impl Shell {
             // Check if first word looks like a CLI command
             let first_word = args[0].to_lowercase();
             let cli_commands = [
-                "price", "market", "portfolio", "holdings", "account",
-                "category", "tx", "sync", "import", "config", "status",
+                "price",
+                "market",
+                "portfolio",
+                "holdings",
+                "account",
+                "category",
+                "tx",
+                "sync",
+                "import",
+                "config",
+                "status",
             ];
 
             if cli_commands.contains(&first_word.as_str()) {
@@ -259,7 +271,11 @@ impl Shell {
     /// Handle a conversation action
     async fn handle_conversation_action(&mut self, action: ConversationAction) -> Result<()> {
         match action {
-            ConversationAction::Clarify { question, field: _, suggestions } => {
+            ConversationAction::Clarify {
+                question,
+                field: _,
+                suggestions,
+            } => {
                 println!();
                 if colors_enabled() {
                     println!("  \x1b[36m{}\x1b[0m", question);
@@ -271,7 +287,11 @@ impl Shell {
                 }
                 println!();
             }
-            ConversationAction::Confirm { summary, command: _, details } => {
+            ConversationAction::Confirm {
+                summary,
+                command: _,
+                details,
+            } => {
                 println!();
                 println!("  {}", summary);
                 println!();
@@ -349,8 +369,14 @@ impl Shell {
             let field = field.clone();
             if let Some(entity) = self.conversation.handle_entity_input(input, &field) {
                 // Add entity to collected
-                self.conversation.state_mut().collected_entities.insert(field.clone(), entity);
-                self.conversation.state_mut().missing_entities.retain(|f| f != &field);
+                self.conversation
+                    .state_mut()
+                    .collected_entities
+                    .insert(field.clone(), entity);
+                self.conversation
+                    .state_mut()
+                    .missing_entities
+                    .retain(|f| f != &field);
 
                 // Check if we have everything
                 if self.conversation.state().missing_entities.is_empty() {
@@ -525,7 +551,10 @@ impl Shell {
                     // Try fuzzy matching to suggest corrections
                     if let Some(suggestion) = shortcuts::suggest_correction(input) {
                         if colors_enabled() {
-                            println!("\x1b[33mUnknown command.\x1b[0m Did you mean '\x1b[36m{}\x1b[0m'?", suggestion);
+                            println!(
+                                "\x1b[33mUnknown command.\x1b[0m Did you mean '\x1b[36m{}\x1b[0m'?",
+                                suggestion
+                            );
                         } else {
                             println!("Unknown command. Did you mean '{}'?", suggestion);
                         }
@@ -570,7 +599,15 @@ impl Shell {
                 account,
                 category,
             } => {
-                handle_portfolio_command(by_account, by_category, account, category, &self.pool, &opts).await?;
+                handle_portfolio_command(
+                    by_account,
+                    by_category,
+                    account,
+                    category,
+                    &self.pool,
+                    &opts,
+                )
+                .await?;
             }
             Commands::Tx { command } => {
                 handle_tx_command(command, &self.pool, &opts).await?;

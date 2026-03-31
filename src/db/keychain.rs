@@ -110,8 +110,7 @@ impl KeychainKeyRepository {
             KeychainKey {
                 id: r.get("id"),
                 key_name: r.get("key_name"),
-                storage_type: StorageType::from_str(&storage_type_str)
-                    .unwrap_or(StorageType::Toml),
+                storage_type: StorageType::from_str(&storage_type_str).unwrap_or(StorageType::Toml),
                 security_level: security_level_str
                     .and_then(|s| KeychainSecurityLevel::from_str(&s)),
                 last_accessed: last_accessed.and_then(|s| s.parse().ok()),

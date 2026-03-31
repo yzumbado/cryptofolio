@@ -81,21 +81,24 @@ impl<'a> RealizedPnLRepository<'a> {
 
         query.push_str(" ORDER BY disposal_date DESC");
 
-        let mut q = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            Option<i64>,
-            String,
-            String,
-        )>(&query);
+        let mut q = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                Option<i64>,
+                String,
+                String,
+            ),
+        >(&query);
 
         for binding in bindings {
             q = q.bind(binding);
@@ -108,21 +111,24 @@ impl<'a> RealizedPnLRepository<'a> {
 
     /// List realized P&L by account
     pub async fn list_by_account(&self, account_id: &str) -> Result<Vec<RealizedPnL>> {
-        let rows = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            Option<i64>,
-            String,
-            String,
-        )>(
+        let rows = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                Option<i64>,
+                String,
+                String,
+            ),
+        >(
             r#"
             SELECT id, account_id, asset, disposal_date, disposal_tx_id, quantity,
                    proceeds, cost_basis, realized_gain, holding_period_days,
@@ -141,21 +147,24 @@ impl<'a> RealizedPnLRepository<'a> {
 
     /// List realized P&L by asset
     pub async fn list_by_asset(&self, asset: &str) -> Result<Vec<RealizedPnL>> {
-        let rows = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            Option<i64>,
-            String,
-            String,
-        )>(
+        let rows = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                Option<i64>,
+                String,
+                String,
+            ),
+        >(
             r#"
             SELECT id, account_id, asset, disposal_date, disposal_tx_id, quantity,
                    proceeds, cost_basis, realized_gain, holding_period_days,
@@ -219,21 +228,24 @@ impl<'a> RealizedPnLRepository<'a> {
             query.push_str(&format!(" LIMIT {}", lim));
         }
 
-        let mut q = sqlx::query_as::<_, (
-            i64,
-            String,
-            String,
-            String,
-            Option<i64>,
-            String,
-            String,
-            String,
-            String,
-            Option<i64>,
-            Option<i64>,
-            String,
-            String,
-        )>(&query);
+        let mut q = sqlx::query_as::<
+            _,
+            (
+                i64,
+                String,
+                String,
+                String,
+                Option<i64>,
+                String,
+                String,
+                String,
+                String,
+                Option<i64>,
+                Option<i64>,
+                String,
+                String,
+            ),
+        >(&query);
 
         for binding in bindings {
             q = q.bind(binding);
@@ -338,11 +350,11 @@ impl<'a> RealizedPnLRepository<'a> {
             String,
         ),
     ) -> Result<RealizedPnL> {
-        let quantity = Decimal::from_str(&quantity)
-            .map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
+        let quantity =
+            Decimal::from_str(&quantity).map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
 
-        let proceeds = Decimal::from_str(&proceeds)
-            .map_err(|_| CryptofolioError::InvalidAmount(proceeds))?;
+        let proceeds =
+            Decimal::from_str(&proceeds).map_err(|_| CryptofolioError::InvalidAmount(proceeds))?;
 
         let cost_basis = Decimal::from_str(&cost_basis)
             .map_err(|_| CryptofolioError::InvalidAmount(cost_basis))?;
@@ -451,7 +463,10 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].asset, "BTC");
         assert_eq!(results[0].quantity, Decimal::from_str("1.5").unwrap());
-        assert_eq!(results[0].realized_gain, Decimal::from_str("15000").unwrap());
+        assert_eq!(
+            results[0].realized_gain,
+            Decimal::from_str("15000").unwrap()
+        );
 
         Ok(())
     }

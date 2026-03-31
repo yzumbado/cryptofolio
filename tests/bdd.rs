@@ -8,7 +8,5 @@ use support::world::CryptofolioWorld;
 
 #[tokio::main]
 async fn main() {
-    CryptofolioWorld::cucumber()
-        .run("tests/features")
-        .await;
+    CryptofolioWorld::cucumber().run("tests/features").await;
 }

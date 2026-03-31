@@ -9,7 +9,7 @@ pub struct Holding {
     pub asset: String,
     pub quantity: Decimal,
     pub avg_cost_basis: Option<Decimal>,
-    pub cost_basis_currency: Option<String>,  // Currency for avg_cost_basis
+    pub cost_basis_currency: Option<String>, // Currency for avg_cost_basis
     pub avg_cost_basis_base: Option<Decimal>, // Cost basis in base currency (USD)
     pub updated_at: DateTime<Utc>,
 }
@@ -33,14 +33,15 @@ impl HoldingWithPrice {
     pub fn from_holding(holding: Holding, current_price: Option<Decimal>) -> Self {
         let current_value = current_price.map(|p| p * holding.quantity);
 
-        let (unrealized_pnl, unrealized_pnl_percent) = match (current_value, holding.cost_basis_total()) {
-            (Some(value), Some(cost)) if cost > Decimal::ZERO => {
-                let pnl = value - cost;
-                let pnl_percent = (pnl / cost) * Decimal::from(100);
-                (Some(pnl), Some(pnl_percent))
-            }
-            _ => (None, None),
-        };
+        let (unrealized_pnl, unrealized_pnl_percent) =
+            match (current_value, holding.cost_basis_total()) {
+                (Some(value), Some(cost)) if cost > Decimal::ZERO => {
+                    let pnl = value - cost;
+                    let pnl_percent = (pnl / cost) * Decimal::from(100);
+                    (Some(pnl), Some(pnl_percent))
+                }
+                _ => (None, None),
+            };
 
         Self {
             holding,

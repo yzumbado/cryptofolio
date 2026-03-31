@@ -3,6 +3,7 @@
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
 [![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
+[![CI](https://github.com/yzumbado/cryptofolio/workflows/CI/badge.svg)](https://github.com/yzumbado/cryptofolio/actions)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Developed with Claude Code](https://img.shields.io/badge/developed%20with-Claude%20Code-blueviolet.svg)](https://claude.ai/claude-code)

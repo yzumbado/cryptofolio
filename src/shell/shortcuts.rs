@@ -57,15 +57,35 @@ fn is_natural_language(input: &str) -> bool {
 
     // Common natural language starters
     let nl_starters = [
-        "i", "what", "how", "show", "can", "please", "could", "would", "tell", "give", "do",
-        "did", "is", "are", "was", "were", "have", "has", "had", "will", "should",
+        "i", "what", "how", "show", "can", "please", "could", "would", "tell", "give", "do", "did",
+        "is", "are", "was", "were", "have", "has", "had", "will", "should",
     ];
 
     // Verbs that follow "I" in natural language
     let verbs_after_i = [
-        "bought", "sold", "want", "need", "have", "had", "got", "transferred", "moved",
-        "swapped", "exchanged", "received", "sent", "added", "removed", "think", "would",
-        "am", "just", "recently", "already", "also", "currently",
+        "bought",
+        "sold",
+        "want",
+        "need",
+        "have",
+        "had",
+        "got",
+        "transferred",
+        "moved",
+        "swapped",
+        "exchanged",
+        "received",
+        "sent",
+        "added",
+        "removed",
+        "think",
+        "would",
+        "am",
+        "just",
+        "recently",
+        "already",
+        "also",
+        "currently",
     ];
 
     // If first word is "I" (capital) followed by a verb, it's natural language
@@ -76,7 +96,9 @@ fn is_natural_language(input: &str) -> bool {
     // Question patterns
     if nl_starters.contains(&first_word.as_str()) {
         // Check for question-like patterns
-        let question_words = ["what", "how", "can", "could", "would", "is", "are", "do", "did"];
+        let question_words = [
+            "what", "how", "can", "could", "would", "is", "are", "do", "did",
+        ];
         if question_words.contains(&first_word.as_str()) {
             return true;
         }
@@ -165,10 +187,7 @@ pub fn find_similar_commands(input: &str, threshold: f64) -> Vec<(&'static str, 
         .collect();
 
     // Sort by score descending, treating NaN as lowest priority
-    matches.sort_by(|a, b| {
-        b.1.partial_cmp(&a.1)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     matches.truncate(3);
     matches
 }
@@ -221,14 +240,8 @@ mod tests {
             expand_shortcuts("I bought some bitcoin today"),
             "I bought some bitcoin today"
         );
-        assert_eq!(
-            expand_shortcuts("I want to buy ETH"),
-            "I want to buy ETH"
-        );
-        assert_eq!(
-            expand_shortcuts("I have 0.5 BTC"),
-            "I have 0.5 BTC"
-        );
+        assert_eq!(expand_shortcuts("I want to buy ETH"), "I want to buy ETH");
+        assert_eq!(expand_shortcuts("I have 0.5 BTC"), "I have 0.5 BTC");
 
         // Questions should not be expanded
         assert_eq!(

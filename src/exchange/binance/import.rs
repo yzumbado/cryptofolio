@@ -4,7 +4,9 @@ use chrono::{DateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
-use super::models::{BinanceDeposit, BinanceFiatOrder, BinanceTrade, BinanceTransfer, BinanceWithdrawal};
+use super::models::{
+    BinanceDeposit, BinanceFiatOrder, BinanceTrade, BinanceTransfer, BinanceWithdrawal,
+};
 use crate::core::pnl::{CostBasisMethod, PnLCalculator};
 use crate::core::transaction::{Transaction, TransactionType};
 use crate::db::{HoldingRepository, TransactionRepository};
@@ -97,13 +99,16 @@ impl<'a> TransactionImporter<'a> {
 
         let tx_id = if trade.is_buyer {
             // Buying base asset (e.g. buying BTC with USDT)
-            let mut tx = Transaction::new_buy(account_id, &base_asset, trade.qty, trade.price, timestamp);
+            let mut tx =
+                Transaction::new_buy(account_id, &base_asset, trade.qty, trade.price, timestamp);
             tx.fee = Some(trade.commission);
             tx.fee_asset = Some(trade.commission_asset.clone());
             tx.external_id = Some(external_id);
             tx.notes = Some(format!(
                 "Binance trade #{} — {} {}",
-                trade.id, trade.symbol, if trade.is_maker { "maker" } else { "taker" }
+                trade.id,
+                trade.symbol,
+                if trade.is_maker { "maker" } else { "taker" }
             ));
             tx.price_usd = price_usd;
 
@@ -130,13 +135,16 @@ impl<'a> TransactionImporter<'a> {
             id
         } else {
             // Selling base asset (e.g. selling BTC for USDT)
-            let mut tx = Transaction::new_sell(account_id, &base_asset, trade.qty, trade.price, timestamp);
+            let mut tx =
+                Transaction::new_sell(account_id, &base_asset, trade.qty, trade.price, timestamp);
             tx.fee = Some(trade.commission);
             tx.fee_asset = Some(trade.commission_asset.clone());
             tx.external_id = Some(external_id);
             tx.notes = Some(format!(
                 "Binance trade #{} — {} {}",
-                trade.id, trade.symbol, if trade.is_maker { "maker" } else { "taker" }
+                trade.id,
+                trade.symbol,
+                if trade.is_maker { "maker" } else { "taker" }
             ));
             tx.price_usd = price_usd;
 
@@ -244,7 +252,12 @@ impl<'a> TransactionImporter<'a> {
 
         // Update holdings (no cost basis for deposits)
         self.holding_repo
-            .add_quantity(account_id, &deposit.coin.to_uppercase(), deposit.amount, None)
+            .add_quantity(
+                account_id,
+                &deposit.coin.to_uppercase(),
+                deposit.amount,
+                None,
+            )
             .await?;
 
         tx.id = tx_id;
@@ -499,12 +512,11 @@ impl<'a> TransactionImporter<'a> {
 
     /// Returns true if a transaction with the given external_id already exists.
     async fn is_duplicate(&self, external_id: &str) -> Result<bool> {
-        let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM transactions WHERE external_id = ? LIMIT 1",
-        )
-        .bind(external_id)
-        .fetch_optional(self.pool)
-        .await?;
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT id FROM transactions WHERE external_id = ? LIMIT 1")
+                .bind(external_id)
+                .fetch_optional(self.pool)
+                .await?;
 
         Ok(row.is_some())
     }
@@ -558,10 +570,12 @@ pub fn ms_to_datetime(ms: i64) -> Result<DateTime<Utc>> {
 pub fn parse_binance_datetime(datetime_str: &str) -> Result<DateTime<Utc>> {
     DateTime::parse_from_str(&format!("{} +0000", datetime_str), "%Y-%m-%d %H:%M:%S %z")
         .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|e| CryptofolioError::Other(format!(
-            "Invalid Binance datetime format '{}': {}",
-            datetime_str, e
-        )))
+        .map_err(|e| {
+            CryptofolioError::Other(format!(
+                "Invalid Binance datetime format '{}': {}",
+                datetime_str, e
+            ))
+        })
 }
 
 // =============================================================================
@@ -576,26 +590,50 @@ mod tests {
 
     #[test]
     fn test_parse_symbol_usdt_pair() {
-        assert_eq!(parse_symbol("BTCUSDT").unwrap(), ("BTC".into(), "USDT".into()));
-        assert_eq!(parse_symbol("ETHUSDT").unwrap(), ("ETH".into(), "USDT".into()));
-        assert_eq!(parse_symbol("ADAUSDT").unwrap(), ("ADA".into(), "USDT".into()));
+        assert_eq!(
+            parse_symbol("BTCUSDT").unwrap(),
+            ("BTC".into(), "USDT".into())
+        );
+        assert_eq!(
+            parse_symbol("ETHUSDT").unwrap(),
+            ("ETH".into(), "USDT".into())
+        );
+        assert_eq!(
+            parse_symbol("ADAUSDT").unwrap(),
+            ("ADA".into(), "USDT".into())
+        );
     }
 
     #[test]
     fn test_parse_symbol_btc_pair() {
-        assert_eq!(parse_symbol("ETHBTC").unwrap(), ("ETH".into(), "BTC".into()));
-        assert_eq!(parse_symbol("BNBBTC").unwrap(), ("BNB".into(), "BTC".into()));
+        assert_eq!(
+            parse_symbol("ETHBTC").unwrap(),
+            ("ETH".into(), "BTC".into())
+        );
+        assert_eq!(
+            parse_symbol("BNBBTC").unwrap(),
+            ("BNB".into(), "BTC".into())
+        );
     }
 
     #[test]
     fn test_parse_symbol_busd_pair() {
-        assert_eq!(parse_symbol("BTCBUSD").unwrap(), ("BTC".into(), "BUSD".into()));
+        assert_eq!(
+            parse_symbol("BTCBUSD").unwrap(),
+            ("BTC".into(), "BUSD".into())
+        );
     }
 
     #[test]
     fn test_parse_symbol_case_insensitive() {
-        assert_eq!(parse_symbol("btcusdt").unwrap(), ("BTC".into(), "USDT".into()));
-        assert_eq!(parse_symbol("EthUsdt").unwrap(), ("ETH".into(), "USDT".into()));
+        assert_eq!(
+            parse_symbol("btcusdt").unwrap(),
+            ("BTC".into(), "USDT".into())
+        );
+        assert_eq!(
+            parse_symbol("EthUsdt").unwrap(),
+            ("ETH".into(), "USDT".into())
+        );
     }
 
     #[test]
@@ -706,7 +744,7 @@ mod tests {
             status,
             address: "1A2B3Cdeadbeef".to_string(),
             tx_id: Some("def456".to_string()),
-            apply_time: "2023-11-14 22:30:00".to_string(),  // Changed to string format
+            apply_time: "2023-11-14 22:30:00".to_string(), // Changed to string format
             network: "BTC".to_string(),
             withdraw_order_id: None,
             transfer_type: None,
@@ -768,7 +806,10 @@ mod tests {
         let importer = TransactionImporter::new(&pool);
         let deposit = make_deposit("dep-1", "BTC", 1);
 
-        let result = importer.import_deposit("acc", &deposit, false).await.unwrap();
+        let result = importer
+            .import_deposit("acc", &deposit, false)
+            .await
+            .unwrap();
         assert!(result.is_created());
 
         let holding_repo = HoldingRepository::new(&pool);
@@ -782,7 +823,10 @@ mod tests {
         let importer = TransactionImporter::new(&pool);
         let deposit = make_deposit("dep-2", "ETH", 0); // 0 = pending
 
-        let result = importer.import_deposit("acc", &deposit, false).await.unwrap();
+        let result = importer
+            .import_deposit("acc", &deposit, false)
+            .await
+            .unwrap();
         assert!(result.is_skipped());
     }
 
@@ -799,7 +843,10 @@ mod tests {
             .unwrap();
 
         let withdrawal = make_withdrawal("wd-1", "BTC", 6);
-        let result = importer.import_withdrawal("acc", &withdrawal, false).await.unwrap();
+        let result = importer
+            .import_withdrawal("acc", &withdrawal, false)
+            .await
+            .unwrap();
         assert!(result.is_created());
     }
 
@@ -809,7 +856,10 @@ mod tests {
         let importer = TransactionImporter::new(&pool);
         let withdrawal = make_withdrawal("wd-2", "ETH", 2); // 2 = awaiting approval
 
-        let result = importer.import_withdrawal("acc", &withdrawal, false).await.unwrap();
+        let result = importer
+            .import_withdrawal("acc", &withdrawal, false)
+            .await
+            .unwrap();
         assert!(result.is_skipped());
     }
 }

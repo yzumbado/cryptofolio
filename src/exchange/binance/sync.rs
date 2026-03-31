@@ -132,11 +132,7 @@ impl<'a> SyncOrchestrator<'a> {
     }
 
     /// Run a full sync for `account_id` according to `opts`.
-    pub async fn sync(
-        &self,
-        account_id: &str,
-        opts: &SyncOptions,
-    ) -> Result<SyncReport> {
+    pub async fn sync(&self, account_id: &str, opts: &SyncOptions) -> Result<SyncReport> {
         let mut report = SyncReport::default();
 
         // Ensure a sync-state row exists for this account
@@ -236,10 +232,7 @@ impl<'a> SyncOrchestrator<'a> {
                 .await;
 
             if !opts.dry_run {
-                let _ = self
-                    .sync_state_repo
-                    .update_fiat_sync(account_id, now)
-                    .await;
+                let _ = self.sync_state_repo.update_fiat_sync(account_id, now).await;
             }
         }
 
@@ -292,10 +285,9 @@ impl<'a> SyncOrchestrator<'a> {
                 {
                     Ok(t) => t,
                     Err(e) => {
-                        report.errors.push(format!(
-                            "Failed to fetch trades for {}: {}",
-                            symbol, e
-                        ));
+                        report
+                            .errors
+                            .push(format!("Failed to fetch trades for {}: {}", symbol, e));
                         break;
                     }
                 };
@@ -305,17 +297,12 @@ impl<'a> SyncOrchestrator<'a> {
 
                 for trade in &trades {
                     last_id = Some(trade.id);
-                    match self
-                        .importer
-                        .import_trade(account_id, trade, dry_run)
-                        .await
-                    {
+                    match self.importer.import_trade(account_id, trade, dry_run).await {
                         Ok(ImportResult::Created(_)) => report.trades_created += 1,
                         Ok(ImportResult::Skipped(_)) => report.trades_skipped += 1,
-                        Err(e) => report.errors.push(format!(
-                            "Error importing trade #{}: {}",
-                            trade.id, e
-                        )),
+                        Err(e) => report
+                            .errors
+                            .push(format!("Error importing trade #{}: {}", trade.id, e)),
                     }
                 }
 
@@ -365,10 +352,9 @@ impl<'a> SyncOrchestrator<'a> {
                 {
                     Ok(ImportResult::Created(_)) => report.deposits_created += 1,
                     Ok(ImportResult::Skipped(_)) => report.deposits_skipped += 1,
-                    Err(e) => report.errors.push(format!(
-                        "Error importing deposit #{}: {}",
-                        deposit.id, e
-                    )),
+                    Err(e) => report
+                        .errors
+                        .push(format!("Error importing deposit #{}: {}", deposit.id, e)),
                 }
             }
 

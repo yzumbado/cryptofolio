@@ -66,12 +66,9 @@ impl ShellContext {
         let mut result = args.to_vec();
 
         // Check if --account is missing but required
-        let needs_account = args.iter().any(|a| {
-            matches!(
-                a.as_str(),
-                "add" | "remove" | "set" | "buy" | "sell"
-            )
-        });
+        let needs_account = args
+            .iter()
+            .any(|a| matches!(a.as_str(), "add" | "remove" | "set" | "buy" | "sell"));
 
         let has_account = args.iter().any(|a| a == "--account");
 

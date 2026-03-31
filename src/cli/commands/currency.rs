@@ -39,9 +39,9 @@ pub async fn handle_currency_command(pool: &SqlitePool, cmd: CurrencyCommands) -
             rate,
             notes,
         } => {
-            let rate_decimal = rate.parse::<Decimal>().map_err(|_| {
-                CryptofolioError::InvalidInput(format!("Invalid rate: {}", rate))
-            })?;
+            let rate_decimal = rate
+                .parse::<Decimal>()
+                .map_err(|_| CryptofolioError::InvalidInput(format!("Invalid rate: {}", rate)))?;
             set_exchange_rate(pool, &from, &to, rate_decimal, notes).await
         }
 
@@ -200,12 +200,7 @@ async fn remove_currency(pool: &SqlitePool, code: &str, yes: bool) -> Result<()>
     Ok(())
 }
 
-async fn toggle_currency(
-    pool: &SqlitePool,
-    code: &str,
-    enable: bool,
-    disable: bool,
-) -> Result<()> {
+async fn toggle_currency(pool: &SqlitePool, code: &str, enable: bool, disable: bool) -> Result<()> {
     let code = code.to_uppercase();
 
     let mut currency = currencies::get_currency(pool, &code)
@@ -299,7 +294,10 @@ async fn show_exchange_rate(
             to.bright_cyan()
         );
         println!("{}", "═".repeat(80));
-        println!("{:<20} {:<15} {:<10} {:<30}", "Date", "Rate", "Source", "Notes");
+        println!(
+            "{:<20} {:<15} {:<10} {:<30}",
+            "Date", "Rate", "Source", "Notes"
+        );
         println!("{}", "─".repeat(80));
 
         for rate in rates {

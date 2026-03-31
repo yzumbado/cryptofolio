@@ -260,7 +260,11 @@ impl SystemStatus {
         ));
 
         // Network mode
-        let mode_str = if self.testnet_mode { "Testnet (safe)" } else { "Mainnet (real funds)" };
+        let mode_str = if self.testnet_mode {
+            "Testnet (safe)"
+        } else {
+            "Mainnet (real funds)"
+        };
         let mode_icon = if self.testnet_mode { "🧪" } else { "🌐" };
         lines.push(self.format_line(mode_icon, "Mode", mode_str, true));
 

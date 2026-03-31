@@ -1,5 +1,4 @@
 /// Ethereum blockchain clients (Etherscan API)
-
 use crate::error::{CryptofolioError, Result};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -21,9 +20,9 @@ pub struct EthereumTransaction {
     pub hash: String,
     pub from: String,
     pub to: String,
-    pub value: Decimal,        // In ETH
+    pub value: Decimal, // In ETH
     pub gas_used: u64,
-    pub gas_price: Decimal,    // In Gwei
+    pub gas_price: Decimal, // In Gwei
     pub timestamp: i64,
     pub block_number: u64,
     pub is_error: bool,
@@ -33,7 +32,7 @@ pub struct EthereumTransaction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddressInfo {
     pub address: String,
-    pub balance: Decimal,      // In ETH
+    pub balance: Decimal, // In ETH
     pub tokens: Vec<ERC20Token>,
 }
 
@@ -166,9 +165,12 @@ impl EtherscanClient {
             let decimals = tx.token_decimal.parse::<u8>().unwrap_or(18);
             let value = i128::from_str(&tx.value).unwrap_or(0);
 
-            let entry = token_map
-                .entry(tx.contract_address.clone())
-                .or_insert((tx.token_symbol, tx.token_name, 0, decimals));
+            let entry = token_map.entry(tx.contract_address.clone()).or_insert((
+                tx.token_symbol,
+                tx.token_name,
+                0,
+                decimals,
+            ));
 
             // Add to balance if receiving, subtract if sending
             if tx.to.eq_ignore_ascii_case(address) {
@@ -213,9 +215,9 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch transactions: {}", e)))?;
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch transactions: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(CryptofolioError::Network(format!(
@@ -307,7 +309,7 @@ struct EthTransaction {
     from: String,
     to: String,
     value: String,
-    #[allow(dead_code)]  // Received from API but not used
+    #[allow(dead_code)] // Received from API but not used
     gas: String,
     gas_price: String,
     gas_used: String,

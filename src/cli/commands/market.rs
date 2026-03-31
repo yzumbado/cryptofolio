@@ -2,7 +2,9 @@ use colored::Colorize;
 use serde::Serialize;
 use sqlx::SqlitePool;
 
-use crate::cli::output::{format_price_change, format_quantity, format_usd, print_kv, print_section, warning};
+use crate::cli::output::{
+    format_price_change, format_quantity, format_usd, print_kv, print_section, warning,
+};
 use crate::cli::GlobalOptions;
 use crate::config::AppConfig;
 use crate::error::Result;
@@ -28,7 +30,12 @@ struct Ticker24hOutput {
     quote_volume: String,
 }
 
-pub async fn handle_market_command(symbol: String, show_24h: bool, _pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_market_command(
+    symbol: String,
+    show_24h: bool,
+    _pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let config = AppConfig::load()?;
     let use_testnet = opts.testnet || config.general.use_testnet;
 
@@ -63,10 +70,16 @@ pub async fn handle_market_command(symbol: String, show_24h: bool, _pool: &Sqlit
                 None
             },
         };
-        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
     } else {
         println!();
-        println!("{}", format!("{} / {}", market.base_asset, market.quote_asset).bold());
+        println!(
+            "{}",
+            format!("{} / {}", market.base_asset, market.quote_asset).bold()
+        );
         println!();
 
         print_kv("Price", &format_usd(market.price));
@@ -75,11 +88,18 @@ pub async fn handle_market_command(symbol: String, show_24h: bool, _pool: &Sqlit
             if let Some(ticker) = &market.ticker_24h {
                 print_section("24h Statistics");
 
-                let change_str = format_price_change(ticker.price_change, ticker.price_change_percent, config.display.color);
+                let change_str = format_price_change(
+                    ticker.price_change,
+                    ticker.price_change_percent,
+                    config.display.color,
+                );
                 print_kv("Change", &change_str);
                 print_kv("High", &format_usd(ticker.high_24h));
                 print_kv("Low", &format_usd(ticker.low_24h));
-                print_kv("Volume", &format!("{} {}", format_quantity(ticker.volume), market.base_asset));
+                print_kv(
+                    "Volume",
+                    &format!("{} {}", format_quantity(ticker.volume), market.base_asset),
+                );
                 print_kv("Quote Volume", &format_usd(ticker.quote_volume));
             }
         }

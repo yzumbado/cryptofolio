@@ -44,10 +44,7 @@ pub enum CryptofolioError {
     AssetNotFound(String),
 
     #[error("Insufficient balance: have {available}, need {required}")]
-    InsufficientBalance {
-        available: String,
-        required: String,
-    },
+    InsufficientBalance { available: String, required: String },
 
     #[error("Invalid amount: {0}")]
     InvalidAmount(String),

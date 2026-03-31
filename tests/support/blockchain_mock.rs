@@ -1,6 +1,6 @@
-use wiremock::{Mock, MockServer, ResponseTemplate};
-use wiremock::matchers::{method, path};
 use serde_json::json;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Mock Blockstream API server for testing
 pub struct BlockstreamMock {
@@ -52,7 +52,13 @@ impl BlockstreamMock {
     }
 
     /// Mock transactions endpoint with specified transaction list
-    pub async fn mock_transactions(&self, address: &str, incoming: i64, outgoing: i64, count: usize) {
+    pub async fn mock_transactions(
+        &self,
+        address: &str,
+        incoming: i64,
+        outgoing: i64,
+        count: usize,
+    ) {
         let mut txs = Vec::new();
 
         for i in 0..count {

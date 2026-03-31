@@ -120,7 +120,10 @@ pub async fn handle_portfolio_command(
         }
 
         if let Some(ref filter_category) = category {
-            let cat_name = category_map.get(&acc.category_id).cloned().unwrap_or_default();
+            let cat_name = category_map
+                .get(&acc.category_id)
+                .cloned()
+                .unwrap_or_default();
             if cat_name.to_lowercase() != filter_category.to_lowercase() {
                 continue;
             }
@@ -140,7 +143,10 @@ pub async fn handle_portfolio_command(
                 account_id: acc.id.clone(),
                 account_name: acc.name.clone(),
                 category_id: acc.category_id.clone(),
-                category_name: category_map.get(&acc.category_id).cloned().unwrap_or_else(|| "-".to_string()),
+                category_name: category_map
+                    .get(&acc.category_id)
+                    .cloned()
+                    .unwrap_or_else(|| "-".to_string()),
                 holdings: holdings_with_price,
             });
         }
@@ -160,21 +166,32 @@ pub async fn handle_portfolio_command(
             total_cost_basis: portfolio.total_cost_basis.to_string(),
             unrealized_pnl: portfolio.unrealized_pnl.to_string(),
             unrealized_pnl_percent: portfolio.unrealized_pnl_percent.to_string(),
-            entries: portfolio.entries.iter().map(|e| PortfolioEntryOutput {
-                account_name: e.account_name.clone(),
-                category_name: e.category_name.clone(),
-                holdings: e.holdings.iter().map(|h| HoldingOutput {
-                    asset: h.holding.asset.clone(),
-                    quantity: h.holding.quantity.to_string(),
-                    current_price: h.current_price.map(|p| p.to_string()),
-                    current_value: h.current_value.map(|v| v.to_string()),
-                    cost_basis: h.holding.avg_cost_basis.map(|c| c.to_string()),
-                    unrealized_pnl: h.unrealized_pnl.map(|p| p.to_string()),
-                    unrealized_pnl_percent: h.unrealized_pnl_percent.map(|p| p.to_string()),
-                }).collect(),
-            }).collect(),
+            entries: portfolio
+                .entries
+                .iter()
+                .map(|e| PortfolioEntryOutput {
+                    account_name: e.account_name.clone(),
+                    category_name: e.category_name.clone(),
+                    holdings: e
+                        .holdings
+                        .iter()
+                        .map(|h| HoldingOutput {
+                            asset: h.holding.asset.clone(),
+                            quantity: h.holding.quantity.to_string(),
+                            current_price: h.current_price.map(|p| p.to_string()),
+                            current_value: h.current_value.map(|v| v.to_string()),
+                            cost_basis: h.holding.avg_cost_basis.map(|c| c.to_string()),
+                            unrealized_pnl: h.unrealized_pnl.map(|p| p.to_string()),
+                            unrealized_pnl_percent: h.unrealized_pnl_percent.map(|p| p.to_string()),
+                        })
+                        .collect(),
+                })
+                .collect(),
         };
-        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
         return Ok(());
     }
 
@@ -188,8 +205,14 @@ pub async fn handle_portfolio_command(
     println!("{}", "=".repeat(70));
     println!();
 
-    println!("  Total Value:     {}", format_usd(portfolio.total_value_usd).bold());
-    println!("  Cost Basis:      {}", format_usd(portfolio.total_cost_basis));
+    println!(
+        "  Total Value:     {}",
+        format_usd(portfolio.total_value_usd).bold()
+    );
+    println!(
+        "  Cost Basis:      {}",
+        format_usd(portfolio.total_cost_basis)
+    );
     println!(
         "  Unrealized P&L:  {} ({})",
         format_pnl(portfolio.unrealized_pnl, config.display.color),
@@ -202,10 +225,22 @@ pub async fn handle_portfolio_command(
         let category_summaries = portfolio.by_category();
 
         for summary in category_summaries {
-            println!("{}", format!("  {} [{}]", summary.category_name, format_usd(summary.total_value)).bold());
+            println!(
+                "{}",
+                format!(
+                    "  {} [{}]",
+                    summary.category_name,
+                    format_usd(summary.total_value)
+                )
+                .bold()
+            );
 
             for entry in &summary.accounts {
-                println!("    {} ({})", entry.account_name, format_usd(entry.total_value()));
+                println!(
+                    "    {} ({})",
+                    entry.account_name,
+                    format_usd(entry.total_value())
+                );
 
                 for h in &entry.holdings {
                     print_holding(h, &config, 6);
@@ -240,11 +275,13 @@ pub async fn handle_portfolio_command(
             println!("  {}", entry.account_name.dimmed());
 
             for h in &entry.holdings {
-                let price_str = h.current_price
+                let price_str = h
+                    .current_price
                     .map(|p| format_usd(p))
                     .unwrap_or_else(|| "-".to_string());
 
-                let value_str = h.current_value
+                let value_str = h
+                    .current_value
                     .map(|v| format_usd(v))
                     .unwrap_or_else(|| "-".to_string());
 
@@ -281,7 +318,12 @@ pub async fn handle_portfolio_command(
             if i > 0 {
                 print!("  |  ");
             }
-            print!("{}: {} ({})", total.asset, format_quantity(total.quantity), format_usd(total.value));
+            print!(
+                "{}: {} ({})",
+                total.asset,
+                format_quantity(total.quantity),
+                format_usd(total.value)
+            );
         }
         println!();
     }
@@ -294,15 +336,18 @@ pub async fn handle_portfolio_command(
 fn print_holding(h: &HoldingWithPrice, config: &AppConfig, indent: usize) {
     let spaces = " ".repeat(indent);
 
-    let price_str = h.current_price
+    let price_str = h
+        .current_price
         .map(|p| format_usd(p))
         .unwrap_or_else(|| "-".to_string());
 
-    let value_str = h.current_value
+    let value_str = h
+        .current_value
         .map(|v| format_usd(v))
         .unwrap_or_else(|| "-".to_string());
 
-    let pnl_str = h.unrealized_pnl
+    let pnl_str = h
+        .unrealized_pnl
         .map(|pnl| format_pnl(pnl, config.display.color))
         .unwrap_or_else(|| "-".to_string());
 

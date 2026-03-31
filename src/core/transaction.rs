@@ -76,11 +76,11 @@ pub struct Transaction {
     pub price_usd: Option<Decimal>,
 
     // Multi-currency pricing
-    pub price_currency: Option<String>,  // Currency for price_amount
-    pub price_amount: Option<Decimal>,   // Price in price_currency
+    pub price_currency: Option<String>, // Currency for price_amount
+    pub price_amount: Option<Decimal>,  // Price in price_currency
 
     // Exchange rate (for fiat conversions)
-    pub exchange_rate: Option<Decimal>,     // e.g., 550 CRC per 1 USD
+    pub exchange_rate: Option<Decimal>, // e.g., 550 CRC per 1 USD
     pub exchange_rate_pair: Option<String>, // e.g., "CRC/USD"
 
     pub fee: Option<Decimal>,
@@ -228,7 +228,10 @@ mod tests {
         assert_eq!(TransactionType::Sell.as_str(), "sell");
         assert_eq!(TransactionType::TransferIn.as_str(), "transfer_in");
         assert_eq!(TransactionType::TransferOut.as_str(), "transfer_out");
-        assert_eq!(TransactionType::TransferInternal.as_str(), "transfer_internal");
+        assert_eq!(
+            TransactionType::TransferInternal.as_str(),
+            "transfer_internal"
+        );
         assert_eq!(TransactionType::Swap.as_str(), "swap");
         assert_eq!(TransactionType::Receive.as_str(), "receive");
         assert_eq!(TransactionType::Fee.as_str(), "fee");
@@ -237,12 +240,30 @@ mod tests {
     #[test]
     fn test_transaction_type_from_str() {
         assert_eq!(TransactionType::from_str("buy"), Some(TransactionType::Buy));
-        assert_eq!(TransactionType::from_str("sell"), Some(TransactionType::Sell));
-        assert_eq!(TransactionType::from_str("transfer_in"), Some(TransactionType::TransferIn));
-        assert_eq!(TransactionType::from_str("transfer_out"), Some(TransactionType::TransferOut));
-        assert_eq!(TransactionType::from_str("transfer_internal"), Some(TransactionType::TransferInternal));
-        assert_eq!(TransactionType::from_str("swap"), Some(TransactionType::Swap));
-        assert_eq!(TransactionType::from_str("receive"), Some(TransactionType::Receive));
+        assert_eq!(
+            TransactionType::from_str("sell"),
+            Some(TransactionType::Sell)
+        );
+        assert_eq!(
+            TransactionType::from_str("transfer_in"),
+            Some(TransactionType::TransferIn)
+        );
+        assert_eq!(
+            TransactionType::from_str("transfer_out"),
+            Some(TransactionType::TransferOut)
+        );
+        assert_eq!(
+            TransactionType::from_str("transfer_internal"),
+            Some(TransactionType::TransferInternal)
+        );
+        assert_eq!(
+            TransactionType::from_str("swap"),
+            Some(TransactionType::Swap)
+        );
+        assert_eq!(
+            TransactionType::from_str("receive"),
+            Some(TransactionType::Receive)
+        );
         assert_eq!(TransactionType::from_str("fee"), Some(TransactionType::Fee));
         assert_eq!(TransactionType::from_str("invalid"), None);
     }
@@ -250,17 +271,41 @@ mod tests {
     #[test]
     fn test_transaction_type_from_str_aliases() {
         // Test aliases
-        assert_eq!(TransactionType::from_str("deposit"), Some(TransactionType::TransferIn));
-        assert_eq!(TransactionType::from_str("withdrawal"), Some(TransactionType::TransferOut));
-        assert_eq!(TransactionType::from_str("transfer"), Some(TransactionType::TransferInternal));
-        assert_eq!(TransactionType::from_str("trade"), Some(TransactionType::Swap));
-        assert_eq!(TransactionType::from_str("airdrop"), Some(TransactionType::Receive));
-        assert_eq!(TransactionType::from_str("reward"), Some(TransactionType::Receive));
+        assert_eq!(
+            TransactionType::from_str("deposit"),
+            Some(TransactionType::TransferIn)
+        );
+        assert_eq!(
+            TransactionType::from_str("withdrawal"),
+            Some(TransactionType::TransferOut)
+        );
+        assert_eq!(
+            TransactionType::from_str("transfer"),
+            Some(TransactionType::TransferInternal)
+        );
+        assert_eq!(
+            TransactionType::from_str("trade"),
+            Some(TransactionType::Swap)
+        );
+        assert_eq!(
+            TransactionType::from_str("airdrop"),
+            Some(TransactionType::Receive)
+        );
+        assert_eq!(
+            TransactionType::from_str("reward"),
+            Some(TransactionType::Receive)
+        );
 
         // Test case insensitivity
         assert_eq!(TransactionType::from_str("BUY"), Some(TransactionType::Buy));
-        assert_eq!(TransactionType::from_str("Sell"), Some(TransactionType::Sell));
-        assert_eq!(TransactionType::from_str("DEPOSIT"), Some(TransactionType::TransferIn));
+        assert_eq!(
+            TransactionType::from_str("Sell"),
+            Some(TransactionType::Sell)
+        );
+        assert_eq!(
+            TransactionType::from_str("DEPOSIT"),
+            Some(TransactionType::TransferIn)
+        );
     }
 
     #[test]
@@ -269,7 +314,10 @@ mod tests {
         assert_eq!(TransactionType::Sell.display_name(), "Sell");
         assert_eq!(TransactionType::TransferIn.display_name(), "Transfer In");
         assert_eq!(TransactionType::TransferOut.display_name(), "Transfer Out");
-        assert_eq!(TransactionType::TransferInternal.display_name(), "Internal Transfer");
+        assert_eq!(
+            TransactionType::TransferInternal.display_name(),
+            "Internal Transfer"
+        );
         assert_eq!(TransactionType::Swap.display_name(), "Swap");
         assert_eq!(TransactionType::Receive.display_name(), "Receive");
         assert_eq!(TransactionType::Fee.display_name(), "Fee");
@@ -318,13 +366,8 @@ mod tests {
         let quantity = Decimal::from_str("2.0").unwrap();
         let timestamp = Utc::now();
 
-        let tx = Transaction::new_transfer(
-            "from-account",
-            "to-account",
-            "ETH",
-            quantity,
-            timestamp,
-        );
+        let tx =
+            Transaction::new_transfer("from-account", "to-account", "ETH", quantity, timestamp);
 
         assert_eq!(tx.tx_type, TransactionType::TransferInternal);
         assert_eq!(tx.from_account_id, Some("from-account".to_string()));
@@ -343,14 +386,7 @@ mod tests {
         let to_qty = Decimal::from_str("30.0").unwrap();
         let timestamp = Utc::now();
 
-        let tx = Transaction::new_swap(
-            "test-account",
-            "BTC",
-            from_qty,
-            "ETH",
-            to_qty,
-            timestamp,
-        );
+        let tx = Transaction::new_swap("test-account", "BTC", from_qty, "ETH", to_qty, timestamp);
 
         assert_eq!(tx.tx_type, TransactionType::Swap);
         assert_eq!(tx.from_account_id, Some("test-account".to_string()));

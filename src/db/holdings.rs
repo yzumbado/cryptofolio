@@ -63,7 +63,7 @@ impl<'a> HoldingRepository<'a> {
                 quantity = excluded.quantity,
                 avg_cost_basis = excluded.avg_cost_basis,
                 updated_at = CURRENT_TIMESTAMP
-            "#
+            "#,
         )
         .bind(&holding.account_id)
         .bind(&holding.asset)
@@ -200,10 +200,17 @@ impl<'a> HoldingRepository<'a> {
 
     fn parse_holding(
         &self,
-        (id, account_id, asset, quantity, avg_cost_basis, updated_at): (i64, String, String, String, Option<String>, String),
+        (id, account_id, asset, quantity, avg_cost_basis, updated_at): (
+            i64,
+            String,
+            String,
+            String,
+            Option<String>,
+            String,
+        ),
     ) -> Result<Holding> {
-        let quantity = Decimal::from_str(&quantity)
-            .map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
+        let quantity =
+            Decimal::from_str(&quantity).map_err(|_| CryptofolioError::InvalidAmount(quantity))?;
 
         let avg_cost_basis = avg_cost_basis
             .map(|s| Decimal::from_str(&s))
@@ -259,7 +266,13 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.5").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.5").unwrap(),
+            Some(Decimal::from_str("40000").unwrap()),
+        )
+        .await?;
 
         let holding = repo.get("test-acc-1", "BTC").await?;
         assert!(holding.is_some());
@@ -277,10 +290,22 @@ mod tests {
         let repo = HoldingRepository::new(&pool);
 
         // Add first batch
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Some(Decimal::from_str("40000").unwrap()),
+        )
+        .await?;
 
         // Add second batch
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("50000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Some(Decimal::from_str("50000").unwrap()),
+        )
+        .await?;
 
         let holding = repo.get("test-acc-1", "BTC").await?;
         assert!(holding.is_some());
@@ -298,10 +323,22 @@ mod tests {
         let repo = HoldingRepository::new(&pool);
 
         // Add 1 BTC @ $40k
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Some(Decimal::from_str("40000").unwrap()),
+        )
+        .await?;
 
         // Add 3 BTC @ $50k
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("3.0").unwrap(), Some(Decimal::from_str("50000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("3.0").unwrap(),
+            Some(Decimal::from_str("50000").unwrap()),
+        )
+        .await?;
 
         let holding = repo.get("test-acc-1", "BTC").await?;
         let h = holding.unwrap();
@@ -317,9 +354,16 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("2.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("2.0").unwrap(),
+            Some(Decimal::from_str("40000").unwrap()),
+        )
+        .await?;
 
-        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("0.5").unwrap()).await?;
+        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("0.5").unwrap())
+            .await?;
 
         let holding = repo.get("test-acc-1", "BTC").await?;
         assert!(holding.is_some());
@@ -333,10 +377,17 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), Some(Decimal::from_str("40000").unwrap())).await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Some(Decimal::from_str("40000").unwrap()),
+        )
+        .await?;
 
         // Remove all
-        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap()).await?;
+        repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap())
+            .await?;
 
         // Should be deleted
         let holding = repo.get("test-acc-1", "BTC").await?;
@@ -350,12 +401,15 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
 
-        let result = repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("2.0").unwrap()).await;
+        let result = repo
+            .remove_quantity("test-acc-1", "BTC", Decimal::from_str("2.0").unwrap())
+            .await;
         assert!(result.is_err());
         match result {
-            Err(CryptofolioError::InsufficientBalance { .. }) => {},
+            Err(CryptofolioError::InsufficientBalance { .. }) => {}
             _ => panic!("Expected InsufficientBalance error"),
         }
 
@@ -367,10 +421,12 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        let result = repo.remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap()).await;
+        let result = repo
+            .remove_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap())
+            .await;
         assert!(result.is_err());
         match result {
-            Err(CryptofolioError::AssetNotFound(_)) => {},
+            Err(CryptofolioError::AssetNotFound(_)) => {}
             _ => panic!("Expected AssetNotFound error"),
         }
 
@@ -383,14 +439,29 @@ mod tests {
         let repo = HoldingRepository::new(&pool);
 
         // Set initial quantity
-        repo.set_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), Some(Decimal::from_str("3000").unwrap())).await?;
+        repo.set_quantity(
+            "test-acc-1",
+            "ETH",
+            Decimal::from_str("10.0").unwrap(),
+            Some(Decimal::from_str("3000").unwrap()),
+        )
+        .await?;
 
         let holding = repo.get("test-acc-1", "ETH").await?;
         assert!(holding.is_some());
-        assert_eq!(holding.unwrap().quantity, Decimal::from_str("10.0").unwrap());
+        assert_eq!(
+            holding.unwrap().quantity,
+            Decimal::from_str("10.0").unwrap()
+        );
 
         // Update quantity (replaces, doesn't add)
-        repo.set_quantity("test-acc-1", "ETH", Decimal::from_str("5.0").unwrap(), Some(Decimal::from_str("3500").unwrap())).await?;
+        repo.set_quantity(
+            "test-acc-1",
+            "ETH",
+            Decimal::from_str("5.0").unwrap(),
+            Some(Decimal::from_str("3500").unwrap()),
+        )
+        .await?;
 
         let holding = repo.get("test-acc-1", "ETH").await?;
         assert!(holding.is_some());
@@ -406,10 +477,12 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
 
         // Set to zero should delete
-        repo.set_quantity("test-acc-1", "BTC", Decimal::ZERO, None).await?;
+        repo.set_quantity("test-acc-1", "BTC", Decimal::ZERO, None)
+            .await?;
 
         let holding = repo.get("test-acc-1", "BTC").await?;
         assert!(holding.is_none());
@@ -422,9 +495,17 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "ETH",
+            Decimal::from_str("10.0").unwrap(),
+            None,
+        )
+        .await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None)
+            .await?;
 
         let holdings = repo.list_all().await?;
         assert_eq!(holdings.len(), 3);
@@ -442,9 +523,17 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "ETH",
+            Decimal::from_str("10.0").unwrap(),
+            None,
+        )
+        .await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None)
+            .await?;
 
         let holdings = repo.list_by_account("test-acc-1").await?;
         assert_eq!(holdings.len(), 2);
@@ -461,7 +550,8 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "btc", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "btc", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
 
         // Should find with different case
         let holding = repo.get("test-acc-1", "BTC").await?;
@@ -481,7 +571,8 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
 
         repo.delete("test-acc-1", "BTC").await?;
 
@@ -496,9 +587,17 @@ mod tests {
         let pool = setup_test_db().await?;
         let repo = HoldingRepository::new(&pool);
 
-        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-1", "ETH", Decimal::from_str("10.0").unwrap(), None).await?;
-        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None).await?;
+        repo.add_quantity("test-acc-1", "BTC", Decimal::from_str("1.0").unwrap(), None)
+            .await?;
+        repo.add_quantity(
+            "test-acc-1",
+            "ETH",
+            Decimal::from_str("10.0").unwrap(),
+            None,
+        )
+        .await?;
+        repo.add_quantity("test-acc-2", "BTC", Decimal::from_str("0.5").unwrap(), None)
+            .await?;
 
         repo.delete_all_for_account("test-acc-1").await?;
 

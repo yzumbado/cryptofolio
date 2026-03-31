@@ -189,7 +189,10 @@ impl CryptofolioCompleter {
                 // Suggest based on context
                 if is_complete_word || partial.is_empty() {
                     // Suggest based on previous words
-                    if words.iter().any(|w| *w == "--account" || *w == "--from" || *w == "--to") {
+                    if words
+                        .iter()
+                        .any(|w| *w == "--account" || *w == "--from" || *w == "--to")
+                    {
                         // Suggest accounts
                         for account in &self.accounts {
                             completions.push(Pair {
@@ -205,7 +208,12 @@ impl CryptofolioCompleter {
                                 replacement: asset.clone(),
                             });
                         }
-                    } else if cmd == "holdings" && words.get(1).map(|s| *s == "add" || *s == "remove" || *s == "set").unwrap_or(false) {
+                    } else if cmd == "holdings"
+                        && words
+                            .get(1)
+                            .map(|s| *s == "add" || *s == "remove" || *s == "set")
+                            .unwrap_or(false)
+                    {
                         // Suggest assets for holdings commands
                         for asset in &self.assets {
                             completions.push(Pair {
@@ -304,7 +312,9 @@ impl Hinter for CryptofolioCompleter {
             let hint = &completions[0].replacement;
             let partial = line.split_whitespace().last().unwrap_or("");
 
-            if hint.to_lowercase().starts_with(&partial.to_lowercase()) && hint.len() > partial.len() {
+            if hint.to_lowercase().starts_with(&partial.to_lowercase())
+                && hint.len() > partial.len()
+            {
                 return Some(hint[partial.len()..].to_string());
             }
         }

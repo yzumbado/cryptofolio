@@ -1,10 +1,10 @@
+use crate::support::blockchain_mock::BlockstreamMock;
+use crate::support::cardano_mock::CardanoMock;
+use crate::support::ethereum_mock::EthereumMock;
+use anyhow::{Context, Result};
 use cucumber::World;
 use sqlx::SqlitePool;
 use std::path::PathBuf;
-use anyhow::{Context, Result};
-use crate::support::blockchain_mock::BlockstreamMock;
-use crate::support::ethereum_mock::EthereumMock;
-use crate::support::cardano_mock::CardanoMock;
 
 /// Shared state for BDD tests
 #[derive(World)]
@@ -128,7 +128,9 @@ impl CryptofolioWorld {
 
     /// Get database pool (panics if not set up)
     pub fn pool(&self) -> &SqlitePool {
-        self.pool.as_ref().expect("Database not initialized - call setup_db() first")
+        self.pool
+            .as_ref()
+            .expect("Database not initialized - call setup_db() first")
     }
 
     /// Reset last command state

@@ -174,7 +174,8 @@ impl ConversationManager {
         match parsed.intent {
             Intent::Unclear => {
                 return ConversationAction::Clarify {
-                    question: "I'm not sure what you'd like to do. Could you rephrase that?".to_string(),
+                    question: "I'm not sure what you'd like to do. Could you rephrase that?"
+                        .to_string(),
                     field: "intent".to_string(),
                     suggestions: vec![
                         "check prices".to_string(),
@@ -186,15 +187,13 @@ impl ConversationManager {
             Intent::Ambiguous => {
                 return ConversationAction::Disambiguate {
                     message: "I could help with a few things here.".to_string(),
-                    options: vec![
-                        "Check price".to_string(),
-                        "View holdings".to_string(),
-                    ],
+                    options: vec!["Check price".to_string(), "View holdings".to_string()],
                 };
             }
             Intent::OutOfScope => {
                 return ConversationAction::OutOfScope {
-                    message: "I can only help with cryptocurrency portfolio management.".to_string(),
+                    message: "I can only help with cryptocurrency portfolio management."
+                        .to_string(),
                 };
             }
             Intent::Help => {
@@ -203,7 +202,8 @@ impl ConversationManager {
                         - \"What's the price of Bitcoin?\"\n  \
                         - \"I bought 0.1 BTC on Binance\"\n  \
                         - \"Show my portfolio\"\n  \
-                        - \"Sync my exchanges\"".to_string(),
+                        - \"Sync my exchanges\""
+                        .to_string(),
                 };
             }
             _ => {}
@@ -215,7 +215,9 @@ impl ConversationManager {
 
         // Merge entities
         for (key, value) in parsed.entities.iter() {
-            self.state.collected_entities.insert(key.clone(), value.clone());
+            self.state
+                .collected_entities
+                .insert(key.clone(), value.clone());
         }
 
         // Apply context defaults
@@ -229,7 +231,8 @@ impl ConversationManager {
 
         // Decide next action
         if !still_missing.is_empty() {
-            let (question, suggestions) = self.get_clarification_question(&still_missing[0], &parsed.intent);
+            let (question, suggestions) =
+                self.get_clarification_question(&still_missing[0], &parsed.intent);
             return ConversationAction::Clarify {
                 question,
                 field: still_missing[0].clone(),
@@ -331,10 +334,9 @@ impl ConversationManager {
         // If account is missing and we have a last_account, use it
         if parsed.missing.contains(&"account".to_string()) {
             if let Some(ref account) = self.state.last_account {
-                self.state.collected_entities.insert(
-                    "account".to_string(),
-                    Entity::String(account.clone()),
-                );
+                self.state
+                    .collected_entities
+                    .insert("account".to_string(), Entity::String(account.clone()));
             }
         }
     }

@@ -16,10 +16,7 @@ pub struct PortfolioEntry {
 
 impl PortfolioEntry {
     pub fn total_value(&self) -> Decimal {
-        self.holdings
-            .iter()
-            .filter_map(|h| h.current_value)
-            .sum()
+        self.holdings.iter().filter_map(|h| h.current_value).sum()
     }
 
     pub fn total_cost_basis(&self) -> Decimal {
@@ -30,10 +27,7 @@ impl PortfolioEntry {
     }
 
     pub fn total_unrealized_pnl(&self) -> Decimal {
-        self.holdings
-            .iter()
-            .filter_map(|h| h.unrealized_pnl)
-            .sum()
+        self.holdings.iter().filter_map(|h| h.unrealized_pnl).sum()
     }
 }
 

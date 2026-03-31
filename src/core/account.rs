@@ -79,7 +79,7 @@ pub struct WalletAddress {
     pub label: Option<String>,
     pub xpub: Option<String>,
     pub derivation_path: Option<String>,
-    pub network: Option<String>,  // "mainnet" or "testnet"
+    pub network: Option<String>, // "mainnet" or "testnet"
     pub last_synced_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }

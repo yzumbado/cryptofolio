@@ -17,7 +17,7 @@ impl<'a> AccountRepository<'a> {
 
     pub async fn list_categories(&self) -> Result<Vec<Category>> {
         let rows = sqlx::query_as::<_, (String, String, i32, String)>(
-            "SELECT id, name, sort_order, created_at FROM categories ORDER BY sort_order"
+            "SELECT id, name, sort_order, created_at FROM categories ORDER BY sort_order",
         )
         .fetch_all(self.pool)
         .await?;
@@ -38,7 +38,7 @@ impl<'a> AccountRepository<'a> {
 
     pub async fn get_category(&self, id: &str) -> Result<Option<Category>> {
         let row = sqlx::query_as::<_, (String, String, i32, String)>(
-            "SELECT id, name, sort_order, created_at FROM categories WHERE id = ?"
+            "SELECT id, name, sort_order, created_at FROM categories WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(self.pool)
@@ -59,7 +59,7 @@ impl<'a> AccountRepository<'a> {
 
     pub async fn get_category_by_name(&self, name: &str) -> Result<Option<Category>> {
         let row = sqlx::query_as::<_, (String, String, i32, String)>(
-            "SELECT id, name, sort_order, created_at FROM categories WHERE LOWER(name) = LOWER(?)"
+            "SELECT id, name, sort_order, created_at FROM categories WHERE LOWER(name) = LOWER(?)",
         )
         .bind(name)
         .fetch_optional(self.pool)
@@ -79,34 +79,28 @@ impl<'a> AccountRepository<'a> {
     }
 
     pub async fn create_category(&self, id: &str, name: &str) -> Result<()> {
-        let max_order: Option<(i32,)> = sqlx::query_as(
-            "SELECT MAX(sort_order) FROM categories"
-        )
-        .fetch_optional(self.pool)
-        .await?;
+        let max_order: Option<(i32,)> = sqlx::query_as("SELECT MAX(sort_order) FROM categories")
+            .fetch_optional(self.pool)
+            .await?;
 
         let sort_order = max_order.map(|(o,)| o + 1).unwrap_or(1);
 
-        sqlx::query(
-            "INSERT INTO categories (id, name, sort_order) VALUES (?, ?, ?)"
-        )
-        .bind(id)
-        .bind(name)
-        .bind(sort_order)
-        .execute(self.pool)
-        .await?;
+        sqlx::query("INSERT INTO categories (id, name, sort_order) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(name)
+            .bind(sort_order)
+            .execute(self.pool)
+            .await?;
 
         Ok(())
     }
 
     pub async fn rename_category(&self, old_name: &str, new_name: &str) -> Result<()> {
-        let result = sqlx::query(
-            "UPDATE categories SET name = ? WHERE LOWER(name) = LOWER(?)"
-        )
-        .bind(new_name)
-        .bind(old_name)
-        .execute(self.pool)
-        .await?;
+        let result = sqlx::query("UPDATE categories SET name = ? WHERE LOWER(name) = LOWER(?)")
+            .bind(new_name)
+            .bind(old_name)
+            .execute(self.pool)
+            .await?;
 
         if result.rows_affected() == 0 {
             return Err(CryptofolioError::CategoryNotFound(old_name.to_string()));
@@ -116,12 +110,10 @@ impl<'a> AccountRepository<'a> {
     }
 
     pub async fn delete_category(&self, name: &str) -> Result<()> {
-        let result = sqlx::query(
-            "DELETE FROM categories WHERE LOWER(name) = LOWER(?)"
-        )
-        .bind(name)
-        .execute(self.pool)
-        .await?;
+        let result = sqlx::query("DELETE FROM categories WHERE LOWER(name) = LOWER(?)")
+            .bind(name)
+            .execute(self.pool)
+            .await?;
 
         if result.rows_affected() == 0 {
             return Err(CryptofolioError::CategoryNotFound(name.to_string()));
@@ -140,27 +132,30 @@ impl<'a> AccountRepository<'a> {
         .await?;
 
         rows.into_iter()
-            .map(|(id, name, category_id, account_type, config, sync_enabled, created_at)| {
-                let account_type = AccountType::from_str(&account_type)
-                    .ok_or_else(|| CryptofolioError::Other(format!("Invalid account type: {}", account_type)))?;
+            .map(
+                |(id, name, category_id, account_type, config, sync_enabled, created_at)| {
+                    let account_type = AccountType::from_str(&account_type).ok_or_else(|| {
+                        CryptofolioError::Other(format!("Invalid account type: {}", account_type))
+                    })?;
 
-                let config: AccountConfig = config
-                    .as_deref()
-                    .map(|c| serde_json::from_str(c).unwrap_or_default())
-                    .unwrap_or_default();
+                    let config: AccountConfig = config
+                        .as_deref()
+                        .map(|c| serde_json::from_str(c).unwrap_or_default())
+                        .unwrap_or_default();
 
-                Ok(Account {
-                    id,
-                    name,
-                    category_id,
-                    account_type,
-                    config,
-                    sync_enabled,
-                    created_at: DateTime::parse_from_rfc3339(&created_at)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                })
-            })
+                    Ok(Account {
+                        id,
+                        name,
+                        category_id,
+                        account_type,
+                        config,
+                        sync_enabled,
+                        created_at: DateTime::parse_from_rfc3339(&created_at)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
+                },
+            )
             .collect()
     }
 
@@ -174,8 +169,9 @@ impl<'a> AccountRepository<'a> {
 
         match row {
             Some((id, name, category_id, account_type, config, sync_enabled, created_at)) => {
-                let account_type = AccountType::from_str(&account_type)
-                    .ok_or_else(|| CryptofolioError::Other(format!("Invalid account type: {}", account_type)))?;
+                let account_type = AccountType::from_str(&account_type).ok_or_else(|| {
+                    CryptofolioError::Other(format!("Invalid account type: {}", account_type))
+                })?;
 
                 let config: AccountConfig = config
                     .as_deref()
@@ -208,8 +204,9 @@ impl<'a> AccountRepository<'a> {
 
         match row {
             Some((id, name, category_id, account_type, config, sync_enabled, created_at)) => {
-                let account_type = AccountType::from_str(&account_type)
-                    .ok_or_else(|| CryptofolioError::Other(format!("Invalid account type: {}", account_type)))?;
+                let account_type = AccountType::from_str(&account_type).ok_or_else(|| {
+                    CryptofolioError::Other(format!("Invalid account type: {}", account_type))
+                })?;
 
                 let config: AccountConfig = config
                     .as_deref()
@@ -252,7 +249,9 @@ impl<'a> AccountRepository<'a> {
 
     pub async fn delete_account(&self, name: &str) -> Result<()> {
         // First, get the account ID
-        let account = self.get_account(name).await?
+        let account = self
+            .get_account(name)
+            .await?
             .ok_or_else(|| CryptofolioError::AccountNotFound(name.to_string()))?;
 
         // Delete related records in order (respecting foreign keys)
@@ -295,8 +294,8 @@ impl<'a> AccountRepository<'a> {
         .await?;
 
         rows.into_iter()
-            .map(|(id, account_id, blockchain, address, address_type, label, xpub, derivation_path, network, last_synced_at, created_at)| {
-                Ok(WalletAddress {
+            .map(
+                |(
                     id,
                     account_id,
                     blockchain,
@@ -306,12 +305,30 @@ impl<'a> AccountRepository<'a> {
                     xpub,
                     derivation_path,
                     network,
-                    last_synced_at: last_synced_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
-                    created_at: DateTime::parse_from_rfc3339(&created_at)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                })
-            })
+                    last_synced_at,
+                    created_at,
+                )| {
+                    Ok(WalletAddress {
+                        id,
+                        account_id,
+                        blockchain,
+                        address,
+                        address_type,
+                        label,
+                        xpub,
+                        derivation_path,
+                        network,
+                        last_synced_at: last_synced_at.and_then(|s| {
+                            DateTime::parse_from_rfc3339(&s)
+                                .ok()
+                                .map(|dt| dt.with_timezone(&Utc))
+                        }),
+                        created_at: DateTime::parse_from_rfc3339(&created_at)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
+                },
+            )
             .collect()
     }
 
@@ -364,16 +381,18 @@ impl<'a> AccountRepository<'a> {
     }
 
     pub async fn remove_address(&self, account_id: &str, address: &str) -> Result<()> {
-        let result = sqlx::query(
-            "DELETE FROM wallet_addresses WHERE account_id = ? AND address = ?"
-        )
-        .bind(account_id)
-        .bind(address)
-        .execute(self.pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM wallet_addresses WHERE account_id = ? AND address = ?")
+                .bind(account_id)
+                .bind(address)
+                .execute(self.pool)
+                .await?;
 
         if result.rows_affected() == 0 {
-            return Err(CryptofolioError::Other(format!("Address not found: {}", address)));
+            return Err(CryptofolioError::Other(format!(
+                "Address not found: {}",
+                address
+            )));
         }
 
         Ok(())
@@ -484,7 +503,7 @@ mod tests {
         let result = repo.rename_category("NonExistent", "New Name").await;
         assert!(result.is_err());
         match result {
-            Err(CryptofolioError::CategoryNotFound(_)) => {},
+            Err(CryptofolioError::CategoryNotFound(_)) => {}
             _ => panic!("Expected CategoryNotFound error"),
         }
 
@@ -513,7 +532,7 @@ mod tests {
         let result = repo.delete_category("NonExistent").await;
         assert!(result.is_err());
         match result {
-            Err(CryptofolioError::CategoryNotFound(_)) => {},
+            Err(CryptofolioError::CategoryNotFound(_)) => {}
             _ => panic!("Expected CategoryNotFound error"),
         }
 
@@ -646,7 +665,8 @@ mod tests {
         repo.create_account(&account).await?;
 
         // Add a wallet address and holding to test cascading delete
-        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None).await?;
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None)
+            .await?;
 
         sqlx::query("INSERT INTO holdings (account_id, asset, quantity) VALUES (?, ?, ?)")
             .bind("test-acc")
@@ -676,7 +696,7 @@ mod tests {
         let result = repo.delete_account("NonExistent").await;
         assert!(result.is_err());
         match result {
-            Err(CryptofolioError::AccountNotFound(_)) => {},
+            Err(CryptofolioError::AccountNotFound(_)) => {}
             _ => panic!("Expected AccountNotFound error"),
         }
 
@@ -704,8 +724,10 @@ mod tests {
         repo.create_account(&account).await?;
 
         // Add addresses
-        repo.add_address("test-acc", "Bitcoin", "bc1qtest1", Some("Main")).await?;
-        repo.add_address("test-acc", "Ethereum", "0xtest1", None).await?;
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest1", Some("Main"))
+            .await?;
+        repo.add_address("test-acc", "Ethereum", "0xtest1", None)
+            .await?;
 
         let addresses = repo.list_addresses("test-acc").await?;
         assert_eq!(addresses.len(), 2);
@@ -734,7 +756,8 @@ mod tests {
         };
 
         repo.create_account(&account).await?;
-        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None).await?;
+        repo.add_address("test-acc", "Bitcoin", "bc1qtest", None)
+            .await?;
 
         repo.remove_address("test-acc", "bc1qtest").await?;
 

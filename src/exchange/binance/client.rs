@@ -47,7 +47,9 @@ impl BinanceClient {
     }
 
     fn sign(&self, query: &str) -> Result<String> {
-        let secret = self.api_secret.as_ref()
+        let secret = self
+            .api_secret
+            .as_ref()
             .ok_or_else(|| CryptofolioError::AuthRequired("API secret not configured".into()))?;
 
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
@@ -61,15 +63,17 @@ impl BinanceClient {
     async fn get_public<T: serde::de::DeserializeOwned>(&self, endpoint: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url, endpoint);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
-            let error: BinanceError = response.json().await
-                .unwrap_or(BinanceError { code: -1, msg: "Unknown error".into() });
-            return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
+            let error: BinanceError = response.json().await.unwrap_or(BinanceError {
+                code: -1,
+                msg: "Unknown error".into(),
+            });
+            return Err(CryptofolioError::ExchangeApi(format!(
+                "[{}] {}",
+                error.code, error.msg
+            )));
         }
 
         Ok(response.json().await?)
@@ -82,32 +86,39 @@ impl BinanceClient {
     ) -> Result<T> {
         let url = format!("{}{}", self.base_url, endpoint);
 
-        let response = self.client
-            .get(&url)
-            .query(params)
-            .send()
-            .await?;
+        let response = self.client.get(&url).query(params).send().await?;
 
         if !response.status().is_success() {
-            let error: BinanceError = response.json().await
-                .unwrap_or(BinanceError { code: -1, msg: "Unknown error".into() });
-            return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
+            let error: BinanceError = response.json().await.unwrap_or(BinanceError {
+                code: -1,
+                msg: "Unknown error".into(),
+            });
+            return Err(CryptofolioError::ExchangeApi(format!(
+                "[{}] {}",
+                error.code, error.msg
+            )));
         }
 
         Ok(response.json().await?)
     }
 
     async fn get_signed<T: serde::de::DeserializeOwned>(&self, endpoint: &str) -> Result<T> {
-        let api_key = self.api_key.as_ref()
+        let api_key = self
+            .api_key
+            .as_ref()
             .ok_or_else(|| CryptofolioError::AuthRequired("API key not configured".into()))?;
 
         let timestamp = Self::get_timestamp();
         let query = format!("timestamp={}", timestamp);
         let signature = self.sign(&query)?;
 
-        let url = format!("{}{}?{}&signature={}", self.base_url, endpoint, query, signature);
+        let url = format!(
+            "{}{}?{}&signature={}",
+            self.base_url, endpoint, query, signature
+        );
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("X-MBX-APIKEY", api_key)
             .send()
@@ -115,9 +126,14 @@ impl BinanceClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error: BinanceError = response.json().await
-                .unwrap_or(BinanceError { code: status.as_u16() as i32, msg: "Unknown error".into() });
-            return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
+            let error: BinanceError = response.json().await.unwrap_or(BinanceError {
+                code: status.as_u16() as i32,
+                msg: "Unknown error".into(),
+            });
+            return Err(CryptofolioError::ExchangeApi(format!(
+                "[{}] {}",
+                error.code, error.msg
+            )));
         }
 
         // Read response text first so we can log it if parsing fails
@@ -127,10 +143,15 @@ impl BinanceClient {
             Ok(data) => Ok(data),
             Err(e) => {
                 // Log the raw response to help debug API changes
-                eprintln!("[ERROR] Failed to parse Binance API response from {}", endpoint);
+                eprintln!(
+                    "[ERROR] Failed to parse Binance API response from {}",
+                    endpoint
+                );
                 eprintln!("[ERROR] Parse error: {}", e);
-                eprintln!("[ERROR] Raw response (first 500 chars): {}",
-                    &response_text.chars().take(500).collect::<String>());
+                eprintln!(
+                    "[ERROR] Raw response (first 500 chars): {}",
+                    &response_text.chars().take(500).collect::<String>()
+                );
 
                 Err(CryptofolioError::ExchangeApi(format!(
                     "Failed to parse API response from {}: error decoding response body",
@@ -147,23 +168,26 @@ impl BinanceClient {
         endpoint: &str,
         params: &[(&str, String)],
     ) -> Result<T> {
-        let api_key = self.api_key.as_ref()
+        let api_key = self
+            .api_key
+            .as_ref()
             .ok_or_else(|| CryptofolioError::AuthRequired("API key not configured".into()))?;
 
         let timestamp = Self::get_timestamp();
 
         // Build query string: extra params + timestamp
-        let mut parts: Vec<String> = params
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect();
+        let mut parts: Vec<String> = params.iter().map(|(k, v)| format!("{}={}", k, v)).collect();
         parts.push(format!("timestamp={}", timestamp));
         let query = parts.join("&");
 
         let signature = self.sign(&query)?;
-        let url = format!("{}{}?{}&signature={}", self.base_url, endpoint, query, signature);
+        let url = format!(
+            "{}{}?{}&signature={}",
+            self.base_url, endpoint, query, signature
+        );
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("X-MBX-APIKEY", api_key)
             .send()
@@ -171,9 +195,14 @@ impl BinanceClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let error: BinanceError = response.json().await
-                .unwrap_or(BinanceError { code: status.as_u16() as i32, msg: "Unknown error".into() });
-            return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
+            let error: BinanceError = response.json().await.unwrap_or(BinanceError {
+                code: status.as_u16() as i32,
+                msg: "Unknown error".into(),
+            });
+            return Err(CryptofolioError::ExchangeApi(format!(
+                "[{}] {}",
+                error.code, error.msg
+            )));
         }
 
         // Read response text first so we can log it if parsing fails
@@ -184,10 +213,15 @@ impl BinanceClient {
             Ok(data) => Ok(data),
             Err(e) => {
                 // Log the raw response to help debug API changes
-                eprintln!("[ERROR] Failed to parse Binance API response from {}", endpoint);
+                eprintln!(
+                    "[ERROR] Failed to parse Binance API response from {}",
+                    endpoint
+                );
                 eprintln!("[ERROR] Parse error: {}", e);
-                eprintln!("[ERROR] Raw response (first 500 chars): {}",
-                    &response_text.chars().take(500).collect::<String>());
+                eprintln!(
+                    "[ERROR] Raw response (first 500 chars): {}",
+                    &response_text.chars().take(500).collect::<String>()
+                );
 
                 Err(CryptofolioError::ExchangeApi(format!(
                     "Failed to parse API response from {}: error decoding response body. The API response format may have changed.",
@@ -315,7 +349,8 @@ impl BinanceClient {
             params.push(("limit", l.min(1000).to_string()));
         }
 
-        self.get_signed_with_params(WITHDRAWAL_HISTORY, &params).await
+        self.get_signed_with_params(WITHDRAWAL_HISTORY, &params)
+            .await
     }
 
     /// Fetch fiat purchase/sell history (e.g. credit card → USDT).
@@ -346,7 +381,8 @@ impl BinanceClient {
             params.push(("rows", r.min(500).to_string()));
         }
 
-        self.get_signed_with_params(FIAT_DEPOSIT_HISTORY, &params).await
+        self.get_signed_with_params(FIAT_DEPOSIT_HISTORY, &params)
+            .await
     }
 
     /// Fetch internal transfer history (e.g. Spot ↔ Earn, bots, etc.).
@@ -377,7 +413,8 @@ impl BinanceClient {
             params.push(("size", s.min(100).to_string()));
         }
 
-        self.get_signed_with_params(UNIVERSAL_TRANSFER_HISTORY, &params).await
+        self.get_signed_with_params(UNIVERSAL_TRANSFER_HISTORY, &params)
+            .await
     }
 
     /// Fetch info for all coins (networks, deposit/withdrawal status).
@@ -418,10 +455,9 @@ impl Exchange for BinanceClient {
     async fn get_price(&self, symbol: &str) -> Result<PriceData> {
         let normalized = self.normalize_symbol(symbol);
 
-        let response: BinancePriceResponse = self.get_public_with_params(
-            TICKER_PRICE,
-            &[("symbol", &normalized)],
-        ).await?;
+        let response: BinancePriceResponse = self
+            .get_public_with_params(TICKER_PRICE, &[("symbol", &normalized)])
+            .await?;
 
         Ok(PriceData {
             symbol: self.extract_base_asset(&response.symbol),
@@ -437,10 +473,8 @@ impl Exchange for BinanceClient {
         // Fetch all prices and filter
         let all_prices: Vec<BinancePriceResponse> = self.get_public(TICKER_PRICE).await?;
 
-        let normalized_symbols: Vec<String> = symbols
-            .iter()
-            .map(|s| self.normalize_symbol(s))
-            .collect();
+        let normalized_symbols: Vec<String> =
+            symbols.iter().map(|s| self.normalize_symbol(s)).collect();
 
         let filtered: Vec<PriceData> = all_prices
             .into_iter()
@@ -457,10 +491,9 @@ impl Exchange for BinanceClient {
     async fn get_ticker_24h(&self, symbol: &str) -> Result<Ticker24h> {
         let normalized = self.normalize_symbol(symbol);
 
-        let response: BinanceTicker24hResponse = self.get_public_with_params(
-            TICKER_24H,
-            &[("symbol", &normalized)],
-        ).await?;
+        let response: BinanceTicker24hResponse = self
+            .get_public_with_params(TICKER_24H, &[("symbol", &normalized)])
+            .await?;
 
         Ok(Ticker24h {
             symbol: self.extract_base_asset(&response.symbol),
@@ -501,9 +534,12 @@ impl Exchange for BinanceClient {
     async fn get_balances(&self) -> Result<Vec<AccountBalance>> {
         let response: BinanceAccountResponse = self.get_signed(ACCOUNT).await?;
 
-        let balances: Vec<AccountBalance> = response.balances
+        let balances: Vec<AccountBalance> = response
+            .balances
             .into_iter()
-            .filter(|b| b.free > rust_decimal::Decimal::ZERO || b.locked > rust_decimal::Decimal::ZERO)
+            .filter(|b| {
+                b.free > rust_decimal::Decimal::ZERO || b.locked > rust_decimal::Decimal::ZERO
+            })
             .map(|b| AccountBalance {
                 asset: b.asset,
                 free: b.free,

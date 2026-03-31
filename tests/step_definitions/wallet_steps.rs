@@ -1,5 +1,5 @@
-use cucumber::{given, then};
 use crate::support::world::CryptofolioWorld;
+use cucumber::{given, then};
 
 /// Wallet-specific step definitions
 
@@ -7,7 +7,10 @@ use crate::support::world::CryptofolioWorld;
 async fn mock_bitcoin_balance(world: &mut CryptofolioWorld, balance: f64) {
     // Setup blockchain mock if not already done
     if world.blockchain_mock.is_none() {
-        world.setup_blockchain_mock().await.expect("Failed to setup blockchain mock");
+        world
+            .setup_blockchain_mock()
+            .await
+            .expect("Failed to setup blockchain mock");
     }
 
     // Mock the address info for the test wallet
@@ -20,9 +23,9 @@ async fn mock_bitcoin_balance(world: &mut CryptofolioWorld, balance: f64) {
 
 #[given(expr = "I have added a Bitcoin wallet {string}")]
 async fn add_bitcoin_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
-    use cryptofolio::db::accounts::AccountRepository;
-    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
     use chrono::Utc;
+    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
+    use cryptofolio::db::accounts::AccountRepository;
 
     let pool = world.pool();
     let repo = AccountRepository::new(pool);
@@ -38,7 +41,9 @@ async fn add_bitcoin_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
         created_at: Utc::now(),
     };
 
-    repo.create_account(&account).await.expect("Failed to create account");
+    repo.create_account(&account)
+        .await
+        .expect("Failed to create account");
 
     // Add Bitcoin address
     repo.add_address(
@@ -46,16 +51,18 @@ async fn add_bitcoin_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
         "bitcoin",
         "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
         None,
-    ).await.expect("Failed to add address");
+    )
+    .await
+    .expect("Failed to add address");
 
     world.last_account_id = Some(wallet_name);
 }
 
 #[given(expr = "I have added an Ethereum wallet {string}")]
 async fn add_ethereum_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
-    use cryptofolio::db::accounts::AccountRepository;
-    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
     use chrono::Utc;
+    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
+    use cryptofolio::db::accounts::AccountRepository;
 
     let pool = world.pool();
     let repo = AccountRepository::new(pool);
@@ -71,7 +78,9 @@ async fn add_ethereum_wallet(world: &mut CryptofolioWorld, wallet_name: String) 
         created_at: Utc::now(),
     };
 
-    repo.create_account(&account).await.expect("Failed to create account");
+    repo.create_account(&account)
+        .await
+        .expect("Failed to create account");
 
     // Add Ethereum address
     repo.add_address(
@@ -79,16 +88,18 @@ async fn add_ethereum_wallet(world: &mut CryptofolioWorld, wallet_name: String) 
         "ethereum",
         "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
         None,
-    ).await.expect("Failed to add address");
+    )
+    .await
+    .expect("Failed to add address");
 
     world.last_account_id = Some(wallet_name);
 }
 
 #[given(expr = "I have added a Cardano wallet {string}")]
 async fn add_cardano_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
-    use cryptofolio::db::accounts::AccountRepository;
-    use cryptofolio::core::account::{Account, AccountType, AccountConfig};
     use chrono::Utc;
+    use cryptofolio::core::account::{Account, AccountConfig, AccountType};
+    use cryptofolio::db::accounts::AccountRepository;
 
     let pool = world.pool();
     let repo = AccountRepository::new(pool);
@@ -103,7 +114,9 @@ async fn add_cardano_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
         created_at: Utc::now(),
     };
 
-    repo.create_account(&account).await.expect("Failed to create account");
+    repo.create_account(&account)
+        .await
+        .expect("Failed to create account");
 
     // Add Cardano address
     repo.add_address(

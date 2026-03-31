@@ -274,13 +274,12 @@ ALTER TABLE wallet_addresses ADD COLUMN network TEXT DEFAULT 'mainnet';
 
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     // Check if migration 1 has been applied
-    let migration_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 1"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 1")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_exists.is_none() {
         // Apply migration
@@ -293,13 +292,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 2 has been applied
-    let migration_2_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 2"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_2_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 2")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_2_exists.is_none() {
         // Apply migration 2
@@ -312,13 +310,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 3 has been applied
-    let migration_3_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 3"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_3_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 3")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_3_exists.is_none() {
         // Apply migration 3
@@ -331,13 +328,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 5 has been applied
-    let migration_5_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 5"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_5_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 5")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_5_exists.is_none() {
         // Apply migration 5
@@ -350,13 +346,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 6 has been applied
-    let migration_6_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 6"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_6_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 6")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_6_exists.is_none() {
         // Apply migration 6
@@ -369,13 +364,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 7 has been applied
-    let migration_7_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 7"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_7_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 7")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_7_exists.is_none() {
         // Apply migration 7
@@ -388,13 +382,12 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
     }
 
     // Check if migration 8 has been applied
-    let migration_8_exists: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM _migrations WHERE id = 8"
-    )
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let migration_8_exists: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM _migrations WHERE id = 8")
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     if migration_8_exists.is_none() {
         // Apply migration 8

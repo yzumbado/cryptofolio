@@ -36,12 +36,14 @@ pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<Currency>> {
             decimals: row.decimals as u8,
             asset_type: AssetType::from_str(&row.asset_type).unwrap_or(AssetType::Crypto),
             enabled: row.enabled,
-            created_at: row.created_at
+            created_at: row
+                .created_at
                 .as_deref()
                 .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(Utc::now),
-            updated_at: row.updated_at
+            updated_at: row
+                .updated_at
                 .as_deref()
                 .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.with_timezone(&Utc))
@@ -76,12 +78,14 @@ pub async fn get_currency(pool: &SqlitePool, code: &str) -> Result<Option<Curren
         decimals: row.decimals as u8,
         asset_type: AssetType::from_str(&row.asset_type).unwrap_or(AssetType::Crypto),
         enabled: row.enabled,
-        created_at: row.created_at
+        created_at: row
+            .created_at
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(Utc::now),
-        updated_at: row.updated_at
+        updated_at: row
+            .updated_at
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
@@ -235,7 +239,8 @@ pub async fn get_latest_exchange_rate(
             .unwrap_or_else(|_| Utc::now()),
         source: row.source.unwrap_or_else(|| "manual".to_string()),
         notes: row.notes,
-        created_at: row.created_at
+        created_at: row
+            .created_at
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
@@ -281,7 +286,8 @@ pub async fn get_exchange_rate_at_time(
             .unwrap_or_else(|_| Utc::now()),
         source: row.source.unwrap_or_else(|| "manual".to_string()),
         notes: row.notes,
-        created_at: row.created_at
+        created_at: row
+            .created_at
             .as_deref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
             .map(|dt| dt.with_timezone(&Utc))
@@ -324,7 +330,8 @@ pub async fn list_exchange_rates(
                 .unwrap_or_else(|_| Utc::now()),
             source: row.source.unwrap_or_else(|| "manual".to_string()),
             notes: row.notes,
-            created_at: row.created_at
+            created_at: row
+                .created_at
                 .as_deref()
                 .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
                 .map(|dt| dt.with_timezone(&Utc))
@@ -372,9 +379,15 @@ mod tests {
         let currencies = list_currencies(&pool).await?;
 
         // Should be ordered: fiat, stablecoin, crypto
-        let first_fiat_idx = currencies.iter().position(|c| c.asset_type == AssetType::Fiat);
-        let first_stable_idx = currencies.iter().position(|c| c.asset_type == AssetType::Stablecoin);
-        let first_crypto_idx = currencies.iter().position(|c| c.asset_type == AssetType::Crypto);
+        let first_fiat_idx = currencies
+            .iter()
+            .position(|c| c.asset_type == AssetType::Fiat);
+        let first_stable_idx = currencies
+            .iter()
+            .position(|c| c.asset_type == AssetType::Stablecoin);
+        let first_crypto_idx = currencies
+            .iter()
+            .position(|c| c.asset_type == AssetType::Crypto);
 
         assert!(first_fiat_idx.is_some());
         assert!(first_stable_idx.is_some());
@@ -571,7 +584,9 @@ mod tests {
         add_exchange_rate(&pool, &rate2).await?;
 
         // Get latest (should be rate2)
-        let latest = get_latest_exchange_rate(&pool, "CRC", "USD").await?.unwrap();
+        let latest = get_latest_exchange_rate(&pool, "CRC", "USD")
+            .await?
+            .unwrap();
         assert_eq!(latest.rate, Decimal::from_str("0.0020").unwrap());
 
         Ok(())
@@ -611,12 +626,16 @@ mod tests {
 
         // Get rate at Jan 2 (should return Jan 1 rate, closest before)
         let query_time = Utc.with_ymd_and_hms(2024, 1, 2, 12, 0, 0).unwrap();
-        let rate = get_exchange_rate_at_time(&pool, "CRC", "USD", query_time).await?.unwrap();
+        let rate = get_exchange_rate_at_time(&pool, "CRC", "USD", query_time)
+            .await?
+            .unwrap();
         assert_eq!(rate.rate, Decimal::from_str("0.0019").unwrap());
 
         // Get rate at Jan 4 (should return Jan 3 rate)
         let query_time = Utc.with_ymd_and_hms(2024, 1, 4, 12, 0, 0).unwrap();
-        let rate = get_exchange_rate_at_time(&pool, "CRC", "USD", query_time).await?.unwrap();
+        let rate = get_exchange_rate_at_time(&pool, "CRC", "USD", query_time)
+            .await?
+            .unwrap();
         assert_eq!(rate.rate, Decimal::from_str("0.0020").unwrap());
 
         Ok(())

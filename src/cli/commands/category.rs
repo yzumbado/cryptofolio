@@ -1,11 +1,15 @@
 use sqlx::SqlitePool;
 
-use crate::cli::{CategoryCommands, GlobalOptions};
 use crate::cli::output::{print_header, print_row, success};
+use crate::cli::{CategoryCommands, GlobalOptions};
 use crate::db::AccountRepository;
 use crate::error::Result;
 
-pub async fn handle_category_command(command: CategoryCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_category_command(
+    command: CategoryCommands,
+    pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let _ = opts; // Will be used for JSON output
     let repo = AccountRepository::new(pool);
 
@@ -21,10 +25,7 @@ pub async fn handle_category_command(command: CategoryCommands, pool: &SqlitePoo
             print_header(&[("ID", 15), ("Name", 20)]);
 
             for category in categories {
-                print_row(&[
-                    (&category.id, 15),
-                    (&category.name, 20),
-                ]);
+                print_row(&[(&category.id, 15), (&category.name, 20)]);
             }
         }
 
@@ -36,7 +37,10 @@ pub async fn handle_category_command(command: CategoryCommands, pool: &SqlitePoo
 
         CategoryCommands::Rename { old_name, new_name } => {
             repo.rename_category(&old_name, &new_name).await?;
-            success(&format!("Category renamed from '{}' to '{}'", old_name, new_name));
+            success(&format!(
+                "Category renamed from '{}' to '{}'",
+                old_name, new_name
+            ));
         }
 
         CategoryCommands::Remove { name, yes } => {

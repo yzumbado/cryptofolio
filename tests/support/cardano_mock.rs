@@ -1,6 +1,6 @@
-use wiremock::{Mock, MockServer, ResponseTemplate};
-use wiremock::matchers::{method, path};
 use serde_json::json;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Mock Blockfrost/Cardano API server for testing
 pub struct CardanoMock {
@@ -42,12 +42,10 @@ impl CardanoMock {
 
     /// Mock native token balance list for an address
     pub async fn mock_tokens(&self, address: &str, tokens: &[(&str, &str, u8)]) {
-        let mut amount_list = vec![
-            json!({
-                "unit": "lovelace",
-                "quantity": "100000000"  // 100 ADA
-            })
-        ];
+        let mut amount_list = vec![json!({
+            "unit": "lovelace",
+            "quantity": "100000000"  // 100 ADA
+        })];
 
         for (idx, (symbol, quantity, _decimals)) in tokens.iter().enumerate() {
             // Generate fake policy ID + asset name
@@ -164,7 +162,9 @@ impl CardanoMock {
 
         // Mock pool info endpoint
         Mock::given(method("GET"))
-            .and(path("/api/v0/pools/pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"))
+            .and(path(
+                "/api/v0/pools/pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "pool_id": "pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
                 "hex": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -190,7 +190,9 @@ impl CardanoMock {
 
         // Mock pool metadata endpoint
         Mock::given(method("GET"))
-            .and(path("/api/v0/pools/pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq/metadata"))
+            .and(path(
+                "/api/v0/pools/pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq/metadata",
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "pool_id": "pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
                 "hex": "0000000000000000000000000000000000000000000000000000000000000000",

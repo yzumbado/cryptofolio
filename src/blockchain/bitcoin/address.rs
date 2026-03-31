@@ -5,15 +5,14 @@
 /// - P2SH: starts with '3'
 /// - Bech32 (SegWit): starts with 'bc1'
 /// - Testnet: starts with 'm', 'n', '2', or 'tb1'
-
 use crate::error::{CryptofolioError, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressType {
-    P2PKH,      // Legacy (1...)
-    P2SH,       // Script hash (3...)
-    Bech32,     // Native SegWit (bc1...)
-    Testnet,    // Testnet addresses
+    P2PKH,   // Legacy (1...)
+    P2SH,    // Script hash (3...)
+    Bech32,  // Native SegWit (bc1...)
+    Testnet, // Testnet addresses
 }
 
 /// Validate a Bitcoin address (mainnet or testnet)
@@ -48,7 +47,12 @@ pub fn validate_address(address: &str) -> Result<AddressType> {
 
     // Validate character set
     match addr_type {
-        AddressType::Bech32 | AddressType::Testnet if address.starts_with("bc1") || address.starts_with("BC1") || address.starts_with("tb1") || address.starts_with("TB1") => {
+        AddressType::Bech32 | AddressType::Testnet
+            if address.starts_with("bc1")
+                || address.starts_with("BC1")
+                || address.starts_with("tb1")
+                || address.starts_with("TB1") =>
+        {
             // Bech32 validation - alphanumeric excluding 'b', 'i', 'o' (except in prefix)
             // Bech32 charset: qpzry9x8gf2tvdw0s3jn54khce6mua7l
             let lower = address.to_lowercase();
@@ -61,9 +65,10 @@ pub fn validate_address(address: &str) -> Result<AddressType> {
         }
         _ => {
             // Base58 validation - alphanumeric excluding '0', 'O', 'I', 'l'
-            if !address.chars().all(|c| {
-                c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l'
-            }) {
+            if !address
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l')
+            {
                 return Err(CryptofolioError::Other(
                     "Invalid Bitcoin address: invalid base58 characters".to_string(),
                 ));
@@ -91,7 +96,10 @@ pub fn validate_xpub(xpub: &str) -> Result<()> {
 
     // Check prefix
     let valid_prefixes = ["xpub", "ypub", "zpub", "tpub", "upub", "vpub"];
-    if !valid_prefixes.iter().any(|&prefix| xpub.starts_with(prefix)) {
+    if !valid_prefixes
+        .iter()
+        .any(|&prefix| xpub.starts_with(prefix))
+    {
         return Err(CryptofolioError::Other(
             "Invalid xpub: must start with xpub, ypub, zpub, tpub, upub, or vpub".to_string(),
         ));
@@ -105,9 +113,10 @@ pub fn validate_xpub(xpub: &str) -> Result<()> {
     }
 
     // Validate base58 characters
-    if !xpub.chars().all(|c| {
-        c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l'
-    }) {
+    if !xpub
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() && c != '0' && c != 'O' && c != 'I' && c != 'l')
+    {
         return Err(CryptofolioError::Other(
             "Invalid xpub: invalid base58 characters".to_string(),
         ));

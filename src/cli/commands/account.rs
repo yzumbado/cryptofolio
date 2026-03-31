@@ -4,8 +4,8 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
-use crate::cli::{AccountCommands, AccountTypeArg, AddressCommands, GlobalOptions};
 use crate::cli::output::{print_header, print_kv, print_row, success, suggest_next};
+use crate::cli::{AccountCommands, AccountTypeArg, AddressCommands, GlobalOptions};
 use crate::core::account::{Account, AccountConfig, AccountType};
 use crate::db::AccountRepository;
 use crate::error::{CryptofolioError, Result};
@@ -37,7 +37,11 @@ struct AddressOutput {
     label: Option<String>,
 }
 
-pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_account_command(
+    command: AccountCommands,
+    pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let _ = opts; // Will be used for JSON output
     let repo = AccountRepository::new(pool);
 
@@ -49,7 +53,9 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
                 if opts.json {
                     println!("[]");
                 } else {
-                    println!("No accounts configured. Use 'cryptofolio account add' to create one.");
+                    println!(
+                        "No accounts configured. Use 'cryptofolio account add' to create one."
+                    );
                 }
                 return Ok(());
             }
@@ -68,7 +74,10 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
                         is_testnet: account.config.is_testnet,
                     });
                 }
-                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
             } else {
                 print_header(&[("Name", 20), ("Type", 18), ("Category", 15), ("Sync", 6)]);
 
@@ -115,8 +124,7 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
             };
 
             // Find or validate category
-            let cat = repo.get_category(&category).await?
-                .or_else(|| None);
+            let cat = repo.get_category(&category).await?.or_else(|| None);
 
             let category_id = if let Some(c) = cat {
                 c.id
@@ -145,7 +153,10 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
             repo.create_account(&account).await?;
 
             let testnet_note = if testnet { " (testnet)" } else { "" };
-            success(&format!("Account '{}'{} created successfully", name, testnet_note));
+            success(&format!(
+                "Account '{}'{} created successfully",
+                name, testnet_note
+            ));
 
             // Suggest next steps
             if !opts.quiet {
@@ -178,7 +189,9 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
         }
 
         AccountCommands::Show { name } => {
-            let account = repo.get_account(&name).await?
+            let account = repo
+                .get_account(&name)
+                .await?
                 .ok_or_else(|| CryptofolioError::AccountNotFound(name.clone()))?;
 
             let category = repo.get_category(&account.category_id).await?;
@@ -192,23 +205,45 @@ pub async fn handle_account_command(command: AccountCommands, pool: &SqlitePool,
                     is_testnet: account.config.is_testnet,
                     sync_enabled: account.sync_enabled,
                     created_at: account.created_at.to_rfc3339(),
-                    addresses: addresses.iter().map(|a| AddressOutput {
-                        blockchain: a.blockchain.clone(),
-                        address: a.address.clone(),
-                        label: a.label.clone(),
-                    }).collect(),
+                    addresses: addresses
+                        .iter()
+                        .map(|a| AddressOutput {
+                            blockchain: a.blockchain.clone(),
+                            address: a.address.clone(),
+                            label: a.label.clone(),
+                        })
+                        .collect(),
                 };
-                println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&output).unwrap_or_default()
+                );
             } else {
                 println!();
                 println!("{}", account.name.bold());
                 println!();
 
                 print_kv("Type", account.account_type.display_name());
-                print_kv("Category", &category.map(|c| c.name).unwrap_or_else(|| "-".to_string()));
-                print_kv("Testnet", if account.config.is_testnet { "Yes" } else { "No" });
-                print_kv("Sync Enabled", if account.sync_enabled { "Yes" } else { "No" });
-                print_kv("Created", &account.created_at.format("%Y-%m-%d %H:%M").to_string());
+                print_kv(
+                    "Category",
+                    &category.map(|c| c.name).unwrap_or_else(|| "-".to_string()),
+                );
+                print_kv(
+                    "Testnet",
+                    if account.config.is_testnet {
+                        "Yes"
+                    } else {
+                        "No"
+                    },
+                );
+                print_kv(
+                    "Sync Enabled",
+                    if account.sync_enabled { "Yes" } else { "No" },
+                );
+                print_kv(
+                    "Created",
+                    &account.created_at.format("%Y-%m-%d %H:%M").to_string(),
+                );
 
                 if !addresses.is_empty() {
                     println!();
@@ -241,15 +276,20 @@ async fn handle_address_command(command: AddressCommands, pool: &SqlitePool) -> 
             address,
             label,
         } => {
-            let acc = repo.get_account(&account).await?
+            let acc = repo
+                .get_account(&account)
+                .await?
                 .ok_or_else(|| CryptofolioError::AccountNotFound(account.clone()))?;
 
-            repo.add_address(&acc.id, &blockchain, &address, label.as_deref()).await?;
+            repo.add_address(&acc.id, &blockchain, &address, label.as_deref())
+                .await?;
             success(&format!("Address added to '{}'", account));
         }
 
         AddressCommands::List { account } => {
-            let acc = repo.get_account(&account).await?
+            let acc = repo
+                .get_account(&account)
+                .await?
                 .ok_or_else(|| CryptofolioError::AccountNotFound(account.clone()))?;
 
             let addresses = repo.list_addresses(&acc.id).await?;
@@ -271,7 +311,9 @@ async fn handle_address_command(command: AddressCommands, pool: &SqlitePool) -> 
         }
 
         AddressCommands::Remove { account, address } => {
-            let acc = repo.get_account(&account).await?
+            let acc = repo
+                .get_account(&account)
+                .await?
                 .ok_or_else(|| CryptofolioError::AccountNotFound(account.clone()))?;
 
             repo.remove_address(&acc.id, &address).await?;

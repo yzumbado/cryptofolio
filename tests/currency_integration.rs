@@ -1,9 +1,9 @@
+use chrono::Utc;
 use cryptofolio::core::currency::{AssetType, Currency, ExchangeRate};
 use cryptofolio::db::currencies;
 use cryptofolio::error::Result;
 use rust_decimal::Decimal;
 use std::str::FromStr;
-use chrono::Utc;
 
 mod common;
 
@@ -242,7 +242,8 @@ async fn test_get_exchange_rate_at_time() -> Result<()> {
 
     // Get rate at 90 minutes ago (should return the 2-hour-old rate)
     let ninety_minutes_ago = now - chrono::Duration::minutes(90);
-    let historical = currencies::get_exchange_rate_at_time(&pool, "CRC", "USD", ninety_minutes_ago).await?;
+    let historical =
+        currencies::get_exchange_rate_at_time(&pool, "CRC", "USD", ninety_minutes_ago).await?;
 
     assert!(historical.is_some());
     let historical = historical.unwrap();
@@ -250,7 +251,8 @@ async fn test_get_exchange_rate_at_time() -> Result<()> {
 
     // Get rate at 30 minutes ago (should return the 1-hour-old rate)
     let thirty_minutes_ago = now - chrono::Duration::minutes(30);
-    let recent = currencies::get_exchange_rate_at_time(&pool, "CRC", "USD", thirty_minutes_ago).await?;
+    let recent =
+        currencies::get_exchange_rate_at_time(&pool, "CRC", "USD", thirty_minutes_ago).await?;
 
     assert!(recent.is_some());
     let recent = recent.unwrap();

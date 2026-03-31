@@ -1,5 +1,5 @@
-use cucumber::given;
 use crate::support::world::CryptofolioWorld;
+use cucumber::given;
 
 /// Binance-specific step definitions
 ///
@@ -19,7 +19,9 @@ use crate::support::world::CryptofolioWorld;
 async fn configure_binance_credentials(world: &mut CryptofolioWorld) {
     // TODO: Set up mock Binance credentials in test config
     // For now, this is a placeholder that passes
-    world.last_output.push_str("[PLACEHOLDER] Binance credentials configured\n");
+    world
+        .last_output
+        .push_str("[PLACEHOLDER] Binance credentials configured\n");
 }
 
 #[given(expr = "the Binance API shows {int} trades for BTCUSDT")]

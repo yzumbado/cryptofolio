@@ -15,25 +15,31 @@ pub fn validate_address(address: &str) -> Result<()> {
         "stake_test1", // Testnet stake address
     ];
 
-    let has_valid_prefix = valid_prefixes.iter().any(|prefix| address.starts_with(prefix));
+    let has_valid_prefix = valid_prefixes
+        .iter()
+        .any(|prefix| address.starts_with(prefix));
 
     if !has_valid_prefix {
         return Err(crate::error::CryptofolioError::InvalidAddress(
-            "Invalid Cardano address: must start with addr1, addr_test1, stake1, or stake_test1".to_string()
+            "Invalid Cardano address: must start with addr1, addr_test1, stake1, or stake_test1"
+                .to_string(),
         ));
     }
 
     // Basic length check (Cardano addresses are typically 103-108 characters)
     if address.len() < 50 || address.len() > 150 {
         return Err(crate::error::CryptofolioError::InvalidAddress(
-            "Invalid Cardano address: incorrect length".to_string()
+            "Invalid Cardano address: incorrect length".to_string(),
         ));
     }
 
     // Check for valid Bech32 characters (lowercase alphanumeric, underscore for testnet prefix, no uppercase)
-    if !address.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') {
+    if !address
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    {
         return Err(crate::error::CryptofolioError::InvalidAddress(
-            "Invalid Cardano address: contains invalid characters".to_string()
+            "Invalid Cardano address: contains invalid characters".to_string(),
         ));
     }
 

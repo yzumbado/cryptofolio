@@ -8,7 +8,8 @@ use std::str::FromStr;
 
 use crate::error::{CryptofolioError, Result};
 
-const ALPHA_TOKEN_LIST_URL: &str = "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list";
+const ALPHA_TOKEN_LIST_URL: &str =
+    "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list";
 
 #[derive(Debug, Deserialize)]
 struct AlphaResponse {
@@ -42,7 +43,8 @@ impl BinanceAlphaClient {
 
     /// Fetch all Alpha tokens with their prices
     pub async fn get_all_tokens(&self) -> Result<Vec<AlphaToken>> {
-        let response = self.client
+        let response = self
+            .client
             .get(ALPHA_TOKEN_LIST_URL)
             .header("Accept-Encoding", "identity")
             .send()

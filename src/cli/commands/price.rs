@@ -14,7 +14,11 @@ struct PriceOutput {
     price: String,
 }
 
-pub async fn handle_price_command(symbols: Vec<String>, _pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+pub async fn handle_price_command(
+    symbols: Vec<String>,
+    _pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
     let config = AppConfig::load()?;
     let use_testnet = opts.testnet || config.general.use_testnet;
 
@@ -61,7 +65,10 @@ pub async fn handle_price_command(symbols: Vec<String>, _pool: &SqlitePool, opts
                 price: p.price.to_string(),
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).unwrap_or_default()
+        );
     } else if symbols.len() == 1 && prices.len() == 1 {
         // Single symbol - simple output
         let price = &prices[0];
@@ -71,10 +78,7 @@ pub async fn handle_price_command(symbols: Vec<String>, _pool: &SqlitePool, opts
         print_header(&[("Symbol", 10), ("Price", 15)]);
 
         for price in &prices {
-            print_row(&[
-                (&price.symbol, 10),
-                (&format_usd(price.price), 15),
-            ]);
+            print_row(&[(&price.symbol, 10), (&format_usd(price.price), 15)]);
         }
 
         // Show any symbols that weren't found
