@@ -70,6 +70,10 @@ async fn run_command(world: &mut CryptofolioWorld, command: String) {
             let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
             handle_wallet_command_test(world, &args, &mut output).await
         }
+        Some("sync-history") => {
+            let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
+            handle_sync_history_command_test(world, &args, &mut output).await
+        }
         Some(cmd) => {
             world.last_output = format!("Unknown command: {}", cmd);
             world.last_exit_code = 1;
@@ -502,4 +506,89 @@ fn output_not_contains(world: &mut CryptofolioWorld, unexpected: String) {
         unexpected,
         world.last_output
     );
+}
+
+async fn handle_sync_history_command_test(
+    world: &mut CryptofolioWorld,
+    args: &[&str],
+    output: &mut Vec<u8>,
+) -> anyhow::Result<()> {
+    use cryptofolio::cli::commands::sync::handle_sync_history_command;
+    use std::io::Write;
+
+    let pool = world.pool();
+    let opts = cryptofolio::cli::GlobalOptions {
+        no_color: false,
+        testnet: false,
+        json: false,
+        quiet: false,
+        verbose: false,
+    };
+
+    // Parse flags from args
+    let mut account = String::new();
+    let mut symbols = String::new();
+    let mut full_history = false;
+    let mut from: Option<String> = None;
+    let mut no_trades = false;
+    let mut no_deposits = false;
+    let mut no_withdrawals = false;
+    let mut no_fiat = false;
+    let mut no_transfers = false;
+    let mut dry_run = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        match args[i] {
+            "--account" => {
+                i += 1;
+                if i < args.len() {
+                    account = args[i].to_string();
+                }
+            }
+            "--symbols" => {
+                i += 1;
+                if i < args.len() {
+                    symbols = args[i].to_string();
+                }
+            }
+            "--from" => {
+                i += 1;
+                if i < args.len() {
+                    from = Some(args[i].to_string());
+                }
+            }
+            "--full-history" => full_history = true,
+            "--no-trades" => no_trades = true,
+            "--no-deposits" => no_deposits = true,
+            "--no-withdrawals" => no_withdrawals = true,
+            "--no-fiat" => no_fiat = true,
+            "--no-transfers" => no_transfers = true,
+            "--dry-run" => dry_run = true,
+            _ => {}
+        }
+        i += 1;
+    }
+
+    let result = handle_sync_history_command(
+        account,
+        symbols,
+        full_history,
+        from,
+        no_trades,
+        no_deposits,
+        no_withdrawals,
+        no_fiat,
+        no_transfers,
+        dry_run,
+        &pool,
+        &opts,
+    )
+    .await;
+
+    if let Err(ref e) = result {
+        writeln!(output, "{}", e).ok();
+    }
+
+    result.map_err(|e| anyhow::anyhow!("{}", e))
 }

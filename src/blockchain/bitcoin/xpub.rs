@@ -54,9 +54,7 @@ pub fn derive_addresses(
             })?;
 
         let address = match addr_type {
-            XpubAddressType::Legacy => {
-                Address::p2pkh(PublicKey::new(child.public_key), network)
-            }
+            XpubAddressType::Legacy => Address::p2pkh(PublicKey::new(child.public_key), network),
             XpubAddressType::WrappedSegwit => {
                 let compressed = CompressedPublicKey(child.public_key);
                 Address::p2shwpkh(&compressed, network)
@@ -81,31 +79,31 @@ fn normalize_to_xpub(xpub_str: &str, is_testnet: bool) -> Result<(String, XpubAd
         return Ok((xpub_str.to_string(), XpubAddressType::Legacy));
     }
 
-    let (addr_type, target_version): (XpubAddressType, [u8; 4]) =
-        match &xpub_str.get(..4).unwrap_or("") {
-            &"ypub" | &"upub" => {
-                let v = if is_testnet {
-                    [0x04, 0x35, 0x87, 0xCF] // tpub
-                } else {
-                    [0x04, 0x88, 0xB2, 0x1E] // xpub
-                };
-                (XpubAddressType::WrappedSegwit, v)
-            }
-            &"zpub" | &"vpub" => {
-                let v = if is_testnet {
-                    [0x04, 0x35, 0x87, 0xCF] // tpub
-                } else {
-                    [0x04, 0x88, 0xB2, 0x1E] // xpub
-                };
-                (XpubAddressType::NativeSegwit, v)
-            }
-            _ => {
-                return Err(CryptofolioError::Other(format!(
-                    "Unsupported xpub prefix in '{}'. Expected xpub, ypub, zpub, tpub, upub, or vpub",
-                    &xpub_str[..xpub_str.len().min(8)]
-                )));
-            }
-        };
+    let prefix = xpub_str.get(..4).unwrap_or("");
+    let (addr_type, target_version): (XpubAddressType, [u8; 4]) = match prefix {
+        "ypub" | "upub" => {
+            let v = if is_testnet {
+                [0x04, 0x35, 0x87, 0xCF] // tpub
+            } else {
+                [0x04, 0x88, 0xB2, 0x1E] // xpub
+            };
+            (XpubAddressType::WrappedSegwit, v)
+        }
+        "zpub" | "vpub" => {
+            let v = if is_testnet {
+                [0x04, 0x35, 0x87, 0xCF] // tpub
+            } else {
+                [0x04, 0x88, 0xB2, 0x1E] // xpub
+            };
+            (XpubAddressType::NativeSegwit, v)
+        }
+        _ => {
+            return Err(CryptofolioError::Other(format!(
+                "Unsupported xpub prefix in '{}'. Expected xpub, ypub, zpub, tpub, upub, or vpub",
+                &xpub_str[..xpub_str.len().min(8)]
+            )));
+        }
+    };
 
     // Base58Check decode
     let mut decoded = bitcoin::base58::decode_check(xpub_str)
