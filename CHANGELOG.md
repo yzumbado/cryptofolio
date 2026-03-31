@@ -89,11 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Session caching (15-minute timeout) prevents repeated prompts
   - Cross-platform ready (easy to add Linux/Windows equivalents)
 
-### Known Issues
-- **Withdrawal Import** - Binance withdrawal history parsing currently fails with "error decoding response body"
-  - Likely API response format change from Binance
-  - Trades and deposits work correctly
-  - Fix planned for v0.4.1 with updated `BinanceWithdrawal` model
+- **Withdrawal Import** - Fixed Binance API datetime format change (`src/exchange/binance/models.rs`, `import.rs`)
+  - Updated `BinanceWithdrawal.apply_time` from `i64` to `String` (API now returns "YYYY-MM-DD HH:MM:SS")
+  - Added `parse_binance_datetime()` function for proper datetime parsing
+  - Added 6 new optional fields from updated API (transfer_type, info, confirm_no, wallet_type, tx_key, complete_time)
+  - Added API response logging on parse failures to catch future API changes early
+  - Tested with live Binance account: 17 withdrawals imported successfully
 
 ## [0.3.1] - 2026-03-01
 
