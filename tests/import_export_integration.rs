@@ -16,6 +16,7 @@ use tempfile::TempDir;
 mod common;
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct CsvRecord {
     date: String,
     #[serde(rename = "type")]

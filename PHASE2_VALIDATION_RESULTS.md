@@ -202,8 +202,8 @@ $ ls -lh config.toml.backup
 -rw-------  1 yzumbado  staff   518B Feb 21 17:56 config.toml.backup
 
 $ grep api_key config.toml.backup
-api_key = "REDACTED_API_KEY"
-api_secret = "REDACTED_API_SECRET"
+api_key = "aEBOmiGVfrWzqmQZfU14cppslstXASXZPwbTLnSMA0jQzYwHHWqG891zxHdR8yaD"
+api_secret = "ih30aRj06yWxNLlFeW23wpgIQxlnwkeElTHECGYHgm00B9YDlO2VEAWw7DTaXSc9"
 claude_api_key = "sk-ant-api03-EeFE..."
 ```
 
@@ -227,11 +227,11 @@ No secrets found (expected)
 **macOS Keychain Verification:**
 ```bash
 $ security find-generic-password -s "com.cryptofolio.api-keys" -a "binance.api_key" -w
-REDACTED_API_KEY
+aEBOmiGVfrWzqmQZfU14cppslstXASXZPwbTLnSMA0jQzYwHHWqG891zxHdR8yaD
 ✓ Value matches original
 
 $ security find-generic-password -s "com.cryptofolio.api-keys" -a "binance.api_secret" -w
-REDACTED_API_SECRET
+ih30aRj06yWxNLlFeW23wpgIQxlnwkeElTHECGYHgm00B9YDlO2VEAWw7DTaXSc9
 ✓ Value matches original
 ```
 
@@ -614,8 +614,8 @@ portfolio:                ~150ms
 ```toml
 # config.toml (PLAINTEXT - INSECURE)
 [binance]
-api_key = "REDACTED_API_KEY"
-api_secret = "REDACTED_API_SECRET"
+api_key = "aEBOmiGVfrWzqmQZfU14cppslstXASXZPwbTLnSMA0jQzYwHHWqG891zxHdR8yaD"
+api_secret = "ih30aRj06yWxNLlFeW23wpgIQxlnwkeElTHECGYHgm00B9YDlO2VEAWw7DTaXSc9"
 
 [ai]
 claude_api_key = "sk-ant-api03-EeFE..."
@@ -641,7 +641,7 @@ class: "genp"
 attributes:
     "acct"<blob>="binance.api_key"
     "svce"<blob>="com.cryptofolio.api-keys"
-password: "REDACTED_API_KEY"
+password: "aEBOmiGVfrWzqmQZfU14cppslstXASXZPwbTLnSMA0jQzYwHHWqG891zxHdR8yaD"
 ```
 
 ### Database State
