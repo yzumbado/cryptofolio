@@ -21,8 +21,9 @@ impl<'a> TransactionRepository<'a> {
         let rows = sqlx::query_as::<_, TransactionRow>(
             r#"
             SELECT id, tx_type, from_account_id, from_asset, from_quantity,
-                   to_account_id, to_asset, to_quantity, price_usd, fee, fee_asset,
-                   external_id, notes, timestamp, created_at
+                   to_account_id, to_asset, to_quantity, price_usd,
+                   price_currency, price_amount, exchange_rate, exchange_rate_pair,
+                   fee, fee_asset, external_id, notes, timestamp, created_at
             FROM transactions
             ORDER BY timestamp DESC
             LIMIT ?
@@ -47,8 +48,9 @@ impl<'a> TransactionRepository<'a> {
         let rows = sqlx::query_as::<_, TransactionRow>(
             r#"
             SELECT id, tx_type, from_account_id, from_asset, from_quantity,
-                   to_account_id, to_asset, to_quantity, price_usd, fee, fee_asset,
-                   external_id, notes, timestamp, created_at
+                   to_account_id, to_asset, to_quantity, price_usd,
+                   price_currency, price_amount, exchange_rate, exchange_rate_pair,
+                   fee, fee_asset, external_id, notes, timestamp, created_at
             FROM transactions
             WHERE from_account_id = ? OR to_account_id = ?
             ORDER BY timestamp DESC
@@ -71,9 +73,10 @@ impl<'a> TransactionRepository<'a> {
             r#"
             INSERT INTO transactions (
                 tx_type, from_account_id, from_asset, from_quantity,
-                to_account_id, to_asset, to_quantity, price_usd, fee, fee_asset,
-                external_id, notes, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                to_account_id, to_asset, to_quantity, price_usd,
+                price_currency, price_amount, exchange_rate, exchange_rate_pair,
+                fee, fee_asset, external_id, notes, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(tx.tx_type.as_str())
@@ -84,6 +87,10 @@ impl<'a> TransactionRepository<'a> {
         .bind(&tx.to_asset)
         .bind(tx.to_quantity.map(|d| d.to_string()))
         .bind(tx.price_usd.map(|d| d.to_string()))
+        .bind(&tx.price_currency)
+        .bind(tx.price_amount.map(|d| d.to_string()))
+        .bind(tx.exchange_rate.map(|d| d.to_string()))
+        .bind(&tx.exchange_rate_pair)
         .bind(tx.fee.map(|d| d.to_string()))
         .bind(&tx.fee_asset)
         .bind(&tx.external_id)
@@ -115,10 +122,10 @@ impl<'a> TransactionRepository<'a> {
             to_asset: row.to_asset,
             to_quantity: parse_decimal(row.to_quantity)?,
             price_usd: parse_decimal(row.price_usd)?,
-            price_currency: None,     // TODO: Load from database
-            price_amount: None,       // TODO: Load from database
-            exchange_rate: None,      // TODO: Load from database
-            exchange_rate_pair: None, // TODO: Load from database
+            price_currency: row.price_currency,
+            price_amount: parse_decimal(row.price_amount)?,
+            exchange_rate: parse_decimal(row.exchange_rate)?,
+            exchange_rate_pair: row.exchange_rate_pair,
             fee: parse_decimal(row.fee)?,
             fee_asset: row.fee_asset,
             external_id: row.external_id,
@@ -144,6 +151,10 @@ struct TransactionRow {
     to_asset: Option<String>,
     to_quantity: Option<String>,
     price_usd: Option<String>,
+    price_currency: Option<String>,
+    price_amount: Option<String>,
+    exchange_rate: Option<String>,
+    exchange_rate_pair: Option<String>,
     fee: Option<String>,
     fee_asset: Option<String>,
     external_id: Option<String>,

@@ -134,7 +134,7 @@ pub struct EtherscanConfig {
 }
 
 impl EtherscanConfig {
-    /// Get the API key, checking env var first then config file
+    /// Get the API key from config file or env var (does NOT check keychain)
     pub fn resolve_api_key(&self) -> Option<String> {
         std::env::var("ETHERSCAN_API_KEY")
             .ok()
@@ -365,6 +365,26 @@ impl AppConfig {
 
         #[cfg(not(target_os = "macos"))]
         false
+    }
+
+    /// Get Etherscan API key: env var → keychain → config file
+    pub fn get_etherscan_api_key(&self) -> Option<String> {
+        // 1. Env var takes highest priority
+        if let Ok(key) = std::env::var("ETHERSCAN_API_KEY") {
+            return Some(key);
+        }
+        // 2. Keychain (macOS)
+        #[cfg(target_os = "macos")]
+        {
+            let keychain = get_keychain();
+            if keychain.exists("etherscan.api_key") {
+                if let Ok(key) = keychain.retrieve("etherscan.api_key") {
+                    return Some(key);
+                }
+            }
+        }
+        // 3. Config file
+        self.etherscan.api_key.clone()
     }
 
     /// Get a secret value (checks keychain first, then TOML)

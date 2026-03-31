@@ -555,7 +555,7 @@ pub async fn handle_tx_command(
 
 async fn handle_export_command(
     file: String,
-    _format: String, // TODO: Support json and sql formats in Phase 1
+    format: String,
     account_filter: Option<String>,
     asset_filter: Option<String>,
     from_date: Option<String>,
@@ -635,27 +635,80 @@ async fn handle_export_command(
         return Ok(());
     }
 
-    // Convert transactions to CSV format
-    let csv_records: Vec<CsvExportRecord> =
-        transactions.iter().map(transaction_to_csv_record).collect();
-
-    // Write to CSV file
     if !opts.quiet {
         info(&format!(
-            "Exporting {} transactions to '{}'...",
-            csv_records.len(),
-            file
+            "Exporting {} transactions to '{}' (format: {})...",
+            transactions.len(),
+            file,
+            format
         ));
     }
 
-    let file_handle = File::create(&file)?;
-    let mut writer = csv::Writer::from_writer(file_handle);
-
-    for record in csv_records {
-        writer.serialize(&record)?;
+    match format.to_lowercase().as_str() {
+        "csv" => {
+            let records: Vec<CsvExportRecord> =
+                transactions.iter().map(transaction_to_csv_record).collect();
+            let file_handle = File::create(&file)?;
+            let mut writer = csv::Writer::from_writer(file_handle);
+            for record in records {
+                writer.serialize(&record)?;
+            }
+            writer.flush()?;
+        }
+        "json" => {
+            let records: Vec<CsvExportRecord> =
+                transactions.iter().map(transaction_to_csv_record).collect();
+            let json = serde_json::to_string_pretty(&records).map_err(|e| {
+                CryptofolioError::Other(format!("JSON serialization failed: {}", e))
+            })?;
+            std::fs::write(&file, json)?;
+        }
+        "sql" => {
+            use std::fmt::Write as FmtWrite;
+            let mut sql = String::new();
+            writeln!(sql, "-- Cryptofolio transaction export").unwrap();
+            writeln!(sql, "-- Generated: {}", Utc::now().format("%Y-%m-%dT%H:%M:%SZ")).unwrap();
+            writeln!(sql, "-- Total records: {}", transactions.len()).unwrap();
+            writeln!(sql).unwrap();
+            for tx in &transactions {
+                let escape = |s: &str| s.replace('\'', "''");
+                let opt_str = |o: &Option<String>| -> String {
+                    o.as_ref().map(|s| format!("'{}'", escape(s))).unwrap_or_else(|| "NULL".to_string())
+                };
+                let opt_dec = |o: Option<rust_decimal::Decimal>| -> String {
+                    o.map(|d| format!("'{}'", d)).unwrap_or_else(|| "NULL".to_string())
+                };
+                writeln!(
+                    sql,
+                    "INSERT INTO transactions (tx_type, from_account_id, from_asset, from_quantity, to_account_id, to_asset, to_quantity, price_usd, price_currency, price_amount, exchange_rate, exchange_rate_pair, fee, fee_asset, external_id, notes, timestamp) VALUES ('{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');",
+                    escape(tx.tx_type.as_str()),
+                    opt_str(&tx.from_account_id),
+                    opt_str(&tx.from_asset),
+                    opt_dec(tx.from_quantity),
+                    opt_str(&tx.to_account_id),
+                    opt_str(&tx.to_asset),
+                    opt_dec(tx.to_quantity),
+                    opt_dec(tx.price_usd),
+                    opt_str(&tx.price_currency),
+                    opt_dec(tx.price_amount),
+                    opt_dec(tx.exchange_rate),
+                    opt_str(&tx.exchange_rate_pair),
+                    opt_dec(tx.fee),
+                    opt_str(&tx.fee_asset),
+                    opt_str(&tx.external_id),
+                    opt_str(&tx.notes),
+                    tx.timestamp.format("%Y-%m-%dT%H:%M:%SZ"),
+                ).unwrap();
+            }
+            std::fs::write(&file, sql)?;
+        }
+        other => {
+            return Err(CryptofolioError::Other(format!(
+                "Unknown export format '{}'. Supported: csv, json, sql",
+                other
+            )));
+        }
     }
-
-    writer.flush()?;
 
     success(&format!(
         "Exported {} transactions to '{}'",

@@ -16,8 +16,8 @@ impl<'a> HoldingRepository<'a> {
     }
 
     pub async fn list_all(&self) -> Result<Vec<Holding>> {
-        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, String)>(
-            "SELECT id, account_id, asset, quantity, avg_cost_basis, updated_at FROM holdings ORDER BY asset"
+        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, Option<String>, Option<String>, String)>(
+            "SELECT id, account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at FROM holdings ORDER BY asset"
         )
         .fetch_all(self.pool)
         .await?;
@@ -26,8 +26,8 @@ impl<'a> HoldingRepository<'a> {
     }
 
     pub async fn list_by_account(&self, account_id: &str) -> Result<Vec<Holding>> {
-        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, String)>(
-            "SELECT id, account_id, asset, quantity, avg_cost_basis, updated_at FROM holdings WHERE account_id = ? ORDER BY asset"
+        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, Option<String>, Option<String>, String)>(
+            "SELECT id, account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at FROM holdings WHERE account_id = ? ORDER BY asset"
         )
         .bind(account_id)
         .fetch_all(self.pool)
@@ -37,8 +37,8 @@ impl<'a> HoldingRepository<'a> {
     }
 
     pub async fn get(&self, account_id: &str, asset: &str) -> Result<Option<Holding>> {
-        let row = sqlx::query_as::<_, (i64, String, String, String, Option<String>, String)>(
-            "SELECT id, account_id, asset, quantity, avg_cost_basis, updated_at FROM holdings WHERE account_id = ? AND UPPER(asset) = UPPER(?)"
+        let row = sqlx::query_as::<_, (i64, String, String, String, Option<String>, Option<String>, Option<String>, String)>(
+            "SELECT id, account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at FROM holdings WHERE account_id = ? AND UPPER(asset) = UPPER(?)"
         )
         .bind(account_id)
         .bind(asset)
@@ -54,14 +54,17 @@ impl<'a> HoldingRepository<'a> {
     pub async fn upsert(&self, holding: &Holding) -> Result<()> {
         let quantity_str = holding.quantity.to_string();
         let cost_basis_str = holding.avg_cost_basis.map(|d| d.to_string());
+        let cost_basis_base_str = holding.avg_cost_basis_base.map(|d| d.to_string());
 
         sqlx::query(
             r#"
-            INSERT INTO holdings (account_id, asset, quantity, avg_cost_basis, updated_at)
-            VALUES (?, UPPER(?), ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO holdings (account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at)
+            VALUES (?, UPPER(?), ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(account_id, asset) DO UPDATE SET
                 quantity = excluded.quantity,
                 avg_cost_basis = excluded.avg_cost_basis,
+                cost_basis_currency = excluded.cost_basis_currency,
+                avg_cost_basis_base = excluded.avg_cost_basis_base,
                 updated_at = CURRENT_TIMESTAMP
             "#,
         )
@@ -69,6 +72,8 @@ impl<'a> HoldingRepository<'a> {
         .bind(&holding.asset)
         .bind(&quantity_str)
         .bind(&cost_basis_str)
+        .bind(&holding.cost_basis_currency)
+        .bind(&cost_basis_base_str)
         .execute(self.pool)
         .await?;
 
@@ -193,18 +198,20 @@ impl<'a> HoldingRepository<'a> {
 
     fn parse_holdings(
         &self,
-        rows: Vec<(i64, String, String, String, Option<String>, String)>,
+        rows: Vec<(i64, String, String, String, Option<String>, Option<String>, Option<String>, String)>,
     ) -> Result<Vec<Holding>> {
         rows.into_iter().map(|r| self.parse_holding(r)).collect()
     }
 
     fn parse_holding(
         &self,
-        (id, account_id, asset, quantity, avg_cost_basis, updated_at): (
+        (id, account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at): (
             i64,
             String,
             String,
             String,
+            Option<String>,
+            Option<String>,
             Option<String>,
             String,
         ),
@@ -217,14 +224,19 @@ impl<'a> HoldingRepository<'a> {
             .transpose()
             .map_err(|_| CryptofolioError::InvalidAmount("cost basis".to_string()))?;
 
+        let avg_cost_basis_base = avg_cost_basis_base
+            .map(|s| Decimal::from_str(&s))
+            .transpose()
+            .map_err(|_| CryptofolioError::InvalidAmount("cost basis base".to_string()))?;
+
         Ok(Holding {
             id,
             account_id,
             asset,
             quantity,
             avg_cost_basis,
-            cost_basis_currency: None, // TODO: Load from database
-            avg_cost_basis_base: None, // TODO: Load from database
+            cost_basis_currency,
+            avg_cost_basis_base,
             updated_at: DateTime::parse_from_rfc3339(&updated_at)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),

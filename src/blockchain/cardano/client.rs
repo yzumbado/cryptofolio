@@ -1,5 +1,8 @@
 /// Cardano blockchain client (Blockfrost API)
 use crate::error::{CryptofolioError, Result};
+use blake2::digest::{FixedOutput, Update};
+use blake2::Blake2b;
+use bech32::{Bech32, Hrp};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -86,14 +89,18 @@ impl BlockfrostClient {
 
     /// Get address balance and token information
     pub async fn get_address_info(&self, address: &str) -> Result<AddressInfo> {
-        // Get ADA balance and basic info
+        // Get ADA balance and basic info (also returns stake_address)
         let address_data = self.get_address_data(address).await?;
 
         // Get native tokens
         let tokens = self.get_native_tokens(address).await?;
 
-        // Get stake address and delegation info
-        let (stake_address, stake_pool) = self.get_stake_info(address).await?;
+        // Get stake delegation info using the stake address from address data
+        let (stake_address, stake_pool) = if let Some(ref sa) = address_data.stake_address {
+            self.get_stake_info(sa).await?
+        } else {
+            (None, None)
+        };
 
         Ok(AddressInfo {
             address: address.to_string(),
@@ -146,6 +153,7 @@ impl BlockfrostClient {
         Ok(AddressData {
             balance,
             tx_count: data.tx_count,
+            stake_address: data.stake_address,
         })
     }
 
@@ -204,10 +212,12 @@ impl BlockfrostClient {
             };
             let balance = quantity / divisor;
 
+            let fingerprint = cip14_fingerprint(&policy_id, &asset_name);
+
             tokens.push(NativeToken {
                 unit: amount.unit.clone(),
                 quantity: amount.quantity,
-                fingerprint: String::new(), // TODO: Calculate asset fingerprint
+                fingerprint,
                 policy_id,
                 asset_name: asset_name.clone(),
                 display_name,
@@ -263,14 +273,97 @@ impl BlockfrostClient {
         Ok((display_name, decimals))
     }
 
-    /// Get stake address and delegation info
+    /// Get stake delegation info for a stake address.
+    ///
+    /// Calls:
+    ///   GET /accounts/{stake_address}        → pool_id + controlled amount
+    ///   GET /pools/{pool_id}/metadata        → ticker, name
+    ///   GET /pools/{pool_id}                 → live_pledge, margin_cost
     async fn get_stake_info(
         &self,
-        _address: &str,
+        stake_address: &str,
     ) -> Result<(Option<String>, Option<StakePoolInfo>)> {
-        // TODO: Implement stake address lookup and pool delegation info
-        // This requires additional Blockfrost API calls
-        Ok((None, None))
+        let client = reqwest::Client::new();
+
+        // 1. Fetch account info
+        let account_url = format!("{}/accounts/{}", self.base_url, stake_address);
+        let mut req = client.get(&account_url);
+        if let Some(key) = &self.api_key {
+            req = req.header("project_id", key);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch account: {}", e)))?;
+
+        if !resp.status().is_success() {
+            // Stake address not registered on-chain — valid for new wallets
+            return Ok((Some(stake_address.to_string()), None));
+        }
+
+        let account: BlockfrostAccountResponse = resp.json().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to parse account response: {}", e))
+        })?;
+
+        let pool_id = match account.pool_id {
+            Some(pid) => pid,
+            None => return Ok((Some(stake_address.to_string()), None)),
+        };
+
+        // 2. Fetch pool metadata (ticker, name)
+        let meta_url = format!("{}/pools/{}/metadata", self.base_url, pool_id);
+        let mut req = client.get(&meta_url);
+        if let Some(key) = &self.api_key {
+            req = req.header("project_id", key);
+        }
+        let meta_resp = req.send().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch pool metadata: {}", e))
+        })?;
+
+        let (ticker, name) = if meta_resp.status().is_success() {
+            let meta: BlockfrostPoolMetaResponse = meta_resp.json().await.unwrap_or_default();
+            (
+                meta.ticker.unwrap_or_else(|| pool_id[..8].to_string()),
+                meta.name.unwrap_or_default(),
+            )
+        } else {
+            (pool_id[..8].to_string(), String::new())
+        };
+
+        // 3. Fetch pool stats (pledge, margin)
+        let pool_url = format!("{}/pools/{}", self.base_url, pool_id);
+        let mut req = client.get(&pool_url);
+        if let Some(key) = &self.api_key {
+            req = req.header("project_id", key);
+        }
+        let pool_resp = req.send().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch pool stats: {}", e))
+        })?;
+
+        let (active_stake, live_pledge, margin_cost) = if pool_resp.status().is_success() {
+            let stats: BlockfrostPoolResponse = pool_resp.json().await.unwrap_or_default();
+            let active = Decimal::from_str(&stats.active_stake.unwrap_or_default())
+                .unwrap_or(Decimal::ZERO)
+                / Decimal::from(1_000_000);
+            let pledge = Decimal::from_str(&stats.live_pledge.unwrap_or_default())
+                .unwrap_or(Decimal::ZERO)
+                / Decimal::from(1_000_000);
+            (active, pledge, stats.margin_cost.unwrap_or(0.0))
+        } else {
+            (Decimal::ZERO, Decimal::ZERO, 0.0)
+        };
+
+        Ok((
+            Some(stake_address.to_string()),
+            Some(StakePoolInfo {
+                pool_id,
+                ticker,
+                name,
+                active_stake,
+                live_pledge,
+                margin_cost,
+            }),
+        ))
     }
 
     /// Get transactions for an address
@@ -361,6 +454,7 @@ impl BlockfrostClient {
 struct AddressData {
     balance: Decimal,
     tx_count: u64,
+    stake_address: Option<String>,
 }
 
 // Blockfrost API response types
@@ -368,6 +462,7 @@ struct AddressData {
 struct BlockfrostAddressResponse {
     amount: Vec<AmountItem>,
     tx_count: u64,
+    stake_address: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -389,6 +484,24 @@ struct OnchainMetadata {
 }
 
 #[derive(Debug, Deserialize)]
+struct BlockfrostAccountResponse {
+    pool_id: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BlockfrostPoolMetaResponse {
+    ticker: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BlockfrostPoolResponse {
+    active_stake: Option<String>,
+    live_pledge: Option<String>,
+    margin_cost: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
 struct BlockfrostTxResponse {
     tx_hash: String,
 }
@@ -406,9 +519,49 @@ struct BlockfrostTxDetailResponse {
     size: u32,
 }
 
+/// Compute a CIP-14 asset fingerprint.
+///
+/// Algorithm:
+/// 1. Decode policy_id and asset_name from hex.
+/// 2. Concatenate the bytes.
+/// 3. Hash with BLAKE2b-160 (20-byte digest).
+/// 4. Bech32-encode with HRP `"asset"`.
+fn cip14_fingerprint(policy_id_hex: &str, asset_name_hex: &str) -> String {
+    // Decode hex fields (empty asset_name_hex is valid — "lovelace" has none)
+    let policy_bytes = hex::decode(policy_id_hex).unwrap_or_default();
+    let name_bytes = hex::decode(asset_name_hex).unwrap_or_default();
+
+    // BLAKE2b with a 160-bit (20-byte) digest
+    type Blake2b160 = Blake2b<blake2::digest::typenum::U20>;
+    let mut hasher = Blake2b160::default();
+    hasher.update(&policy_bytes);
+    hasher.update(&name_bytes);
+    let hash = hasher.finalize_fixed();
+
+    // Bech32 encode with HRP "asset"
+    let asset_hrp = Hrp::parse("asset").expect("static HRP is valid");
+    bech32::encode::<Bech32>(asset_hrp, &hash)
+        .unwrap_or_else(|_| String::new())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_cip14_fingerprint_known_vector() {
+        // CIP-14 test vector: empty asset name
+        let policy = "7eae28af2208be856f7a119668ae52a49b73725e326dc16579dcc373";
+        let fp = cip14_fingerprint(policy, "");
+        assert_eq!(fp, "asset1rjklcrnsdzqp65wjgrg55sy9723kw09mlgvlc3");
+    }
+
+    #[test]
+    fn test_cip14_fingerprint_with_asset_name() {
+        let policy = "1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209";
+        let fp = cip14_fingerprint(policy, "504154415445");
+        assert_eq!(fp, "asset1hv4p5tv2a837mzqrst04d0dcptdjmluqvdx9k3");
+    }
 
     #[test]
     fn test_blockfrost_client_creation() {

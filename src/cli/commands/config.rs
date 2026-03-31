@@ -143,15 +143,12 @@ pub async fn handle_config_command(
                 println!();
 
                 println!("{}", "[etherscan]".dimmed());
-                let etherscan_key = config.etherscan.resolve_api_key();
                 print_kv(
                     "api_key",
-                    if etherscan_key.is_some() {
-                        if std::env::var("ETHERSCAN_API_KEY").is_ok() {
-                            "***configured (env)***"
-                        } else {
-                            "***configured***"
-                        }
+                    if std::env::var("ETHERSCAN_API_KEY").is_ok() {
+                        "***configured (env)***"
+                    } else if config.get_etherscan_api_key().is_some() {
+                        "***configured***"
                     } else {
                         "-"
                     },

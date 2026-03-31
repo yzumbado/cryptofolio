@@ -74,6 +74,12 @@ hex = "0.4"
 # Address validation (Bech32 for Cardano, etc.)
 bech32 = "0.11"
 
+# Bitcoin BIP32 HD wallet key derivation and address generation
+bitcoin = "0.32"
+
+# BLAKE2 hashing (Cardano CIP-14 asset fingerprints)
+blake2 = "0.10"
+
 # Interactive shell
 rustyline = { version = "14", features = ["derive"] }
 shell-words = "1"

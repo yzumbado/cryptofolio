@@ -39,25 +39,34 @@ pub struct AddressInfo {
 /// Etherscan API client
 pub struct EtherscanClient {
     base_url: String,
+    chain_id: u64,
     api_key: Option<String>,
 }
 
 impl EtherscanClient {
-    /// Create a new Etherscan client
+    /// Create a new Etherscan V2 client
+    /// V2 API: https://api.etherscan.io/v2/api?chainid=<id>&...
     pub fn new(testnet: bool, api_key: Option<String>) -> Self {
-        let base_url = if testnet {
-            "https://api-sepolia.etherscan.io/api".to_string()
+        // Etherscan V2 unified endpoint — chain selected via chainid param
+        let base_url = "https://api.etherscan.io/v2/api".to_string();
+        let chain_id = if testnet {
+            11155111 // Sepolia
         } else {
-            "https://api.etherscan.io/api".to_string()
+            1 // Ethereum Mainnet
         };
 
-        Self { base_url, api_key }
+        Self {
+            base_url,
+            chain_id,
+            api_key,
+        }
     }
 
     /// Create a client with custom base URL (for testing)
     pub fn with_base_url(base_url: String) -> Self {
         Self {
             base_url,
+            chain_id: 1,
             api_key: None,
         }
     }
@@ -80,8 +89,8 @@ impl EtherscanClient {
     /// Get ETH balance for an address
     async fn get_eth_balance(&self, address: &str) -> Result<Decimal> {
         let mut url = format!(
-            "{}?module=account&action=balance&address={}&tag=latest",
-            self.base_url, address
+            "{}?chainid={}&module=account&action=balance&address={}&tag=latest",
+            self.base_url, self.chain_id, address
         );
 
         if let Some(key) = &self.api_key {
@@ -122,8 +131,8 @@ impl EtherscanClient {
     /// Get ERC-20 tokens for an address
     async fn get_erc20_tokens(&self, address: &str) -> Result<Vec<ERC20Token>> {
         let mut url = format!(
-            "{}?module=account&action=tokentx&address={}&startblock=0&endblock=99999999&sort=asc",
-            self.base_url, address
+            "{}?chainid={}&module=account&action=tokentx&address={}&startblock=0&endblock=99999999&sort=asc",
+            self.base_url, self.chain_id, address
         );
 
         if let Some(key) = &self.api_key {
@@ -207,8 +216,8 @@ impl EtherscanClient {
     /// Get transactions for an address
     pub async fn get_transactions(&self, address: &str) -> Result<Vec<EthereumTransaction>> {
         let mut url = format!(
-            "{}?module=account&action=txlist&address={}&startblock=0&endblock=99999999&sort=asc",
-            self.base_url, address
+            "{}?chainid={}&module=account&action=txlist&address={}&startblock=0&endblock=99999999&sort=asc",
+            self.base_url, self.chain_id, address
         );
 
         if let Some(key) = &self.api_key {
@@ -324,12 +333,14 @@ mod tests {
 
     #[test]
     fn test_etherscan_client_creation() {
+        // V2 API uses a single unified endpoint; chain is selected via chain_id
         let client = EtherscanClient::new(false, None);
         assert!(client.base_url.contains("etherscan.io"));
-        assert!(!client.base_url.contains("sepolia"));
+        assert_eq!(client.chain_id, 1); // Ethereum mainnet
 
         let testnet_client = EtherscanClient::new(true, None);
-        assert!(testnet_client.base_url.contains("sepolia"));
+        assert!(testnet_client.base_url.contains("etherscan.io"));
+        assert_eq!(testnet_client.chain_id, 11155111); // Sepolia
     }
 
     #[test]
