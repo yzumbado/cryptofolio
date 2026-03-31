@@ -142,6 +142,22 @@ pub async fn handle_config_command(
                 );
                 println!();
 
+                println!("{}", "[etherscan]".dimmed());
+                let etherscan_key = config.etherscan.resolve_api_key();
+                print_kv(
+                    "api_key",
+                    if etherscan_key.is_some() {
+                        if std::env::var("ETHERSCAN_API_KEY").is_ok() {
+                            "***configured (env)***"
+                        } else {
+                            "***configured***"
+                        }
+                    } else {
+                        "-"
+                    },
+                );
+                println!();
+
                 println!("{}", "[blockfrost]".dimmed());
                 print_kv(
                     "mainnet_api_key",

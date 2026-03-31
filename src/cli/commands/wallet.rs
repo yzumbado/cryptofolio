@@ -522,8 +522,12 @@ async fn sync_ethereum_wallet(
     import_history: bool,
     opts: &GlobalOptions,
 ) -> Result<()> {
-    // Create Etherscan client (no API key for now)
-    let client = blockchain::ethereum::EtherscanClient::new(is_testnet, None);
+    // Read Etherscan API key from config or ETHERSCAN_API_KEY env var
+    let api_key = crate::config::AppConfig::load()
+        .ok()
+        .and_then(|c| c.etherscan.resolve_api_key());
+
+    let client = blockchain::ethereum::EtherscanClient::new(is_testnet, api_key);
 
     // Fetch address info (balance + tokens)
     match client.get_address_info(&addr.address).await {

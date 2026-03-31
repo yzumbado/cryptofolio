@@ -18,6 +18,9 @@ pub struct AppConfig {
     pub binance: BinanceConfig,
 
     #[serde(default)]
+    pub etherscan: EtherscanConfig,
+
+    #[serde(default)]
     pub blockfrost: BlockfrostConfig,
 
     #[serde(default)]
@@ -32,6 +35,7 @@ impl Default for AppConfig {
         Self {
             general: GeneralConfig::default(),
             binance: BinanceConfig::default(),
+            etherscan: EtherscanConfig::default(),
             blockfrost: BlockfrostConfig::default(),
             display: DisplayConfig::default(),
             ai: Some(AiConfig::default()),
@@ -119,6 +123,23 @@ pub struct BinanceConfig {
 
     #[serde(default)]
     pub api_secret: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EtherscanConfig {
+    /// Etherscan API key for Ethereum mainnet (also used for Sepolia testnet)
+    /// Can also be set via ETHERSCAN_API_KEY environment variable
+    #[serde(default)]
+    pub api_key: Option<String>,
+}
+
+impl EtherscanConfig {
+    /// Get the API key, checking env var first then config file
+    pub fn resolve_api_key(&self) -> Option<String> {
+        std::env::var("ETHERSCAN_API_KEY")
+            .ok()
+            .or_else(|| self.api_key.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -245,6 +266,9 @@ impl AppConfig {
             }
             "binance.api_secret" => {
                 self.binance.api_secret = Some(value.to_string());
+            }
+            "etherscan.api_key" => {
+                self.etherscan.api_key = Some(value.to_string());
             }
             "blockfrost.mainnet_api_key" | "blockfrost.api_key" => {
                 self.blockfrost.mainnet_api_key = Some(value.to_string());
