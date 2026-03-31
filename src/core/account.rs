@@ -47,16 +47,12 @@ impl AccountType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct AccountConfig {
     #[serde(default)]
     pub is_testnet: bool,
 }
 
-impl Default for AccountConfig {
-    fn default() -> Self {
-        Self { is_testnet: false }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {

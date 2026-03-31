@@ -141,7 +141,7 @@ async fn process_row(
     holding_repo: &HoldingRepository<'_>,
     tx_repo: &TransactionRepository<'_>,
 ) -> Result<()> {
-    let row = result.map_err(|e| CryptofolioError::Csv(e))?;
+    let row = result.map_err(CryptofolioError::Csv)?;
 
     // Parse transaction type
     let tx_type = TransactionType::from_str(&row.tx_type).ok_or_else(|| {

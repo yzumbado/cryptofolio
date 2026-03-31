@@ -277,12 +277,12 @@ pub async fn handle_portfolio_command(
             for h in &entry.holdings {
                 let price_str = h
                     .current_price
-                    .map(|p| format_usd(p))
+                    .map(format_usd)
                     .unwrap_or_else(|| "-".to_string());
 
                 let value_str = h
                     .current_value
-                    .map(|v| format_usd(v))
+                    .map(format_usd)
                     .unwrap_or_else(|| "-".to_string());
 
                 let pnl_str = match (h.unrealized_pnl, h.unrealized_pnl_percent) {
@@ -338,12 +338,12 @@ fn print_holding(h: &HoldingWithPrice, config: &AppConfig, indent: usize) {
 
     let price_str = h
         .current_price
-        .map(|p| format_usd(p))
+        .map(format_usd)
         .unwrap_or_else(|| "-".to_string());
 
     let value_str = h
         .current_value
-        .map(|v| format_usd(v))
+        .map(format_usd)
         .unwrap_or_else(|| "-".to_string());
 
     let pnl_str = h

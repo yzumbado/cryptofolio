@@ -349,7 +349,7 @@ impl OllamaProvider {
 
     /// Extract price from text
     pub fn extract_price(&self, input: &str) -> Option<f64> {
-        let input_clean = input.replace(',', "").replace('$', "");
+        let input_clean = input.replace([',', '$'], "");
         let input_lower = input_clean.to_lowercase();
 
         // Look for price patterns

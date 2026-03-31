@@ -26,7 +26,7 @@ pub fn read_secret_from_stdin() -> Result<String> {
     let mut secret = String::new();
     io::stdin()
         .read_to_string(&mut secret)
-        .map_err(|e| CryptofolioError::Io(e))?;
+        .map_err(CryptofolioError::Io)?;
 
     let trimmed = secret.trim().to_string();
     if trimmed.is_empty() {
@@ -124,12 +124,12 @@ pub fn show_security_warning(key: &str) -> Result<()> {
 
     // Require acknowledgment
     print!("  I understand, continue? [y/N] ");
-    io::stdout().flush().map_err(|e| CryptofolioError::Io(e))?;
+    io::stdout().flush().map_err(CryptofolioError::Io)?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|e| CryptofolioError::Io(e))?;
+        .map_err(CryptofolioError::Io)?;
 
     if !matches!(input.trim().to_lowercase().as_str(), "y" | "yes") {
         println!();
@@ -147,7 +147,7 @@ pub fn show_security_warning(key: &str) -> Result<()> {
 pub fn ensure_secure_permissions(path: &Path) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
 
-    let metadata = fs::metadata(path).map_err(|e| CryptofolioError::Io(e))?;
+    let metadata = fs::metadata(path).map_err(CryptofolioError::Io)?;
     let permissions = metadata.permissions();
     let mode = permissions.mode();
 
@@ -163,7 +163,7 @@ pub fn ensure_secure_permissions(path: &Path) -> Result<()> {
         // Fix permissions
         let mut new_permissions = permissions;
         new_permissions.set_mode(0o600);
-        fs::set_permissions(path, new_permissions).map_err(|e| CryptofolioError::Io(e))?;
+        fs::set_permissions(path, new_permissions).map_err(CryptofolioError::Io)?;
 
         eprintln!("  ✓ Permissions updated to 0600");
         eprintln!();

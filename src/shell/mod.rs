@@ -206,10 +206,7 @@ impl Shell {
 
         // First, try to parse as CLI command
         let expanded = expand_shortcuts(input);
-        let args = match shell_words::split(&expanded) {
-            Ok(args) => args,
-            Err(_) => vec![],
-        };
+        let args = shell_words::split(&expanded).unwrap_or_default();
 
         if !args.is_empty() {
             // Check if first word looks like a CLI command
@@ -384,7 +381,7 @@ impl Shell {
                     if let Some(ref intent) = self.conversation.state().current_intent.clone() {
                         if intent.requires_confirmation() {
                             self.conversation.state_mut().confirmation_pending = true;
-                            let (summary, details) = self.build_confirmation(&intent);
+                            let (summary, details) = self.build_confirmation(intent);
                             println!();
                             println!("  {}", summary);
                             println!();
@@ -396,7 +393,7 @@ impl Shell {
                             io::stdout().flush().ok();
                         } else {
                             // Execute immediately
-                            let command = self.build_command(&intent);
+                            let command = self.build_command(intent);
                             self.conversation.state_mut().clear_operation();
                             self.execute_cli_command(&command).await?;
                         }
@@ -737,12 +734,10 @@ impl Shell {
             } else {
                 format!("+{} (+{:.2}%)", format_usd(pnl), pnl_percent)
             }
+        } else if colors_enabled() {
+            format!("\x1b[31m{} ({:.2}%)\x1b[0m", format_usd(pnl), pnl_percent)
         } else {
-            if colors_enabled() {
-                format!("\x1b[31m{} ({:.2}%)\x1b[0m", format_usd(pnl), pnl_percent)
-            } else {
-                format!("{} ({:.2}%)", format_usd(pnl), pnl_percent)
-            }
+            format!("{} ({:.2}%)", format_usd(pnl), pnl_percent)
         };
 
         Ok(PortfolioSummary {

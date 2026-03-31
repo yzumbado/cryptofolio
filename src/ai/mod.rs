@@ -15,22 +15,19 @@ use crate::error::Result;
 
 /// AI mode configuration
 #[derive(Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum AiMode {
     /// Only use Claude API
     Online,
     /// Only use local Ollama
     Offline,
     /// Use local for simple tasks, Claude for complex (default)
+    #[default]
     Hybrid,
     /// Disable AI features
     Disabled,
 }
 
-impl Default for AiMode {
-    fn default() -> Self {
-        Self::Hybrid
-    }
-}
 
 impl std::str::FromStr for AiMode {
     type Err = String;

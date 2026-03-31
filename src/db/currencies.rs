@@ -233,7 +233,7 @@ pub async fn get_latest_exchange_rate(
         id: row.id,
         from_currency: row.from_currency,
         to_currency: row.to_currency,
-        rate: row.rate.parse().unwrap_or_else(|_| Decimal::ZERO),
+        rate: row.rate.parse().unwrap_or(Decimal::ZERO),
         timestamp: DateTime::parse_from_rfc3339(&row.timestamp)
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now()),
@@ -280,7 +280,7 @@ pub async fn get_exchange_rate_at_time(
         id: row.id,
         from_currency: row.from_currency,
         to_currency: row.to_currency,
-        rate: row.rate.parse().unwrap_or_else(|_| Decimal::ZERO),
+        rate: row.rate.parse().unwrap_or(Decimal::ZERO),
         timestamp: DateTime::parse_from_rfc3339(&row.timestamp)
             .map(|dt| dt.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now()),
@@ -324,7 +324,7 @@ pub async fn list_exchange_rates(
             id: row.id,
             from_currency: row.from_currency,
             to_currency: row.to_currency,
-            rate: row.rate.parse().unwrap_or_else(|_| Decimal::ZERO),
+            rate: row.rate.parse().unwrap_or(Decimal::ZERO),
             timestamp: DateTime::parse_from_rfc3339(&row.timestamp)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),

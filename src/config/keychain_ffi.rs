@@ -14,6 +14,7 @@
 //! - Errors converted to Result<T, Error>
 
 #![cfg(target_os = "macos")]
+#![allow(clippy::duplicated_attributes)]
 
 use core_foundation::base::{CFAllocatorRef, CFTypeRef, TCFType};
 use core_foundation::boolean::CFBoolean;

@@ -13,13 +13,11 @@ static COLOR_ENABLED: OnceLock<bool> = OnceLock::new();
 
 /// Initialize color settings based on environment and TTY
 pub fn init_color(force_no_color: bool) {
-    let enabled = if force_no_color {
-        false
-    } else if std::env::var("NO_COLOR").is_ok() {
-        false
-    } else if std::env::var("CRYPTOFOLIO_NO_COLOR").is_ok() {
-        false
-    } else if std::env::var("TERM").map(|t| t == "dumb").unwrap_or(false) {
+    let enabled = if force_no_color
+        || std::env::var("NO_COLOR").is_ok()
+        || std::env::var("CRYPTOFOLIO_NO_COLOR").is_ok()
+        || std::env::var("TERM").map(|t| t == "dumb").unwrap_or(false)
+    {
         false
     } else {
         stdout().is_terminal()
@@ -103,7 +101,7 @@ fn add_thousands_separator(num_str: &str) -> String {
     for (i, ch) in chars.iter().enumerate() {
         result.push(*ch);
         let pos = len - i - 1;
-        if pos > 0 && pos % 3 == 0 {
+        if pos > 0 && pos.is_multiple_of(3) {
             result.push(',');
         }
     }

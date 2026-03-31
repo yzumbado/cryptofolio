@@ -113,6 +113,7 @@ impl Default for GeneralConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct BinanceConfig {
     #[serde(default)]
     pub api_key: Option<String>,
@@ -121,16 +122,9 @@ pub struct BinanceConfig {
     pub api_secret: Option<String>,
 }
 
-impl Default for BinanceConfig {
-    fn default() -> Self {
-        Self {
-            api_key: None,
-            api_secret: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct BlockfrostConfig {
     /// Blockfrost API key for Cardano mainnet
     #[serde(default)]
@@ -145,15 +139,6 @@ pub struct BlockfrostConfig {
     pub preview_api_key: Option<String>,
 }
 
-impl Default for BlockfrostConfig {
-    fn default() -> Self {
-        Self {
-            mainnet_api_key: None,
-            preprod_api_key: None,
-            preview_api_key: None,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {
@@ -355,9 +340,7 @@ impl AppConfig {
         #[cfg(target_os = "macos")]
         {
             let keychain = get_keychain();
-            let has_keychain_creds =
-                keychain.exists("binance.api_key") && keychain.exists("binance.api_secret");
-            return has_keychain_creds;
+            keychain.exists("binance.api_key") && keychain.exists("binance.api_secret")
         }
 
         #[cfg(not(target_os = "macos"))]

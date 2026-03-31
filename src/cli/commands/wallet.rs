@@ -444,13 +444,11 @@ async fn handle_wallet_sync(
                 sync_ethereum_wallet(&wallet.name, &addr, is_testnet, import_history, opts).await?;
             } else if addr.blockchain.eq_ignore_ascii_case("cardano") {
                 sync_cardano_wallet(&wallet.name, &addr, is_testnet, import_history, opts).await?;
-            } else {
-                if !opts.quiet {
-                    println!(
-                        "  ⚠️  Blockchain {} not yet supported for sync",
-                        addr.blockchain
-                    );
-                }
+            } else if !opts.quiet {
+                println!(
+                    "  ⚠️  Blockchain {} not yet supported for sync",
+                    addr.blockchain
+                );
             }
         }
     }

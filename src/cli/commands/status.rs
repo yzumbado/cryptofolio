@@ -136,7 +136,7 @@ async fn test_claude_connection(api_key: &str) -> std::result::Result<(), String
 }
 
 /// Check Ollama status
-async fn check_ollama_status(config: &Option<AppConfig>, run_checks: bool) -> ProviderStatus {
+async fn check_ollama_status(config: &Option<AppConfig>, _run_checks: bool) -> ProviderStatus {
     let base_url = config
         .as_ref()
         .and_then(|c| c.ai.as_ref())
@@ -150,14 +150,10 @@ async fn check_ollama_status(config: &Option<AppConfig>, run_checks: bool) -> Pr
         .and_then(|ai| ai.local_model.clone())
         .unwrap_or_else(|| "llama3.2:3b".to_string());
 
-    if run_checks || true {
-        // Always check Ollama since it's local
-        match test_ollama_connection(&base_url).await {
-            Ok(()) => ProviderStatus::available("Ollama", model),
-            Err(e) => ProviderStatus::unavailable("Ollama", e),
-        }
-    } else {
-        ProviderStatus::unavailable("Ollama", "Not checked")
+    // Always check Ollama since it's local (ignore run_checks parameter)
+    match test_ollama_connection(&base_url).await {
+        Ok(()) => ProviderStatus::available("Ollama", model),
+        Err(e) => ProviderStatus::unavailable("Ollama", e),
     }
 }
 
@@ -209,7 +205,7 @@ fn determine_effective_provider(
                 "Pattern-based (Ollama unavailable)".to_string()
             }
         }
-        "hybrid" | "auto" | _ => {
+        _ => {  // "hybrid", "auto", or any other value
             if claude.available && ollama.available {
                 "Hybrid (Ollama + Claude)".to_string()
             } else if claude.available {
@@ -263,12 +259,10 @@ pub async fn print_startup_summary() {
         } else {
             "🦙 AI Ready (Ollama)".to_string()
         }
+    } else if colors_enabled() {
+        format!("📝 {} (pattern matching)", "Basic Mode".yellow())
     } else {
-        if colors_enabled() {
-            format!("📝 {} (pattern matching)", "Basic Mode".yellow())
-        } else {
-            "📝 Basic Mode (pattern matching)".to_string()
-        }
+        "📝 Basic Mode (pattern matching)".to_string()
     };
 
     let mode_status = if status.testnet_mode {
@@ -277,12 +271,10 @@ pub async fn print_startup_summary() {
         } else {
             "🧪 Testnet".to_string()
         }
+    } else if colors_enabled() {
+        format!("🌐 {}", "Mainnet".green())
     } else {
-        if colors_enabled() {
-            format!("🌐 {}", "Mainnet".green())
-        } else {
-            "🌐 Mainnet".to_string()
-        }
+        "🌐 Mainnet".to_string()
     };
 
     println!("  {}  •  {}", mode_status, ai_status);

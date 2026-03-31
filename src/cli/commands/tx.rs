@@ -121,11 +121,11 @@ pub async fn handle_tx_command(
                     let qty = tx
                         .to_quantity
                         .or(tx.from_quantity)
-                        .map(|q| format_quantity(q))
+                        .map(format_quantity)
                         .unwrap_or_else(|| "-".to_string());
                     let price = tx
                         .price_usd
-                        .map(|p| format_usd(p))
+                        .map(format_usd)
                         .unwrap_or_else(|| "-".to_string());
 
                     print_row(&[
@@ -415,8 +415,8 @@ pub async fn handle_tx_command(
 
                 // Store the exchange rate for future reference
                 let rate_record = ExchangeRate::new_manual(
-                    &from_asset.to_uppercase(),
-                    &to_asset.to_uppercase(),
+                    from_asset.to_uppercase(),
+                    to_asset.to_uppercase(),
                     rate_value,
                     Utc::now(),
                 );
@@ -598,12 +598,10 @@ async fn handle_export_command(
         } else {
             tx_repo.list_by_account(acc_id, None).await?
         }
+    } else if limit > 0 {
+        tx_repo.list(Some(limit)).await?
     } else {
-        if limit > 0 {
-            tx_repo.list(Some(limit)).await?
-        } else {
-            tx_repo.list(None).await?
-        }
+        tx_repo.list(None).await?
     };
 
     // Apply filters
@@ -640,7 +638,7 @@ async fn handle_export_command(
     // Convert transactions to CSV format
     let csv_records: Vec<CsvExportRecord> = transactions
         .iter()
-        .map(|tx| transaction_to_csv_record(tx))
+        .map(transaction_to_csv_record)
         .collect();
 
     // Write to CSV file

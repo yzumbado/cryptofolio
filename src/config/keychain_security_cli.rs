@@ -150,7 +150,7 @@ impl KeychainStorage for SecurityCliKeychain {
         }
 
         let output = Command::new("security")
-            .args(&[
+            .args([
                 "add-generic-password",
                 "-s",
                 SERVICE_NAME,
@@ -190,7 +190,7 @@ impl KeychainStorage for SecurityCliKeychain {
 
         // Retrieve from keychain using security command
         let output = Command::new("security")
-            .args(&[
+            .args([
                 "find-generic-password",
                 "-s",
                 SERVICE_NAME,
@@ -235,7 +235,7 @@ impl KeychainStorage for SecurityCliKeychain {
 
     fn delete(&self, key: &str) -> Result<()> {
         let output = Command::new("security")
-            .args(&["delete-generic-password", "-s", SERVICE_NAME, "-a", key])
+            .args(["delete-generic-password", "-s", SERVICE_NAME, "-a", key])
             .output()
             .map_err(|e| {
                 CryptofolioError::Keychain(format!("Failed to run security command: {}", e))
@@ -292,7 +292,7 @@ impl KeychainStorage for SecurityCliKeychain {
 
     fn exists(&self, key: &str) -> bool {
         let output = Command::new("security")
-            .args(&["find-generic-password", "-s", SERVICE_NAME, "-a", key, "-w"])
+            .args(["find-generic-password", "-s", SERVICE_NAME, "-a", key, "-w"])
             .output();
 
         match output {

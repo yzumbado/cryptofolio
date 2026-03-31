@@ -84,7 +84,7 @@ pub async fn handle_holdings_command(
 
                     let cost_str = holding
                         .avg_cost_basis
-                        .map(|c| format_usd(c))
+                        .map(format_usd)
                         .unwrap_or_else(|| "-".to_string());
 
                     print_row(&[

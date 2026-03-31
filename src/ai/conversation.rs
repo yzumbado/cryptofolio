@@ -299,8 +299,7 @@ impl ConversationManager {
             "quantity" | "price" | "cost_basis" | "fee" => {
                 // Try to parse as number
                 let cleaned = input
-                    .replace(',', "")
-                    .replace('$', "")
+                    .replace([',', '$'], "")
                     .replace("k", "000")
                     .replace("K", "000");
                 if let Ok(n) = cleaned.parse::<f64>() {

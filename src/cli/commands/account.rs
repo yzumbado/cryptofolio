@@ -124,7 +124,7 @@ pub async fn handle_account_command(
             };
 
             // Find or validate category
-            let cat = repo.get_category(&category).await?.or_else(|| None);
+            let cat = repo.get_category(&category).await?.or(None);
 
             let category_id = if let Some(c) = cat {
                 c.id
