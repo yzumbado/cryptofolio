@@ -281,7 +281,7 @@ impl<'a> TransactionImporter<'a> {
             )));
         }
 
-        let timestamp = ms_to_datetime(withdrawal.apply_time)?;
+        let timestamp = parse_binance_datetime(&withdrawal.apply_time)?;
 
         if dry_run {
             // Return Created(0) to indicate "would create" in reporting
@@ -554,6 +554,16 @@ pub fn ms_to_datetime(ms: i64) -> Result<DateTime<Utc>> {
         .ok_or_else(|| CryptofolioError::Other(format!("Invalid Binance timestamp: {}", ms)))
 }
 
+/// Parse Binance datetime string format "YYYY-MM-DD HH:MM:SS" to DateTime<Utc>.
+pub fn parse_binance_datetime(datetime_str: &str) -> Result<DateTime<Utc>> {
+    DateTime::parse_from_str(&format!("{} +0000", datetime_str), "%Y-%m-%d %H:%M:%S %z")
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| CryptofolioError::Other(format!(
+            "Invalid Binance datetime format '{}': {}",
+            datetime_str, e
+        )))
+}
+
 // =============================================================================
 // Tests
 // =============================================================================
@@ -696,9 +706,15 @@ mod tests {
             status,
             address: "1A2B3Cdeadbeef".to_string(),
             tx_id: Some("def456".to_string()),
-            apply_time: 1_700_001_000_000,
+            apply_time: "2023-11-14 22:30:00".to_string(),  // Changed to string format
             network: "BTC".to_string(),
             withdraw_order_id: None,
+            transfer_type: None,
+            info: None,
+            confirm_no: None,
+            wallet_type: None,
+            tx_key: None,
+            complete_time: None,
         }
     }
 

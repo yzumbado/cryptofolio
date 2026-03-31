@@ -263,6 +263,13 @@ pub enum Commands {
         command: PnlCommands,
     },
 
+    /// Manage wallet addresses and sync from blockchain
+    #[command(after_help = "EXAMPLES:\n    # Add a Bitcoin wallet\n    cryptofolio wallet add \"My Ledger\" --blockchain bitcoin --address bc1qxy...\n\n    # Add a Bitcoin HD wallet (xpub)\n    cryptofolio wallet add \"Sparrow\" --blockchain bitcoin --xpub zpub6rFR...\n\n    # Add an Ethereum wallet\n    cryptofolio wallet add \"MetaMask\" --blockchain ethereum --address 0x742d...\n\n    # List all wallets\n    cryptofolio wallet list\n    cryptofolio wallet list --blockchain bitcoin\n\n    # Sync wallet from blockchain\n    cryptofolio wallet sync \"My Ledger\"\n    cryptofolio wallet sync --all")]
+    Wallet {
+        #[command(subcommand)]
+        command: WalletCommands,
+    },
+
     /// Start interactive shell mode
     #[command(after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)")]
     Shell,
@@ -329,6 +336,80 @@ pub enum AccountCommands {
     Address {
         #[command(subcommand)]
         command: AddressCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum WalletCommands {
+    /// Add a new wallet address
+    Add {
+        /// Wallet name/label
+        name: String,
+
+        /// Blockchain (bitcoin, ethereum, solana, cardano)
+        #[arg(long, required = true)]
+        blockchain: String,
+
+        /// Wallet address (for single address wallets)
+        #[arg(long, conflicts_with = "xpub")]
+        address: Option<String>,
+
+        /// Extended public key (xpub/zpub) for HD wallets
+        #[arg(long, conflicts_with = "address")]
+        xpub: Option<String>,
+
+        /// Derivation path (e.g., m/84'/0'/0')
+        #[arg(long, requires = "xpub")]
+        derivation_path: Option<String>,
+
+        /// Address type (legacy, segwit, native_segwit, erc20, etc.)
+        #[arg(long)]
+        address_type: Option<String>,
+
+        /// Optional label for the wallet
+        #[arg(long)]
+        label: Option<String>,
+    },
+
+    /// List all wallets
+    List {
+        /// Filter by blockchain
+        #[arg(long)]
+        blockchain: Option<String>,
+    },
+
+    /// Show wallet details
+    Show {
+        /// Wallet name
+        name: String,
+    },
+
+    /// Sync wallet from blockchain
+    Sync {
+        /// Wallet name (syncs all wallets if not specified)
+        name: Option<String>,
+
+        /// Sync all wallets
+        #[arg(long)]
+        all: bool,
+
+        /// Import full transaction history
+        #[arg(long)]
+        import_history: bool,
+
+        /// Use local node instead of public API
+        #[arg(long)]
+        use_local_node: bool,
+    },
+
+    /// Remove a wallet
+    Remove {
+        /// Wallet name
+        name: String,
+
+        /// Skip confirmation prompt
+        #[arg(short, long)]
+        yes: bool,
     },
 }
 

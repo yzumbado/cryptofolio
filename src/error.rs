@@ -13,6 +13,9 @@ pub enum CryptofolioError {
     #[error("HTTP request error: {0}")]
     Http(#[from] reqwest::Error),
 
+    #[error("Network error: {0}")]
+    Network(String),
+
     #[error("JSON parsing error: {0}")]
     Json(#[from] serde_json::Error),
 
@@ -51,6 +54,9 @@ pub enum CryptofolioError {
 
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+
+    #[error("Invalid address: {0}")]
+    InvalidAddress(String),
 
     #[error("Not found: {0}")]
     NotFound(String),

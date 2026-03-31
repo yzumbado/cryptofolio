@@ -232,6 +232,46 @@ CREATE TABLE IF NOT EXISTS binance_sync_state (
 CREATE INDEX IF NOT EXISTS idx_binance_sync_state_account ON binance_sync_state(account_id);
 "#;
 
+const MIGRATION_007: &str = r#"
+-- Extend wallet_addresses for blockchain sync support
+-- Add columns for xpub (HD wallets), address type, and sync tracking
+ALTER TABLE wallet_addresses ADD COLUMN address_type TEXT;
+ALTER TABLE wallet_addresses ADD COLUMN xpub TEXT;
+ALTER TABLE wallet_addresses ADD COLUMN derivation_path TEXT;
+ALTER TABLE wallet_addresses ADD COLUMN last_synced_at DATETIME;
+
+-- Blockchain sync state: tracks sync progress per wallet address
+CREATE TABLE IF NOT EXISTS blockchain_sync_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_address_id INTEGER NOT NULL REFERENCES wallet_addresses(id) ON DELETE CASCADE,
+    last_block_height INTEGER,
+    last_tx_hash TEXT,
+    last_synced_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(wallet_address_id)
+);
+
+-- Blockchain node configurations (local nodes vs public APIs)
+CREATE TABLE IF NOT EXISTS blockchain_nodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blockchain TEXT NOT NULL UNIQUE,
+    node_type TEXT NOT NULL CHECK(node_type IN ('local', 'public_api', 'custom')),
+    rpc_url TEXT,
+    api_key TEXT,
+    is_default BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_blockchain_sync_state_wallet ON blockchain_sync_state(wallet_address_id);
+CREATE INDEX IF NOT EXISTS idx_blockchain_nodes_blockchain ON blockchain_nodes(blockchain);
+"#;
+
+const MIGRATION_008: &str = r#"
+-- Add network column to wallet_addresses for mainnet/testnet support
+ALTER TABLE wallet_addresses ADD COLUMN network TEXT DEFAULT 'mainnet';
+"#;
+
 pub async fn run(pool: &SqlitePool) -> Result<()> {
     // Check if migration 1 has been applied
     let migration_exists: Option<(i64,)> = sqlx::query_as(
@@ -324,6 +364,44 @@ pub async fn run(pool: &SqlitePool) -> Result<()> {
 
         // Mark migration as applied
         sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (6)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 7 has been applied
+    let migration_7_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 7"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_7_exists.is_none() {
+        // Apply migration 7
+        sqlx::raw_sql(MIGRATION_007).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (7)")
+            .execute(pool)
+            .await?;
+    }
+
+    // Check if migration 8 has been applied
+    let migration_8_exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM _migrations WHERE id = 8"
+    )
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    if migration_8_exists.is_none() {
+        // Apply migration 8
+        sqlx::raw_sql(MIGRATION_008).execute(pool).await?;
+
+        // Mark migration as applied
+        sqlx::query("INSERT OR IGNORE INTO _migrations (id) VALUES (8)")
             .execute(pool)
             .await?;
     }

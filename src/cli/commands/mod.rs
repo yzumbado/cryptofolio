@@ -11,6 +11,7 @@ pub mod price;
 pub mod status;
 pub mod sync;
 pub mod tx;
+pub mod wallet;
 
 pub use account::handle_account_command;
 pub use category::handle_category_command;
@@ -25,3 +26,4 @@ pub use price::handle_price_command;
 pub use status::run as handle_status_command;
 pub use sync::{handle_sync_command, handle_sync_history_command};
 pub use tx::handle_tx_command;
+pub use wallet::handle_wallet_command;

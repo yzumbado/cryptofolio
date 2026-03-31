@@ -622,6 +622,9 @@ impl Shell {
             Commands::Pnl { command } => {
                 handle_pnl_command(command, &self.pool, &opts).await?;
             }
+            Commands::Wallet { command } => {
+                handle_wallet_command(command, &self.pool, &opts).await?;
+            }
             Commands::Shell => {
                 println!("Already in shell mode.");
             }

@@ -287,21 +287,26 @@ impl<'a> AccountRepository<'a> {
     // === Wallet Addresses ===
 
     pub async fn list_addresses(&self, account_id: &str) -> Result<Vec<WalletAddress>> {
-        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, String)>(
-            "SELECT id, account_id, blockchain, address, label, created_at FROM wallet_addresses WHERE account_id = ? ORDER BY blockchain"
+        let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String)>(
+            "SELECT id, account_id, blockchain, address, address_type, label, xpub, derivation_path, network, last_synced_at, created_at FROM wallet_addresses WHERE account_id = ? ORDER BY blockchain"
         )
         .bind(account_id)
         .fetch_all(self.pool)
         .await?;
 
         rows.into_iter()
-            .map(|(id, account_id, blockchain, address, label, created_at)| {
+            .map(|(id, account_id, blockchain, address, address_type, label, xpub, derivation_path, network, last_synced_at, created_at)| {
                 Ok(WalletAddress {
                     id,
                     account_id,
                     blockchain,
                     address,
+                    address_type,
                     label,
+                    xpub,
+                    derivation_path,
+                    network,
+                    last_synced_at: last_synced_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&Utc))),
                     created_at: DateTime::parse_from_rfc3339(&created_at)
                         .map(|dt| dt.with_timezone(&Utc))
                         .unwrap_or_else(|_| Utc::now()),
@@ -316,8 +321,8 @@ impl<'a> AccountRepository<'a> {
         blockchain: &str,
         address: &str,
         label: Option<&str>,
-    ) -> Result<()> {
-        sqlx::query(
+    ) -> Result<i64> {
+        let result = sqlx::query(
             "INSERT INTO wallet_addresses (account_id, blockchain, address, label) VALUES (?, ?, ?, ?)"
         )
         .bind(account_id)
@@ -327,7 +332,35 @@ impl<'a> AccountRepository<'a> {
         .execute(self.pool)
         .await?;
 
-        Ok(())
+        Ok(result.last_insert_rowid())
+    }
+
+    pub async fn add_address_with_xpub(
+        &self,
+        account_id: &str,
+        blockchain: &str,
+        address: &str,
+        label: Option<&str>,
+        xpub: Option<&str>,
+        derivation_path: Option<&str>,
+        address_type: Option<&str>,
+        network: Option<&str>,
+    ) -> Result<i64> {
+        let result = sqlx::query(
+            "INSERT INTO wallet_addresses (account_id, blockchain, address, label, xpub, derivation_path, address_type, network) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(account_id)
+        .bind(blockchain)
+        .bind(address)
+        .bind(label)
+        .bind(xpub)
+        .bind(derivation_path)
+        .bind(address_type)
+        .bind(network)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.last_insert_rowid())
     }
 
     pub async fn remove_address(&self, account_id: &str, address: &str) -> Result<()> {

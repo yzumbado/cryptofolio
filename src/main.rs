@@ -5,6 +5,7 @@ use cryptofolio::cli::commands::{
     handle_currency_command, handle_holdings_command, handle_import_command,
     handle_market_command, handle_pnl_command, handle_portfolio_command, handle_price_command,
     handle_status_command, handle_sync_command, handle_sync_history_command, handle_tx_command,
+    handle_wallet_command,
 };
 use cryptofolio::cli::output::init_color;
 use cryptofolio::cli::{Cli, Commands, GlobalOptions};
@@ -119,6 +120,10 @@ async fn run() -> Result<()> {
 
         Commands::Pnl { command } => {
             handle_pnl_command(command, &pool, &opts).await?;
+        }
+
+        Commands::Wallet { command } => {
+            handle_wallet_command(command, &pool, &opts).await?;
         }
 
         Commands::Shell => {

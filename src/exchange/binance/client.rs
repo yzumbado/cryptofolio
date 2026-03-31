@@ -120,7 +120,24 @@ impl BinanceClient {
             return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
         }
 
-        Ok(response.json().await?)
+        // Read response text first so we can log it if parsing fails
+        let response_text = response.text().await?;
+
+        match serde_json::from_str(&response_text) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                // Log the raw response to help debug API changes
+                eprintln!("[ERROR] Failed to parse Binance API response from {}", endpoint);
+                eprintln!("[ERROR] Parse error: {}", e);
+                eprintln!("[ERROR] Raw response (first 500 chars): {}",
+                    &response_text.chars().take(500).collect::<String>());
+
+                Err(CryptofolioError::ExchangeApi(format!(
+                    "Failed to parse API response from {}: error decoding response body",
+                    endpoint
+                )))
+            }
+        }
     }
 
     /// Signed GET with additional query parameters.
@@ -159,13 +176,22 @@ impl BinanceClient {
             return Err(CryptofolioError::ExchangeApi(format!("[{}] {}", error.code, error.msg)));
         }
 
+        // Read response text first so we can log it if parsing fails
+        let response_text = response.text().await?;
+
         // Try to deserialize, but provide better error context if it fails
-        match response.json::<T>().await {
+        match serde_json::from_str::<T>(&response_text) {
             Ok(data) => Ok(data),
             Err(e) => {
+                // Log the raw response to help debug API changes
+                eprintln!("[ERROR] Failed to parse Binance API response from {}", endpoint);
+                eprintln!("[ERROR] Parse error: {}", e);
+                eprintln!("[ERROR] Raw response (first 500 chars): {}",
+                    &response_text.chars().take(500).collect::<String>());
+
                 Err(CryptofolioError::ExchangeApi(format!(
-                    "Failed to parse API response from {}: {}. The API response format may have changed.",
-                    endpoint, e
+                    "Failed to parse API response from {}: error decoding response body. The API response format may have changed.",
+                    endpoint
                 )))
             }
         }

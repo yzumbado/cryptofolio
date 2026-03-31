@@ -121,10 +121,22 @@ pub struct BinanceWithdrawal {
     #[serde(rename = "txId")]
     pub tx_id: Option<String>,
     #[serde(rename = "applyTime")]
-    pub apply_time: i64,
+    pub apply_time: String,  // Changed: Binance now returns datetime string "YYYY-MM-DD HH:MM:SS"
     pub network: String,
     #[serde(rename = "withdrawOrderId")]
     pub withdraw_order_id: Option<String>,
+    #[serde(rename = "transferType", default)]
+    pub transfer_type: Option<i32>,  // New field from API
+    #[serde(default)]
+    pub info: Option<String>,  // New field from API
+    #[serde(rename = "confirmNo", default)]
+    pub confirm_no: Option<i32>,  // New field from API
+    #[serde(rename = "walletType", default)]
+    pub wallet_type: Option<i32>,  // New field from API
+    #[serde(rename = "txKey", default)]
+    pub tx_key: Option<String>,  // New field from API
+    #[serde(rename = "completeTime", default)]
+    pub complete_time: Option<String>,  // New field from API
 }
 
 // Fiat deposit/withdrawal models
