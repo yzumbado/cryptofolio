@@ -97,9 +97,15 @@ fn make_withdrawal(
         status,
         address: "1XYZ456deadbeef00".to_string(),
         tx_id: Some(format!("txid-wd-{}", id)),
-        apply_time: 1_700_001_000_000,
+        apply_time: "2023-11-14 22:10:00".to_string(),
         network: "BTC".to_string(),
         withdraw_order_id: None,
+        transfer_type: None,
+        info: None,
+        confirm_no: None,
+        wallet_type: None,
+        tx_key: None,
+        complete_time: None,
     }
 }
 
