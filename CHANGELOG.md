@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CSV report generation
 - Advanced P&L reporting (per-asset, per-year)
 
-## [0.4.0] - 2026-03-05
+## [0.4.0] - 2026-03-28
 
 ### Added - Binance Transaction History Sync
 
@@ -79,6 +79,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Version** — Updated from 0.3.1 to 0.4.0
 - `src/exchange/binance/models` — Made public to support integration test fixtures
 - CHANGELOG — Corrected "Planned" entries to remove already-delivered v0.4.0 items
+
+### Fixed
+- **Keychain Access Without Code Signing** (`src/config/keychain_security_cli.rs`)
+  - Replaced Security Framework FFI with `security` command-line tool
+  - Resolves "killed" error on macOS 26+ with ad-hoc signatures
+  - Works on unsigned binaries - no Apple Developer ID required
+  - Full keychain security maintained (encrypted, Touch ID protected at system level)
+  - Session caching (15-minute timeout) prevents repeated prompts
+  - Cross-platform ready (easy to add Linux/Windows equivalents)
+
+### Known Issues
+- **Withdrawal Import** - Binance withdrawal history parsing currently fails with "error decoding response body"
+  - Likely API response format change from Binance
+  - Trades and deposits work correctly
+  - Fix planned for v0.4.1 with updated `BinanceWithdrawal` model
 
 ## [0.3.1] - 2026-03-01
 

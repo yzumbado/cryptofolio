@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Developed with Claude Code](https://img.shields.io/badge/developed%20with-Claude%20Code-blueviolet.svg)](https://claude.ai/claude-code)
@@ -69,7 +69,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.5.0
+# cryptofolio 0.4.0
 ```
 
 ### First Steps
@@ -294,7 +294,8 @@ cryptofolio status
 
 ### 🔒 Security First
 
-**macOS Keychain Storage (NEW!)** - OS-encrypted secret storage
+**macOS Keychain Storage (NEW!)** - OS-encrypted secret storage, works without code signing!
+**No Apple Developer ID Required** - Uses system `security` command (v0.4.0 fix)
 **Read-only API access** - Never grant withdrawal permissions
 **Local-first** - All data stays on your machine
 **Secure secrets** - API keys never in shell history or plaintext
@@ -448,7 +449,7 @@ cryptofolio sync-history --account Binance --symbols BTCUSDT,ETHUSDT
 **What's imported:**
 - ✅ **Spot trades** → Buy / Sell transactions with automatic P&L
 - ✅ **Crypto deposits** → Transfer In (updates holdings)
-- ✅ **Crypto withdrawals** → Transfer Out (reduces holdings)
+- ⚠️  **Crypto withdrawals** → Currently unavailable (API parsing issue, fix in v0.4.1)
 - ✅ **Fiat on-ramp orders** → Buy transactions (credit card, bank)
 - ✅ **Internal transfers** → Spot ↔ Earn wallet moves
 

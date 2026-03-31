@@ -110,9 +110,12 @@ pub trait KeychainStorage {
 }
 
 /// Get the default keychain implementation for this platform
+///
+/// On macOS, this now uses the `security` command-line tool instead of
+/// Security Framework FFI, which allows it to work without code signing.
 #[cfg(target_os = "macos")]
 pub fn get_keychain() -> Box<dyn KeychainStorage> {
-    Box::new(super::keychain_macos::MacOSKeychain::new())
+    Box::new(super::keychain_security_cli::SecurityCliKeychain::new())
 }
 
 /// Check if keychain is available on this platform

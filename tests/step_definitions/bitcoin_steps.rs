@@ -14,7 +14,10 @@ async fn mock_bitcoin_transactions(world: &mut CryptofolioWorld, incoming: u32, 
     let total_count = (incoming + outgoing) as usize;
 
     if let Some(mock) = &world.blockchain_mock {
-        // Mock transactions
+        // Mock address info endpoint (required before transactions)
+        mock.mock_address_info(address, 0.5, total_count as u64).await;
+
+        // Mock transactions endpoint
         mock.mock_transactions(address, incoming as i64, outgoing as i64, total_count).await;
     }
 }
