@@ -14,8 +14,7 @@ use crate::config::AppConfig;
 use crate::error::Result;
 
 /// AI mode configuration
-#[derive(Debug, Clone, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum AiMode {
     /// Only use Claude API
     Online,
@@ -27,7 +26,6 @@ pub enum AiMode {
     /// Disable AI features
     Disabled,
 }
-
 
 impl std::str::FromStr for AiMode {
     type Err = String;

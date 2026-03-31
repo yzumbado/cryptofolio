@@ -636,10 +636,8 @@ async fn handle_export_command(
     }
 
     // Convert transactions to CSV format
-    let csv_records: Vec<CsvExportRecord> = transactions
-        .iter()
-        .map(transaction_to_csv_record)
-        .collect();
+    let csv_records: Vec<CsvExportRecord> =
+        transactions.iter().map(transaction_to_csv_record).collect();
 
     // Write to CSV file
     if !opts.quiet {

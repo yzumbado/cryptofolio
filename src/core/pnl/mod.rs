@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub use calculator::PnLCalculator;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 pub enum CostBasisMethod {
     /// First In, First Out
     #[default]
@@ -19,7 +18,6 @@ pub enum CostBasisMethod {
     /// Average cost of all purchases
     AverageCost,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PnLSummary {

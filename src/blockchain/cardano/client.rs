@@ -134,8 +134,7 @@ impl BlockfrostClient {
 
         // Convert lovelace to ADA (1 ADA = 1,000,000 lovelace)
         let balance = Decimal::from_str(
-            data
-                .amount
+            data.amount
                 .iter()
                 .find(|a| a.unit == "lovelace")
                 .map(|a| a.quantity.as_str())

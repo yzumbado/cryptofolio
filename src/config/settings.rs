@@ -112,8 +112,7 @@ impl Default for GeneralConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinanceConfig {
     #[serde(default)]
     pub api_key: Option<String>,
@@ -122,9 +121,7 @@ pub struct BinanceConfig {
     pub api_secret: Option<String>,
 }
 
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BlockfrostConfig {
     /// Blockfrost API key for Cardano mainnet
     #[serde(default)]
@@ -138,7 +135,6 @@ pub struct BlockfrostConfig {
     #[serde(default)]
     pub preview_api_key: Option<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {

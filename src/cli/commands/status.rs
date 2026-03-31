@@ -205,7 +205,8 @@ fn determine_effective_provider(
                 "Pattern-based (Ollama unavailable)".to_string()
             }
         }
-        _ => {  // "hybrid", "auto", or any other value
+        _ => {
+            // "hybrid", "auto", or any other value
             if claude.available && ollama.available {
                 "Hybrid (Ollama + Claude)".to_string()
             } else if claude.available {
