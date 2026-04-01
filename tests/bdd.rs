@@ -8,5 +8,9 @@ use support::world::CryptofolioWorld;
 
 #[tokio::main]
 async fn main() {
-    CryptofolioWorld::cucumber().run("tests/features").await;
+    CryptofolioWorld::cucumber()
+        .filter_run("tests/features", |_, _, sc| {
+            !sc.tags.iter().any(|t| t == "wip")
+        })
+        .await;
 }

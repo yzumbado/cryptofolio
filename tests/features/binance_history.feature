@@ -1,3 +1,5 @@
+# @wip — scenarios require Binance API wiremock setup; excluded from CI until implemented
+@wip
 Feature: Binance History Sync
   As a Binance trader
   I want to sync my trading history from Binance
