@@ -13,7 +13,7 @@ async fn mock_cardano_transactions(world: &mut CryptofolioWorld, incoming: u32, 
             .expect("Failed to setup Cardano mock");
     }
 
-    let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
+    let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
     if let Some(mock) = &world.cardano_mock {
         // Mock ADA balance
         mock.mock_balance(address, 100.0).await;
@@ -36,7 +36,7 @@ async fn mock_cardano_balance(world: &mut CryptofolioWorld, balance: f64) {
     }
 
     // Mock the address info for the test wallet
-    let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
+    let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
     if let Some(mock) = &world.cardano_mock {
         mock.mock_balance(address, balance).await;
         mock.mock_no_tokens(address).await;
@@ -53,7 +53,7 @@ async fn mock_native_tokens(world: &mut CryptofolioWorld, token_count: u32) {
             .expect("Failed to setup Cardano mock");
     }
 
-    let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
+    let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
     if let Some(mock) = &world.cardano_mock {
         // Always mock ADA balance
         mock.mock_balance(address, 100.0).await;
@@ -111,13 +111,10 @@ async fn mock_stake_delegation(world: &mut CryptofolioWorld, pool_ticker: String
             .expect("Failed to setup Cardano mock");
     }
 
-    let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
+    let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
     if let Some(mock) = &world.cardano_mock {
-        // Mock ADA balance
-        mock.mock_balance(address, 1000.0).await;
-        // Mock no tokens
-        mock.mock_no_tokens(address).await;
-        // Mock stake delegation
+        // mock_delegation sets up the address endpoint (with stake_address), tokens endpoint,
+        // and all stake account / pool endpoints in one call.
         mock.mock_delegation(address, &pool_ticker).await;
     }
 }

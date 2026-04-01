@@ -122,7 +122,7 @@ async fn add_cardano_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
     repo.add_address(
         &wallet_name,
         "cardano",
-        "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa",
+        "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x",
         None,
     ).await.expect("Failed to add address");
 

@@ -142,10 +142,48 @@ impl CardanoMock {
             .await;
     }
 
-    /// Mock stake pool delegation for an address
+    /// Mock stake pool delegation for an address.
+    /// This also mocks the address endpoint with the stake_address field included,
+    /// so the client can look up delegation info. Do NOT call mock_balance separately
+    /// when using this method.
     pub async fn mock_delegation(&self, address: &str, pool_ticker: &str) {
-        // Mock stake address endpoint
         let stake_address = format!("stake1u{}", &address[6..]);
+        let balance_lovelace = 1_000_000_000i64; // 1000 ADA
+
+        // Mock the address endpoint WITH stake_address so the client discovers delegation
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v0/addresses/{}", address)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "address": address,
+                "amount": [
+                    {
+                        "unit": "lovelace",
+                        "quantity": balance_lovelace.to_string()
+                    }
+                ],
+                "tx_count": 10,
+                "stake_address": stake_address
+            })))
+            .mount(&self.server)
+            .await;
+
+        // Mock no tokens
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v0/addresses/{}/total", address)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "address": address,
+                "amount": [
+                    {
+                        "unit": "lovelace",
+                        "quantity": balance_lovelace.to_string()
+                    }
+                ],
+                "tx_count": 10
+            })))
+            .mount(&self.server)
+            .await;
+
+        // Mock stake address endpoint
 
         Mock::given(method("GET"))
             .and(path(format!("/api/v0/accounts/{}", stake_address)))

@@ -255,7 +255,7 @@ async fn handle_wallet_command_test(
             // Set up accumulated Cardano native tokens if any
             if !world.accumulated_cardano_tokens.is_empty() {
                 if let Some(mock) = &world.cardano_mock {
-                    let address = "addr1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qvwa";
+                    let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
                     // Mock ADA balance
                     mock.mock_balance(address, 100.0).await;
                     // Mock all accumulated tokens

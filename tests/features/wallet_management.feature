@@ -19,7 +19,7 @@ Feature: Wallet Management
     And I should see "✓ Added wallet"
 
   Scenario: Add a Bitcoin HD wallet with xpub
-    When I run "cryptofolio wallet add 'Sparrow Wallet' --blockchain bitcoin --xpub zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvphXR5ePCqYAN5qRbNnCLanT9qDKnNT4yKYr8j6L51HvvPahBJPJJZpNAQTwD"
+    When I run "cryptofolio wallet add 'HD Wallet' --blockchain bitcoin --xpub xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz"
     Then the command should succeed
     And I should see "✓ Added HD wallet"
 
