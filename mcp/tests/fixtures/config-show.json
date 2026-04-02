@@ -1,0 +1,26 @@
+{
+  "general": {
+    "default_account": "Binance",
+    "use_testnet": false,
+    "currency": "USD"
+  },
+  "binance": {
+    "api_key_configured": true,
+    "api_secret_configured": true
+  },
+  "blockfrost": {
+    "mainnet_api_key_configured": false,
+    "preprod_api_key_configured": false,
+    "preview_api_key_configured": false
+  },
+  "display": {
+    "color": true,
+    "decimals": 8,
+    "price_decimals": 2,
+    "thousands_separator": true
+  },
+  "paths": {
+    "config_dir": "/Users/testuser/.config/cryptofolio",
+    "database": "/Users/testuser/.config/cryptofolio/database.sqlite"
+  }
+}

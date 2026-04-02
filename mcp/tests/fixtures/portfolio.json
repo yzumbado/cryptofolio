@@ -1,0 +1,32 @@
+{
+  "total_value_usd": "52341.87",
+  "total_cost_basis": "45000.00",
+  "unrealized_pnl": "7341.87",
+  "unrealized_pnl_percent": "16.32",
+  "entries": [
+    {
+      "account_name": "Binance",
+      "category_name": "trading",
+      "holdings": [
+        {
+          "asset": "BTC",
+          "quantity": "0.50000000",
+          "current_price": "95000.00",
+          "current_value": "47500.00",
+          "cost_basis": "40000.00",
+          "unrealized_pnl": "7500.00",
+          "unrealized_pnl_percent": "18.75"
+        },
+        {
+          "asset": "USDT",
+          "quantity": "4841.87",
+          "current_price": "1.00",
+          "current_value": "4841.87",
+          "cost_basis": "5000.00",
+          "unrealized_pnl": "-158.13",
+          "unrealized_pnl_percent": "-3.16"
+        }
+      ]
+    }
+  ]
+}

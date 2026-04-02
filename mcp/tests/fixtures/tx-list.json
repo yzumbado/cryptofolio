@@ -1,0 +1,28 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2024-01-15T10:30:00Z",
+    "tx_type": "buy",
+    "to_account_id": "binance",
+    "to_asset": "BTC",
+    "to_quantity": "0.25000000",
+    "price_usd": "42000.00",
+    "fee": "10.50",
+    "fee_asset": "USDT",
+    "external_id": null,
+    "notes": "Monthly DCA"
+  },
+  {
+    "id": 2,
+    "timestamp": "2024-02-15T11:00:00Z",
+    "tx_type": "buy",
+    "to_account_id": "binance",
+    "to_asset": "BTC",
+    "to_quantity": "0.25000000",
+    "price_usd": "52000.00",
+    "fee": "13.00",
+    "fee_asset": "USDT",
+    "external_id": null,
+    "notes": "Monthly DCA"
+  }
+]

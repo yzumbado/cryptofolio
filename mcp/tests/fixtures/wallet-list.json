@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Ledger",
+    "id": "acct-ledger-001",
+    "type": "hardware_wallet",
+    "addresses": [
+      {
+        "blockchain": "bitcoin",
+        "address": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+        "label": "Main BTC"
+      },
+      {
+        "blockchain": "ethereum",
+        "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bd2e",
+        "label": null
+      }
+    ]
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Binance",
+    "account_type": "exchange",
+    "category": "trading",
+    "sync_enabled": true,
+    "is_testnet": false
+  },
+  {
+    "name": "Ledger",
+    "account_type": "hardware_wallet",
+    "category": "cold-storage",
+    "sync_enabled": false,
+    "is_testnet": false
+  }
+]
