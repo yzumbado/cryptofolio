@@ -12,6 +12,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CoinMarketCap portfolio import
 - CSV report generation
 - Advanced P&L reporting (per-asset, per-year)
+- MCP server for AI assistant integration (v0.6.0)
+
+## [0.5.0] - 2026-04-01
+
+### Added — Multi-chain Wallet Tracking
+
+#### Blockchain Client Architecture
+- `BlockchainClient` trait — unified async interface for all chain clients
+- `ProviderRegistry` — health-check–driven provider selection with 60s cache
+  and `PrivacyMode` (Strict / Balanced / Convenience)
+- `SyncEngine` — parallel sync via `JoinSet`, `MultiProgress` progress bars,
+  block-height watermarks in `wallet_sync_state` table
+
+#### Chain Support
+- **Bitcoin** — Blockstream.info, all address types (P2PKH, P2SH, Bech32, Taproot)
+  xpub/zpub HD wallet derivation (BIP44/BIP84)
+- **Ethereum** — Etherscan API, ETH balance + ERC-20 token detection
+- **Cardano** — Blockfrost API, ADA + native tokens, stake delegation info
+- **Solana** — User-supplied JSON-RPC, SOL + SPL tokens (Jupiter metadata cache),
+  stake accounts
+
+#### New Commands
+- `cryptofolio wallet add` — add single-address or HD wallets
+- `cryptofolio wallet list` — list wallets with blockchain filter
+- `cryptofolio wallet show` — show wallet detail
+- `cryptofolio wallet sync` — sync balances and transactions from blockchain
+- `cryptofolio wallet remove` — remove wallet
+- `cryptofolio audit sync` — view sync audit log with per-address history
+- `cryptofolio audit coverage` — show which addresses are synced vs. never-synced
+- `cryptofolio audit errors` — show sync error history
+
+#### Security
+- Private key guard — rejects WIF, Ethereum raw keys, and BIP39 seed phrases
+  at the `wallet add` boundary before any DB write
+- xpub stored in macOS Keychain (not plaintext DB column) on macOS
+- All sync operations recorded in `sync_audit_log` for tamper-evident provenance
+- Address redaction in logs (first 8 + last 4 chars)
+
+#### CI
+- Nightly integration test job (`CRYPTOFOLIO_INTEGRATION_TESTS=1`) for real API
+  validation against Bitcoin, Ethereum, Cardano, and Solana mainnet
 
 ## [0.4.0] - 2026-03-28
 

@@ -300,6 +300,18 @@ pub enum Commands {
         command: WalletCommands,
     },
 
+    /// Audit sync activity and wallet coverage
+    ///
+    /// Provides visibility into sync history, provider errors, and which
+    /// addresses have or have not been synced recently.
+    #[command(
+        after_help = "EXAMPLES:\n    # Show recent sync operations\n    cryptofolio audit sync\n    cryptofolio audit sync --limit 50\n    cryptofolio audit sync --wallet \"My Ledger\"\n    cryptofolio audit sync --chain bitcoin\n\n    # Show per-address sync coverage\n    cryptofolio audit coverage\n    cryptofolio audit coverage --chain ethereum\n\n    # Show only sync errors\n    cryptofolio audit errors\n    cryptofolio audit errors --limit 20"
+    )]
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommands,
+    },
+
     /// Start interactive shell mode
     #[command(
         after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)"
@@ -501,6 +513,42 @@ pub enum AddressCommands {
 
         /// Wallet address
         address: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AuditCommands {
+    /// Show recent sync operations from the audit log
+    Sync {
+        /// Filter by wallet name
+        #[arg(long)]
+        wallet: Option<String>,
+
+        /// Filter by chain (bitcoin, ethereum, cardano, solana)
+        #[arg(long)]
+        chain: Option<String>,
+
+        /// Maximum number of rows to show
+        #[arg(long, default_value = "20")]
+        limit: i64,
+    },
+
+    /// Show per-address sync coverage and watermarks
+    Coverage {
+        /// Filter by wallet name
+        #[arg(long)]
+        wallet: Option<String>,
+
+        /// Filter by chain
+        #[arg(long)]
+        chain: Option<String>,
+    },
+
+    /// Show only sync errors
+    Errors {
+        /// Maximum number of errors to show
+        #[arg(long, default_value = "20")]
+        limit: i64,
     },
 }
 

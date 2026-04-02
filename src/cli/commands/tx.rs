@@ -666,17 +666,28 @@ async fn handle_export_command(
         "sql" => {
             use std::fmt::Write as FmtWrite;
             let mut sql = String::new();
-            writeln!(sql, "-- Cryptofolio transaction export").unwrap();
-            writeln!(sql, "-- Generated: {}", Utc::now().format("%Y-%m-%dT%H:%M:%SZ")).unwrap();
-            writeln!(sql, "-- Total records: {}", transactions.len()).unwrap();
-            writeln!(sql).unwrap();
+            // String::write_fmt is infallible — these expects will never trigger.
+            writeln!(sql, "-- Cryptofolio transaction export")
+                .expect("String::Write is infallible");
+            writeln!(
+                sql,
+                "-- Generated: {}",
+                Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+            )
+            .expect("String::Write is infallible");
+            writeln!(sql, "-- Total records: {}", transactions.len())
+                .expect("String::Write is infallible");
+            writeln!(sql).expect("String::Write is infallible");
             for tx in &transactions {
                 let escape = |s: &str| s.replace('\'', "''");
                 let opt_str = |o: &Option<String>| -> String {
-                    o.as_ref().map(|s| format!("'{}'", escape(s))).unwrap_or_else(|| "NULL".to_string())
+                    o.as_ref()
+                        .map(|s| format!("'{}'", escape(s)))
+                        .unwrap_or_else(|| "NULL".to_string())
                 };
                 let opt_dec = |o: Option<rust_decimal::Decimal>| -> String {
-                    o.map(|d| format!("'{}'", d)).unwrap_or_else(|| "NULL".to_string())
+                    o.map(|d| format!("'{}'", d))
+                        .unwrap_or_else(|| "NULL".to_string())
                 };
                 writeln!(
                     sql,
@@ -698,7 +709,8 @@ async fn handle_export_command(
                     opt_str(&tx.external_id),
                     opt_str(&tx.notes),
                     tx.timestamp.format("%Y-%m-%dT%H:%M:%SZ"),
-                ).unwrap();
+                )
+                .expect("String::Write is infallible");
             }
             std::fs::write(&file, sql)?;
         }

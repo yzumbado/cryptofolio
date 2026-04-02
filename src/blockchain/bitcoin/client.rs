@@ -1,4 +1,10 @@
 /// Bitcoin blockchain clients (RPC and public APIs)
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use crate::blockchain::trait_def::BlockchainClient;
+use crate::blockchain::types::{
+    AddressSummary, Chain, HealthStatus, TransactionDirection, WalletBalance, WalletTransaction,
+};
 use crate::error::{CryptofolioError, Result};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -83,8 +89,9 @@ impl BlockstreamClient {
         })
     }
 
-    /// Get transactions for an address
-    pub async fn get_transactions(&self, address: &str) -> Result<Vec<BitcoinTransaction>> {
+    /// Get transactions for an address (raw Blockstream types).
+    /// Used internally and by the BlockchainClient trait impl.
+    pub async fn fetch_transactions(&self, address: &str) -> Result<Vec<BitcoinTransaction>> {
         let url = format!("{}/address/{}/txs", self.base_url, address);
 
         let response = reqwest::get(&url).await.map_err(|e| {
@@ -116,13 +123,10 @@ impl BlockstreamClient {
             }
 
             for vin in &tx.vin {
-                if vin
-                    .prevout
-                    .as_ref()
-                    .and_then(|p| p.scriptpubkey_address.as_deref())
-                    == Some(address)
-                {
-                    value_out += vin.prevout.as_ref().unwrap().value;
+                if let Some(prevout) = &vin.prevout {
+                    if prevout.scriptpubkey_address.as_deref() == Some(address) {
+                        value_out += prevout.value;
+                    }
                 }
             }
 
@@ -187,6 +191,110 @@ struct TxInput {
 struct TxOutput {
     scriptpubkey_address: Option<String>,
     value: i64,
+}
+
+// ---------------------------------------------------------------------------
+// BlockchainClient trait implementation
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl BlockchainClient for BlockstreamClient {
+    fn provider_name(&self) -> &str {
+        "Blockstream"
+    }
+
+    async fn health_check(&self) -> Result<HealthStatus> {
+        let url = format!("{}/blocks/tip/height", self.base_url);
+        let start = std::time::Instant::now();
+
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Blockstream health check failed: {}", e))
+        })?;
+
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        if !response.status().is_success() {
+            return Ok(HealthStatus {
+                provider: self.provider_name().to_string(),
+                reachable: false,
+                block_height: None,
+                latency_ms,
+            });
+        }
+
+        let height = response
+            .text()
+            .await
+            .unwrap_or_default()
+            .trim()
+            .parse::<u64>()
+            .unwrap_or(0);
+
+        Ok(HealthStatus {
+            provider: self.provider_name().to_string(),
+            reachable: true,
+            block_height: Some(height),
+            latency_ms,
+        })
+    }
+
+    async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
+        let info = self.get_address_info(address).await?;
+
+        Ok(AddressSummary {
+            address: address.to_string(),
+            chain: Chain::Bitcoin,
+            balances: vec![WalletBalance {
+                asset: "BTC".to_string(),
+                asset_id: None,
+                quantity: info.balance,
+                decimals: 8,
+            }],
+            transaction_count: info.tx_count,
+            extras: None,
+        })
+    }
+
+    async fn get_transactions(
+        &self,
+        address: &str,
+        since_block: Option<u64>,
+    ) -> Result<Vec<WalletTransaction>> {
+        let raw = self.fetch_transactions(address).await?;
+
+        let txs = raw
+            .into_iter()
+            .filter(|tx| match since_block {
+                Some(min) => tx.block_height.map_or(false, |h| h >= min),
+                None => true,
+            })
+            .map(|tx| {
+                let timestamp = tx
+                    .timestamp
+                    .and_then(|ts| DateTime::from_timestamp(ts, 0))
+                    .unwrap_or_else(Utc::now);
+
+                WalletTransaction {
+                    external_id: tx.txid,
+                    direction: if tx.is_incoming {
+                        TransactionDirection::Incoming
+                    } else {
+                        TransactionDirection::Outgoing
+                    },
+                    amount: tx.value,
+                    asset: "BTC".to_string(),
+                    fee: tx.fee,
+                    fee_asset: tx.fee.map(|_| "BTC".to_string()),
+                    block_height: tx.block_height,
+                    timestamp,
+                    counterparty: None,
+                    memo: None,
+                }
+            })
+            .collect();
+
+        Ok(txs)
+    }
 }
 
 #[cfg(test)]

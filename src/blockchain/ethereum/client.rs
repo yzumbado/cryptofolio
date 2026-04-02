@@ -1,4 +1,10 @@
 /// Ethereum blockchain clients (Etherscan API)
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use crate::blockchain::trait_def::BlockchainClient;
+use crate::blockchain::types::{
+    AddressSummary, Chain, HealthStatus, TransactionDirection, WalletBalance, WalletTransaction,
+};
 use crate::error::{CryptofolioError, Result};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -213,8 +219,74 @@ impl EtherscanClient {
         Ok(tokens)
     }
 
-    /// Get transactions for an address
-    pub async fn get_transactions(&self, address: &str) -> Result<Vec<EthereumTransaction>> {
+    /// Get transactions for an address, optionally starting from `start_block`.
+    async fn fetch_transactions_since(
+        &self,
+        address: &str,
+        start_block: u64,
+    ) -> Result<Vec<EthereumTransaction>> {
+        let mut url = format!(
+            "{}?chainid={}&module=account&action=txlist&address={}&startblock={}&endblock=99999999&sort=asc",
+            self.base_url, self.chain_id, address, start_block
+        );
+
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch transactions: {}", e))
+        })?;
+
+        if !response.status().is_success() {
+            return Err(CryptofolioError::Network(format!(
+                "Etherscan API error: {}",
+                response.status()
+            )));
+        }
+
+        let data: EtherscanTxResponse = response
+            .json()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
+
+        if data.status != "1" {
+            if data.message.contains("No transactions found") {
+                return Ok(Vec::new());
+            }
+            return Err(CryptofolioError::Network(format!(
+                "Etherscan API error: {}",
+                data.message
+            )));
+        }
+
+        let mut result = Vec::new();
+        for tx in data.result {
+            let value_wei = Decimal::from_str(&tx.value).unwrap_or(Decimal::ZERO);
+            let value_eth = value_wei / Decimal::from(1_000_000_000_000_000_000u64);
+
+            let gas_price_wei = Decimal::from_str(&tx.gas_price).unwrap_or(Decimal::ZERO);
+            let gas_price_gwei = gas_price_wei / Decimal::from(1_000_000_000u64);
+
+            result.push(EthereumTransaction {
+                hash: tx.hash,
+                from: tx.from,
+                to: tx.to,
+                value: value_eth,
+                gas_used: tx.gas_used.parse().unwrap_or(0),
+                gas_price: gas_price_gwei,
+                timestamp: tx.time_stamp.parse().unwrap_or(0),
+                block_number: tx.block_number.parse().unwrap_or(0),
+                is_error: tx.is_error != "0",
+            });
+        }
+
+        Ok(result)
+    }
+
+    /// Get transactions for an address (raw Etherscan types).
+    /// Used internally and by the BlockchainClient trait impl.
+    pub async fn fetch_transactions(&self, address: &str) -> Result<Vec<EthereumTransaction>> {
         let mut url = format!(
             "{}?chainid={}&module=account&action=txlist&address={}&startblock=0&endblock=99999999&sort=asc",
             self.base_url, self.chain_id, address
@@ -274,6 +346,139 @@ impl EtherscanClient {
         }
 
         Ok(result)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// BlockchainClient trait implementation
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl BlockchainClient for EtherscanClient {
+    fn provider_name(&self) -> &str {
+        "Etherscan"
+    }
+
+    async fn health_check(&self) -> Result<HealthStatus> {
+        let mut url = format!(
+            "{}?chainid={}&module=proxy&action=eth_blockNumber",
+            self.base_url, self.chain_id
+        );
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let start = std::time::Instant::now();
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Etherscan health check failed: {}", e))
+        })?;
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        if !response.status().is_success() {
+            return Ok(HealthStatus {
+                provider: self.provider_name().to_string(),
+                reachable: false,
+                block_height: None,
+                latency_ms,
+            });
+        }
+
+        #[derive(serde::Deserialize)]
+        struct BlockNumberResponse {
+            result: String,
+        }
+
+        let data: BlockNumberResponse = response
+            .json()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse health response: {}", e)))?;
+
+        let height = u64::from_str_radix(data.result.trim_start_matches("0x"), 16).unwrap_or(0);
+
+        Ok(HealthStatus {
+            provider: self.provider_name().to_string(),
+            reachable: true,
+            block_height: Some(height),
+            latency_ms,
+        })
+    }
+
+    async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
+        let info = self.get_address_info(address).await?;
+
+        let mut balances = vec![WalletBalance {
+            asset: "ETH".to_string(),
+            asset_id: None,
+            quantity: info.balance,
+            decimals: 18,
+        }];
+
+        for token in &info.tokens {
+            balances.push(WalletBalance {
+                asset: token.symbol.clone(),
+                asset_id: Some(token.contract_address.clone()),
+                quantity: token.balance,
+                decimals: token.decimals,
+            });
+        }
+
+        Ok(AddressSummary {
+            address: address.to_string(),
+            chain: Chain::Ethereum,
+            balances,
+            transaction_count: info.tokens.len() as u64,
+            extras: None,
+        })
+    }
+
+    async fn get_transactions(
+        &self,
+        address: &str,
+        since_block: Option<u64>,
+    ) -> Result<Vec<WalletTransaction>> {
+        let raw = self.fetch_transactions_since(address, since_block.unwrap_or(0)).await?;
+
+        let txs = raw
+            .into_iter()
+            .filter(|tx| !tx.is_error)
+            .map(|tx| {
+                let timestamp = DateTime::from_timestamp(tx.timestamp, 0)
+                    .unwrap_or_else(Utc::now);
+
+                let direction = if tx.to.eq_ignore_ascii_case(address) {
+                    TransactionDirection::Incoming
+                } else if tx.from.eq_ignore_ascii_case(address) {
+                    TransactionDirection::Outgoing
+                } else {
+                    TransactionDirection::Internal
+                };
+
+                // Gas fee in ETH: gas_used * gas_price_gwei / 1e9
+                let fee = Some(
+                    Decimal::from(tx.gas_used)
+                        * tx.gas_price
+                        / Decimal::from(1_000_000_000u64),
+                );
+
+                WalletTransaction {
+                    external_id: tx.hash,
+                    direction,
+                    amount: tx.value,
+                    asset: "ETH".to_string(),
+                    fee,
+                    fee_asset: Some("ETH".to_string()),
+                    block_height: Some(tx.block_number),
+                    timestamp,
+                    counterparty: Some(match direction {
+                        TransactionDirection::Incoming => tx.from.clone(),
+                        _ => tx.to.clone(),
+                    }),
+                    memo: None,
+                }
+            })
+            .collect();
+
+        Ok(txs)
     }
 }
 

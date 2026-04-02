@@ -225,6 +225,8 @@ impl<'a> RealizedPnLRepository<'a> {
         query.push_str(" ORDER BY disposal_date DESC");
 
         if let Some(lim) = limit {
+            // sqlx does not support binding LIMIT as a parameter in query_as;
+            // lim is typed as usize so string formatting is injection-safe.
             query.push_str(&format!(" LIMIT {}", lim));
         }
 

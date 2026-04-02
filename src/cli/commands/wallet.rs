@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
 use crate::blockchain;
+use crate::blockchain::provider::{PrivacyLevel, PrivacyMode, ProviderRegistry};
+use crate::blockchain::sync::{SyncEngine, SyncOptions};
+use crate::blockchain::types::Chain;
 use crate::cli::output::{info, success};
 use crate::cli::{GlobalOptions, WalletCommands};
 use crate::core::account::{Account, AccountConfig, AccountType, WalletAddress};
@@ -74,6 +79,17 @@ async fn handle_wallet_add(
         return Err(CryptofolioError::Other(
             "Either --address or --xpub must be provided".to_string(),
         ));
+    }
+
+    // Security: reject private key material before touching the DB
+    if let Some(ref addr) = address {
+        blockchain::reject_if_private_key(addr)?;
+    }
+    if let Some(ref xpub_val) = xpub {
+        blockchain::reject_if_private_key(xpub_val)?;
+    }
+    if let Some(ref lbl) = label {
+        blockchain::reject_if_private_key(lbl)?;
     }
 
     // Validate address matches the blockchain
@@ -202,7 +218,10 @@ async fn handle_wallet_add(
         let derived = blockchain::bitcoin::derive_addresses(&xpub_val, is_testnet_net, 20)
             .map_err(|e| CryptofolioError::Other(format!("xpub derivation failed: {}", e)))?;
 
-        // Store each derived address, all sharing the same xpub
+        // Secure xpub storage: macOS Keychain when available, DB column otherwise.
+        let xpub_for_db = store_xpub_secure(&account_id, &xpub_val)?;
+
+        // Store each derived address, all sharing the same xpub reference
         for (addr_str, idx) in &derived {
             let child_path = derivation_path
                 .as_ref()
@@ -215,7 +234,7 @@ async fn handle_wallet_add(
                     &blockchain,
                     addr_str,
                     label.as_deref(),
-                    Some(&xpub_val),
+                    xpub_for_db.as_deref(),
                     Some(&child_path),
                     address_type.as_deref(),
                     network,
@@ -261,6 +280,30 @@ async fn handle_wallet_add(
     }
 
     Ok(())
+}
+
+/// Store an xpub securely.
+///
+/// - **macOS**: writes to macOS Keychain under `cryptofolio:xpub:{account_id}`.
+///   Returns `None` so the DB column stays empty (no plaintext on disk).
+/// - **Other platforms**: returns `Some(xpub)` — stored in the DB column as
+///   before (Keychain support for Linux/Windows is planned for v1.0).
+fn store_xpub_secure(account_id: &str, xpub: &str) -> Result<Option<String>> {
+    #[cfg(target_os = "macos")]
+    {
+        use crate::config::keychain::get_keychain;
+        let keychain = get_keychain();
+        let key = format!("cryptofolio:xpub:{}", account_id);
+        keychain.store(&key, xpub).map_err(|e| {
+            CryptofolioError::Other(format!("Failed to store xpub in macOS Keychain: {}", e))
+        })?;
+        return Ok(None); // do not write xpub to DB
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(Some(xpub.to_string()))
+    }
 }
 
 async fn handle_wallet_list(
@@ -392,11 +435,7 @@ async fn handle_wallet_list(
     Ok(())
 }
 
-async fn handle_wallet_show(
-    name: String,
-    pool: &SqlitePool,
-    opts: &GlobalOptions,
-) -> Result<()> {
+async fn handle_wallet_show(name: String, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
     let account_repo = AccountRepository::new(pool);
     let holding_repo = HoldingRepository::new(pool);
 
@@ -413,13 +452,19 @@ async fn handle_wallet_show(
         println!(r#"  "name": "{}","#, account.name);
         println!(r#"  "id": "{}","#, account.id);
         println!(r#"  "type": "{}","#, account.account_type.as_str());
-        println!(r#"  "created_at": "{}","#, account.created_at.format("%Y-%m-%d"));
+        println!(
+            r#"  "created_at": "{}","#,
+            account.created_at.format("%Y-%m-%d")
+        );
         println!(r#"  "addresses": ["#);
         for (i, addr) in addresses.iter().enumerate() {
             println!("    {{");
             println!(r#"      "blockchain": "{}","#, addr.blockchain);
             println!(r#"      "address": "{}","#, addr.address);
-            println!(r#"      "network": "{}""#, addr.network.as_deref().unwrap_or("mainnet"));
+            println!(
+                r#"      "network": "{}""#,
+                addr.network.as_deref().unwrap_or("mainnet")
+            );
             println!("    }}{}", if i < addresses.len() - 1 { "," } else { "" });
         }
         println!("  ],");
@@ -434,10 +479,17 @@ async fn handle_wallet_show(
         println!("}}");
     } else {
         println!("{}", "━".repeat(80).bright_black());
-        println!("{} ({})", account.name.bold(), account.account_type.as_str());
+        println!(
+            "{} ({})",
+            account.name.bold(),
+            account.account_type.as_str()
+        );
         println!("{}", "━".repeat(80).bright_black());
         info(&format!("  ID:      {}", account.id));
-        info(&format!("  Created: {}", account.created_at.format("%Y-%m-%d")));
+        info(&format!(
+            "  Created: {}",
+            account.created_at.format("%Y-%m-%d")
+        ));
 
         println!("\n{}", "Addresses".bold());
         if addresses.is_empty() {
@@ -445,21 +497,26 @@ async fn handle_wallet_show(
         } else {
             for addr in &addresses {
                 let icon = match addr.blockchain.as_str() {
-                    "bitcoin"  => "₿",
+                    "bitcoin" => "₿",
                     "ethereum" => "Ξ",
-                    "solana"   => "◎",
-                    "cardano"  => "₳",
-                    _          => "•",
+                    "solana" => "◎",
+                    "cardano" => "₳",
+                    _ => "•",
                 };
                 let network_tag = if addr.network.as_deref() == Some("testnet") {
                     format!(" {}", "[TESTNET]".yellow())
                 } else {
                     String::new()
                 };
-                let label_tag = addr.label.as_ref()
+                let label_tag = addr
+                    .label
+                    .as_ref()
                     .map(|l| format!(" ({})", l.dimmed()))
                     .unwrap_or_default();
-                println!("  {} {} {}{}{}", icon, addr.blockchain, addr.address, network_tag, label_tag);
+                println!(
+                    "  {} {} {}{}{}",
+                    icon, addr.blockchain, addr.address, network_tag, label_tag
+                );
             }
         }
 
@@ -468,7 +525,8 @@ async fn handle_wallet_show(
             info("  No holdings — run: cryptofolio wallet sync");
         } else {
             for h in &holdings {
-                let cost = h.avg_cost_basis
+                let cost = h
+                    .avg_cost_basis
                     .map(|c| format!("  (avg cost ${:.2})", c))
                     .unwrap_or_default();
                 println!("  {:8}  {}{}", h.asset, h.quantity, cost);
@@ -520,36 +578,106 @@ async fn handle_wallet_sync(
         return Ok(());
     }
 
-    // Sync each wallet
-    for wallet in wallets {
+    // Build ProviderRegistry with public providers (Balanced mode by default)
+    let mut registry = ProviderRegistry::new(PrivacyMode::Balanced);
+
+    // Bitcoin — Blockstream (public)
+    {
+        use crate::blockchain::bitcoin::BlockstreamClient;
+        registry.register(
+            &Chain::Bitcoin,
+            Arc::new(BlockstreamClient::new(false)),
+            PrivacyLevel::Public,
+        );
+    }
+
+    // Ethereum — Etherscan (public, optional API key from env)
+    {
+        use crate::blockchain::ethereum::EtherscanClient;
+        let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
+        registry.register(
+            &Chain::Ethereum,
+            Arc::new(EtherscanClient::new(false, api_key)),
+            PrivacyLevel::Public,
+        );
+    }
+
+    // Cardano — Blockfrost (public, optional API key from env)
+    {
+        use crate::blockchain::cardano::BlockfrostClient;
+        let api_key = std::env::var("BLOCKFROST_API_KEY").ok();
+        registry.register(
+            &Chain::Cardano,
+            Arc::new(BlockfrostClient::new(false, api_key)),
+            PrivacyLevel::Public,
+        );
+    }
+
+    // Solana — user-configured RPC (skipped if not set)
+    if let Ok(rpc_url) = std::env::var("SOLANA_RPC_URL") {
+        use crate::blockchain::solana::SolanaRpcClient;
+        registry.register(
+            &Chain::Solana,
+            Arc::new(SolanaRpcClient::new(rpc_url)),
+            PrivacyLevel::Custom,
+        );
+    }
+
+    let engine = SyncEngine::new(Arc::new(registry), pool.clone());
+
+    // Collect all (address, chain) pairs across all wallets
+    for wallet in &wallets {
         let addresses = account_repo.list_addresses(&wallet.id).await?;
 
         if addresses.is_empty() {
             continue;
         }
 
-        for addr in addresses {
-            let is_testnet = addr.network.as_deref() == Some("testnet");
+        if !opts.quiet {
+            println!("\nSyncing wallet: {}", wallet.name);
+        }
 
-            if !opts.quiet {
-                println!("\nSyncing {} ({})...", wallet.name, addr.blockchain);
-                if is_testnet {
-                    info("  Using testnet API");
+        // Parse each address into (String, Chain)
+        let mut addr_chain_pairs: Vec<(String, Chain)> = Vec::new();
+        for addr in &addresses {
+            let chain: Chain = match addr.blockchain.to_lowercase().as_str() {
+                "bitcoin" => Chain::Bitcoin,
+                "ethereum" => Chain::Ethereum,
+                "cardano" => Chain::Cardano,
+                "solana" => Chain::Solana,
+                other => {
+                    if !opts.quiet {
+                        println!("  ⚠️  Blockchain {} not yet supported for sync", other);
+                    }
+                    continue;
                 }
-            }
+            };
+            addr_chain_pairs.push((addr.address.clone(), chain));
+        }
 
-            // Handle different blockchains
-            if addr.blockchain.eq_ignore_ascii_case("bitcoin") {
-                sync_bitcoin_wallet(&wallet.id, &wallet.name, &addr, is_testnet, import_history, opts, pool).await?;
-            } else if addr.blockchain.eq_ignore_ascii_case("ethereum") {
-                sync_ethereum_wallet(&wallet.id, &wallet.name, &addr, is_testnet, import_history, opts, pool).await?;
-            } else if addr.blockchain.eq_ignore_ascii_case("cardano") {
-                sync_cardano_wallet(&wallet.id, &wallet.name, &addr, is_testnet, import_history, opts, pool).await?;
-            } else if !opts.quiet {
-                println!(
-                    "  ⚠️  Blockchain {} not yet supported for sync",
-                    addr.blockchain
-                );
+        if addr_chain_pairs.is_empty() {
+            continue;
+        }
+
+        let sync_opts = SyncOptions {
+            full_history: import_history,
+            ..Default::default()
+        };
+
+        let report = engine
+            .sync_addresses(&wallet.id, addr_chain_pairs, sync_opts)
+            .await;
+
+        if !opts.quiet {
+            println!(
+                "  ✓ Synced {} addresses — {} balance updates, {} new transactions ({} ms)",
+                report.addresses_synced,
+                report.balances_updated,
+                report.transactions_new,
+                report.duration_ms,
+            );
+            for err in &report.errors {
+                println!("  ⚠️  {}: {}", err.address, err.message);
             }
         }
     }
@@ -600,7 +728,7 @@ async fn sync_bitcoin_wallet(
 
             // Import transaction history if requested
             if import_history {
-                match client.get_transactions(&addr.address).await {
+                match client.fetch_transactions(&addr.address).await {
                     Ok(txs) => {
                         let tx_repo = TransactionRepository::new(pool);
                         let mut saved = 0usize;
@@ -619,12 +747,23 @@ async fn sync_bitcoin_wallet(
 
                             // Determine direction: positive value = received
                             let (tx_type, from_id, to_id, quantity) = if tx.value >= Decimal::ZERO {
-                                (TransactionType::TransferIn, None, Some(account_id.to_string()), tx.value)
+                                (
+                                    TransactionType::TransferIn,
+                                    None,
+                                    Some(account_id.to_string()),
+                                    tx.value,
+                                )
                             } else {
-                                (TransactionType::TransferOut, Some(account_id.to_string()), None, tx.value.abs())
+                                (
+                                    TransactionType::TransferOut,
+                                    Some(account_id.to_string()),
+                                    None,
+                                    tx.value.abs(),
+                                )
                             };
 
-                            let timestamp = tx.timestamp
+                            let timestamp = tx
+                                .timestamp
                                 .and_then(|ts| Utc.timestamp_opt(ts, 0).single())
                                 .unwrap_or_else(Utc::now);
 
@@ -632,11 +771,27 @@ async fn sync_bitcoin_wallet(
                                 id: 0,
                                 tx_type,
                                 from_account_id: from_id,
-                                from_asset: if tx_type == TransactionType::TransferOut { Some("BTC".to_string()) } else { None },
-                                from_quantity: if tx_type == TransactionType::TransferOut { Some(quantity) } else { None },
+                                from_asset: if tx_type == TransactionType::TransferOut {
+                                    Some("BTC".to_string())
+                                } else {
+                                    None
+                                },
+                                from_quantity: if tx_type == TransactionType::TransferOut {
+                                    Some(quantity)
+                                } else {
+                                    None
+                                },
                                 to_account_id: to_id,
-                                to_asset: if tx_type == TransactionType::TransferIn { Some("BTC".to_string()) } else { None },
-                                to_quantity: if tx_type == TransactionType::TransferIn { Some(quantity) } else { None },
+                                to_asset: if tx_type == TransactionType::TransferIn {
+                                    Some("BTC".to_string())
+                                } else {
+                                    None
+                                },
+                                to_quantity: if tx_type == TransactionType::TransferIn {
+                                    Some(quantity)
+                                } else {
+                                    None
+                                },
                                 price_usd: None,
                                 price_currency: None,
                                 price_amount: None,
@@ -736,7 +891,7 @@ async fn sync_ethereum_wallet(
 
             // Import transaction history if requested
             if import_history {
-                match client.get_transactions(&addr.address).await {
+                match client.fetch_transactions(&addr.address).await {
                     Ok(txs) => {
                         let tx_repo = TransactionRepository::new(pool);
                         let mut saved = 0usize;
@@ -765,22 +920,40 @@ async fn sync_ethereum_wallet(
                             // Determine direction
                             let is_incoming = tx.to.eq_ignore_ascii_case(&addr.address);
                             let (tx_type, from_id, to_id) = if is_incoming {
-                                (TransactionType::TransferIn, None, Some(account_id.to_string()))
+                                (
+                                    TransactionType::TransferIn,
+                                    None,
+                                    Some(account_id.to_string()),
+                                )
                             } else {
-                                (TransactionType::TransferOut, Some(account_id.to_string()), None)
+                                (
+                                    TransactionType::TransferOut,
+                                    Some(account_id.to_string()),
+                                    None,
+                                )
                             };
 
-                            let timestamp = Utc.timestamp_opt(tx.timestamp, 0).single()
+                            let timestamp = Utc
+                                .timestamp_opt(tx.timestamp, 0)
+                                .single()
                                 .unwrap_or_else(Utc::now);
 
                             let record = Transaction {
                                 id: 0,
                                 tx_type,
                                 from_account_id: from_id,
-                                from_asset: if !is_incoming { Some("ETH".to_string()) } else { None },
+                                from_asset: if !is_incoming {
+                                    Some("ETH".to_string())
+                                } else {
+                                    None
+                                },
                                 from_quantity: if !is_incoming { Some(tx.value) } else { None },
                                 to_account_id: to_id,
-                                to_asset: if is_incoming { Some("ETH".to_string()) } else { None },
+                                to_asset: if is_incoming {
+                                    Some("ETH".to_string())
+                                } else {
+                                    None
+                                },
                                 to_quantity: if is_incoming { Some(tx.value) } else { None },
                                 price_usd: None,
                                 price_currency: None,
@@ -894,10 +1067,13 @@ async fn sync_cardano_wallet(
 
             // Import transaction history if requested
             if import_history {
-                match client.get_transactions(&addr.address).await {
+                match client.fetch_transactions(&addr.address).await {
                     Ok(txs) => {
                         if !opts.quiet {
-                            success(&format!("✓ Fetched {} transactions (history saved)", txs.len()));
+                            success(&format!(
+                                "✓ Fetched {} transactions (history saved)",
+                                txs.len()
+                            ));
                         }
                     }
                     Err(e) => {
@@ -968,13 +1144,8 @@ fn validate_address_for_blockchain(address: &str, blockchain: &str) -> Result<()
             blockchain::validate_ethereum_address(address)?;
             Ok(())
         }
-        "solana" => {
-            // TODO: Implement Solana address validation
-            validate_solana_address(address)
-        }
-        "cardano" => {
-            blockchain::cardano::validate_address(address)
-        }
+        "solana" => validate_solana_address(address),
+        "cardano" => blockchain::cardano::validate_address(address),
         _ => Err(CryptofolioError::Other(format!(
             "Unsupported blockchain: {}. Supported: bitcoin, ethereum, solana, cardano",
             blockchain
@@ -999,8 +1170,9 @@ fn validate_solana_address(address: &str) -> Result<()> {
     }
 
     // Decode plain base58 (no checksum) and verify it yields exactly 32 bytes
-    let decoded = bitcoin::base58::decode(address)
-        .map_err(|_| CryptofolioError::Other("Invalid Solana address: invalid base58".to_string()))?;
+    let decoded = bitcoin::base58::decode(address).map_err(|_| {
+        CryptofolioError::Other("Invalid Solana address: invalid base58".to_string())
+    })?;
 
     if decoded.len() != 32 {
         return Err(CryptofolioError::Other(format!(
@@ -1011,4 +1183,3 @@ fn validate_solana_address(address: &str) -> Result<()> {
 
     Ok(())
 }
-

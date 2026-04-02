@@ -44,7 +44,10 @@ mod tests {
 
     #[test]
     fn test_valid_mainnet_address() {
-        assert!(validate_address(MAINNET_ADDR).is_ok(), "CIP-0019 mainnet address should pass");
+        assert!(
+            validate_address(MAINNET_ADDR).is_ok(),
+            "CIP-0019 mainnet address should pass"
+        );
     }
 
     #[test]
@@ -55,7 +58,10 @@ mod tests {
         // is enforced (a made-up address with wrong checksum is rejected).
         let fake_testnet = "addr_test1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh0tcp5dc2ukmuqjjw0apg6k8xfn63t8y9p2l3w8w5z2x7jn8sqf3qgp3r9e";
         // Should fail checksum validation (fake address)
-        assert!(validate_address(fake_testnet).is_err(), "Fake testnet address must fail checksum");
+        assert!(
+            validate_address(fake_testnet).is_err(),
+            "Fake testnet address must fail checksum"
+        );
     }
 
     #[test]
@@ -64,7 +70,10 @@ mod tests {
         let mut bad = MAINNET_ADDR.to_string();
         let last = bad.pop().unwrap();
         bad.push(if last == 'x' { 'y' } else { 'x' });
-        assert!(validate_address(&bad).is_err(), "Address with bad checksum must fail");
+        assert!(
+            validate_address(&bad).is_err(),
+            "Address with bad checksum must fail"
+        );
     }
 
     #[test]

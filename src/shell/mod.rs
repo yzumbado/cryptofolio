@@ -659,6 +659,9 @@ impl Shell {
             Commands::Wallet { command } => {
                 handle_wallet_command(command, &self.pool, &opts).await?;
             }
+            Commands::Audit { command } => {
+                handle_audit_command(command, &self.pool, &opts).await?;
+            }
             Commands::Shell => {
                 println!("Already in shell mode.");
             }

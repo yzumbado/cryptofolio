@@ -198,14 +198,32 @@ impl<'a> HoldingRepository<'a> {
 
     fn parse_holdings(
         &self,
-        rows: Vec<(i64, String, String, String, Option<String>, Option<String>, Option<String>, String)>,
+        rows: Vec<(
+            i64,
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            String,
+        )>,
     ) -> Result<Vec<Holding>> {
         rows.into_iter().map(|r| self.parse_holding(r)).collect()
     }
 
     fn parse_holding(
         &self,
-        (id, account_id, asset, quantity, avg_cost_basis, cost_basis_currency, avg_cost_basis_base, updated_at): (
+        (
+            id,
+            account_id,
+            asset,
+            quantity,
+            avg_cost_basis,
+            cost_basis_currency,
+            avg_cost_basis_base,
+            updated_at,
+        ): (
             i64,
             String,
             String,

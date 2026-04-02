@@ -1,5 +1,6 @@
 use crate::support::world::CryptofolioWorld;
 use cucumber::{given, then, when};
+use sqlx;
 
 /// Common step definitions shared across features
 
@@ -69,6 +70,10 @@ async fn run_command(world: &mut CryptofolioWorld, command: String) {
         Some("wallet") => {
             let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
             handle_wallet_command_test(world, &args, &mut output).await
+        }
+        Some("audit") => {
+            let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
+            handle_audit_command_test(world, &args, &mut output).await
         }
         Some("sync-history") => {
             let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
@@ -303,7 +308,7 @@ async fn handle_wallet_command_test(
                             )?;
 
                             if import_history {
-                                match client.get_transactions(&addr.address).await {
+                                match client.fetch_transactions(&addr.address).await {
                                     Ok(txs) => {
                                         writeln!(
                                             output,
@@ -359,7 +364,7 @@ async fn handle_wallet_command_test(
                             }
 
                             if import_history {
-                                match client.get_transactions(&addr.address).await {
+                                match client.fetch_transactions(&addr.address).await {
                                     Ok(txs) => {
                                         writeln!(
                                             output,
@@ -416,7 +421,7 @@ async fn handle_wallet_command_test(
                             }
 
                             if import_history {
-                                match client.get_transactions(&addr.address).await {
+                                match client.fetch_transactions(&addr.address).await {
                                     Ok(txs) => {
                                         writeln!(
                                             output,
@@ -506,6 +511,159 @@ fn output_not_contains(world: &mut CryptofolioWorld, unexpected: String) {
         unexpected,
         world.last_output
     );
+}
+
+async fn handle_audit_command_test(
+    world: &mut CryptofolioWorld,
+    args: &[&str],
+    output: &mut Vec<u8>,
+) -> anyhow::Result<()> {
+    use cryptofolio::cli::commands::audit::handle_audit_command;
+    use cryptofolio::cli::AuditCommands;
+    use std::io::Write;
+
+    let pool = world.pool();
+    let opts = cryptofolio::cli::GlobalOptions {
+        no_color: true, // avoid ANSI codes in assertions
+        testnet: false,
+        json: args.contains(&"--json"),
+        quiet: false,
+        verbose: false,
+    };
+
+    if args.is_empty() {
+        writeln!(output, "[ERROR] Missing audit subcommand")?;
+        return Err(anyhow::anyhow!("Missing audit subcommand"));
+    }
+
+    // Parse optional --wallet / --chain / --limit / --json flags
+    let mut wallet: Option<String> = None;
+    let mut chain: Option<String> = None;
+    let mut limit: i64 = 20;
+    let mut i = 1; // args[0] is subcommand
+    while i < args.len() {
+        match args[i] {
+            "--wallet" => {
+                i += 1;
+                if i < args.len() {
+                    wallet = Some(args[i].to_string());
+                }
+            }
+            "--chain" => {
+                i += 1;
+                if i < args.len() {
+                    chain = Some(args[i].to_string());
+                }
+            }
+            "--limit" => {
+                i += 1;
+                if i < args.len() {
+                    limit = args[i].parse().unwrap_or(20);
+                }
+            }
+            "--json" => {}
+            _ => {}
+        }
+        i += 1;
+    }
+
+    let cmd = match args[0] {
+        "sync" => AuditCommands::Sync {
+            wallet: wallet.clone(),
+            chain: chain.clone(),
+            limit,
+        },
+        "coverage" => AuditCommands::Coverage {
+            wallet: wallet.clone(),
+            chain: chain.clone(),
+        },
+        "errors" => AuditCommands::Errors { limit },
+        other => {
+            writeln!(output, "[ERROR] Unknown audit subcommand: {}", other)?;
+            return Err(anyhow::anyhow!("Unknown audit subcommand: {}", other));
+        }
+    };
+
+    // Run the real command (writes to stdout)
+    handle_audit_command(cmd, pool, &opts)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+    // Emit coverage data to output buffer for BDD assertions
+    match args[0] {
+        "coverage" => {
+            let rows: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
+                "SELECT COALESCE(a.name, wa.account_id), wa.blockchain, wa.address, wss.last_sync_at
+                 FROM wallet_addresses wa
+                 LEFT JOIN accounts a ON a.id = wa.account_id
+                 LEFT JOIN wallet_sync_state wss ON wss.address = wa.address AND wss.chain = wa.blockchain
+                 WHERE (? IS NULL OR wa.blockchain = ?)
+                 ORDER BY wa.blockchain, wa.address",
+            )
+            .bind(&chain)
+            .bind(&chain)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+            if rows.is_empty() {
+                writeln!(output, "No wallet addresses found.")?;
+            } else {
+                for (acct, bc, addr, last_at) in &rows {
+                    let sync_str = last_at.as_deref().unwrap_or("never");
+                    if opts.json {
+                        writeln!(
+                            output,
+                            r#"{{"wallet":"{}","chain":"{}","address":"{}","last_sync_at":{}}}"#,
+                            acct,
+                            bc,
+                            addr,
+                            last_at
+                                .as_deref()
+                                .map_or("null".to_string(), |s| format!("\"{}\"", s)),
+                        )?;
+                    } else {
+                        writeln!(output, "{} {} {} {}", acct, bc, addr, sync_str)?;
+                    }
+                }
+            }
+        }
+        "sync" => {
+            let count: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM sync_audit_log WHERE (? IS NULL OR chain = ?)")
+                    .bind(&chain)
+                    .bind(&chain)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+            if count.0 == 0 {
+                writeln!(output, "No sync audit entries found.")?;
+                writeln!(
+                    output,
+                    "Run `cryptofolio wallet sync --all` to populate the audit log."
+                )?;
+            } else {
+                writeln!(output, "{} sync audit entries", count.0)?;
+            }
+        }
+        "errors" => {
+            let count: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM sync_audit_log WHERE error IS NOT NULL")
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+            if count.0 == 0 {
+                writeln!(output, "No sync errors found.")?;
+            } else {
+                writeln!(output, "{} sync errors", count.0)?;
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
 
 async fn handle_sync_history_command_test(

@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
 [![CI](https://github.com/yzumbado/cryptofolio/workflows/CI/badge.svg)](https://github.com/yzumbado/cryptofolio/actions)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
@@ -18,16 +18,19 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
-✅ **Ethereum Wallet Sync** - Automatic balance & ERC-20 token detection (NEW in v0.5.0)
-✅ **Bitcoin Blockchain Sync** - HD wallet & testnet support (v0.5.0)
-✅ **Binance History Sync** - Full trade/deposit/withdrawal/fiat history import
-✅ **Keychain Security (macOS)** - OS-encrypted storage with Touch ID support
-✅ **Multi-Currency Support** - Track CRC, USD, EUR alongside BTC, ETH, USDT
-✅ **Local-First & Private** - All data stays on your machine
-✅ **AI-Powered** - Natural language commands with Claude/Ollama integration
-✅ **Agentic Development** - Built using AI pair programming with Claude Code
-✅ **Read-Only Exchange Access** - Secure API integration (Binance)
-✅ **Developer-Friendly** - JSON output, scriptable, CI/CD ready
+✅ **4-Chain Wallet Sync** — Bitcoin, Ethereum, Cardano, Solana from blockchain
+✅ **HD Wallet Support** — xpub/zpub derivation for Bitcoin (BIP44/BIP84)
+✅ **ERC-20 & SPL Tokens** — Automatic token detection on Ethereum and Solana
+✅ **Cardano Native Tokens** — ADA balance + stake delegation info via Blockfrost
+✅ **Binance History Sync** — Full trade/deposit/withdrawal/fiat history import
+✅ **Watch-Only Security** — Private key guard rejects WIF/seed phrases at input
+✅ **Keychain Security (macOS)** — xpub and API keys stored via Touch ID-protected Keychain
+✅ **Sync Audit Log** — Tamper-evident record of every sync operation
+✅ **Multi-Currency Support** — Track CRC, USD, EUR alongside BTC, ETH, USDT
+✅ **Local-First & Private** — All data stays on your machine
+✅ **AI-Powered** — Natural language commands with Claude/Ollama integration
+✅ **Read-Only Exchange Access** — Secure API integration (Binance)
+✅ **Developer-Friendly** — JSON output, scriptable, nightly CI with real API tests
 
 ---
 
@@ -70,7 +73,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.4.0
+# cryptofolio 0.5.0
 ```
 
 ### First Steps

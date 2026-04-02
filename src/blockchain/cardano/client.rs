@@ -1,8 +1,15 @@
 /// Cardano blockchain client (Blockfrost API)
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use crate::blockchain::trait_def::BlockchainClient;
+use crate::blockchain::types::{
+    AddressSummary, Chain, ChainExtras, HealthStatus, TransactionDirection, WalletBalance,
+    WalletTransaction,
+};
 use crate::error::{CryptofolioError, Result};
+use bech32::{Bech32, Hrp};
 use blake2::digest::{FixedOutput, Update};
 use blake2::Blake2b;
-use bech32::{Bech32, Hrp};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -336,9 +343,10 @@ impl BlockfrostClient {
         if let Some(key) = &self.api_key {
             req = req.header("project_id", key);
         }
-        let pool_resp = req.send().await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch pool stats: {}", e))
-        })?;
+        let pool_resp = req
+            .send()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch pool stats: {}", e)))?;
 
         let (active_stake, live_pledge, margin_cost) = if pool_resp.status().is_success() {
             let stats: BlockfrostPoolResponse = pool_resp.json().await.unwrap_or_default();
@@ -366,8 +374,9 @@ impl BlockfrostClient {
         ))
     }
 
-    /// Get transactions for an address
-    pub async fn get_transactions(&self, address: &str) -> Result<Vec<CardanoTransaction>> {
+    /// Get transactions for an address (raw Blockfrost types).
+    /// Used internally and by the BlockchainClient trait impl.
+    pub async fn fetch_transactions(&self, address: &str) -> Result<Vec<CardanoTransaction>> {
         let url = format!("{}/addresses/{}/transactions", self.base_url, address);
 
         let client = reqwest::Client::new();
@@ -519,6 +528,161 @@ struct BlockfrostTxDetailResponse {
     size: u32,
 }
 
+// ---------------------------------------------------------------------------
+// BlockchainClient trait implementation
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+impl BlockchainClient for BlockfrostClient {
+    fn provider_name(&self) -> &str {
+        "Blockfrost"
+    }
+
+    async fn health_check(&self) -> Result<HealthStatus> {
+        #[derive(serde::Deserialize)]
+        struct LatestBlock {
+            height: Option<u64>,
+        }
+
+        let client = reqwest::Client::new();
+        let start = std::time::Instant::now();
+
+        // 1. Confirm the API is healthy
+        let health_url = format!("{}/health", self.base_url);
+        let mut req = client.get(&health_url);
+        if let Some(key) = &self.api_key {
+            req = req.header("project_id", key);
+        }
+        let response = req.send().await.map_err(|e| {
+            CryptofolioError::Network(format!("Blockfrost health check failed: {}", e))
+        })?;
+        let latency_ms = start.elapsed().as_millis() as u64;
+
+        if !response.status().is_success() {
+            return Ok(HealthStatus {
+                provider: self.provider_name().to_string(),
+                reachable: false,
+                block_height: None,
+                latency_ms,
+            });
+        }
+
+        // 2. Fetch latest block height
+        let block_url = format!("{}/blocks/latest", self.base_url);
+        let mut block_req = client.get(&block_url);
+        if let Some(key) = &self.api_key {
+            block_req = block_req.header("project_id", key);
+        }
+        let block_height = block_req
+            .send()
+            .await
+            .ok()
+            .and_then(|r| {
+                if r.status().is_success() { Some(r) } else { None }
+            });
+
+        let block_height: Option<u64> = if let Some(resp) = block_height {
+            resp.json::<LatestBlock>().await.ok().and_then(|b| b.height)
+        } else {
+            None
+        };
+
+        Ok(HealthStatus {
+            provider: self.provider_name().to_string(),
+            reachable: true,
+            block_height,
+            latency_ms,
+        })
+    }
+
+    async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
+        let info = self.get_address_info(address).await?;
+
+        let mut balances = vec![WalletBalance {
+            asset: "ADA".to_string(),
+            asset_id: None,
+            quantity: info.balance,
+            decimals: 6,
+        }];
+
+        for token in &info.tokens {
+            balances.push(WalletBalance {
+                asset: token.display_name.clone(),
+                asset_id: Some(token.unit.clone()),
+                quantity: token.balance,
+                decimals: token.decimals,
+            });
+        }
+
+        let extras = Some(ChainExtras::Cardano {
+            stake_address: info.stake_address.clone(),
+            pool_id: info.stake_pool.as_ref().map(|p| p.pool_id.clone()),
+            pool_ticker: info.stake_pool.as_ref().map(|p| p.ticker.clone()),
+            pool_name: info.stake_pool.as_ref().map(|p| p.name.clone()),
+            active_stake: info.stake_pool.as_ref().map(|p| p.active_stake),
+            margin_cost: info.stake_pool.as_ref().map(|p| p.margin_cost),
+        });
+
+        Ok(AddressSummary {
+            address: address.to_string(),
+            chain: Chain::Cardano,
+            balances,
+            transaction_count: info.tx_count,
+            extras,
+        })
+    }
+
+    async fn get_transactions(
+        &self,
+        address: &str,
+        since_block: Option<u64>,
+    ) -> Result<Vec<WalletTransaction>> {
+        let raw = self.fetch_transactions(address).await?;
+
+        let txs = raw
+            .into_iter()
+            .filter(|tx| match since_block {
+                Some(min) => tx.block_height >= min,
+                None => true,
+            })
+            .map(|tx| {
+                let timestamp = DateTime::from_timestamp(tx.block_time, 0)
+                    .unwrap_or_else(Utc::now);
+
+                WalletTransaction {
+                    external_id: tx.hash,
+                    // Cardano UTXO direction requires fetching UTXOs — marked Internal for now.
+                    // Phase 3+ will resolve this via /txs/{hash}/utxos.
+                    direction: TransactionDirection::Internal,
+                    amount: tx.fees,
+                    asset: "ADA".to_string(),
+                    fee: Some(tx.fees),
+                    fee_asset: Some("ADA".to_string()),
+                    block_height: Some(tx.block_height),
+                    timestamp,
+                    counterparty: None,
+                    memo: None,
+                }
+            })
+            .collect();
+
+        Ok(txs)
+    }
+
+    async fn get_chain_extras(&self, address: &str) -> Result<Option<ChainExtras>> {
+        let info = self.get_address_info(address).await?;
+
+        Ok(Some(ChainExtras::Cardano {
+            stake_address: info.stake_address,
+            pool_id: info.stake_pool.as_ref().map(|p| p.pool_id.clone()),
+            pool_ticker: info.stake_pool.as_ref().map(|p| p.ticker.clone()),
+            pool_name: info.stake_pool.as_ref().map(|p| p.name.clone()),
+            active_stake: info.stake_pool.as_ref().map(|p| p.active_stake),
+            margin_cost: info.stake_pool.as_ref().map(|p| p.margin_cost),
+        }))
+    }
+}
+
 /// Compute a CIP-14 asset fingerprint.
 ///
 /// Algorithm:
@@ -540,8 +704,7 @@ fn cip14_fingerprint(policy_id_hex: &str, asset_name_hex: &str) -> String {
 
     // Bech32 encode with HRP "asset"
     let asset_hrp = Hrp::parse("asset").expect("static HRP is valid");
-    bech32::encode::<Bech32>(asset_hrp, &hash)
-        .unwrap_or_else(|_| String::new())
+    bech32::encode::<Bech32>(asset_hrp, &hash).unwrap_or_else(|_| String::new())
 }
 
 #[cfg(test)]

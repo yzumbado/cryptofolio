@@ -130,22 +130,102 @@ async fn add_cardano_wallet(world: &mut CryptofolioWorld, wallet_name: String) {
 }
 
 #[then(expr = "the wallet balance should be {string} BTC")]
-async fn verify_btc_balance(_world: &mut CryptofolioWorld, _expected: String) {
-    // TODO: Query wallet balance from database
-    // For now, just pass - will implement with actual repository
+async fn verify_btc_balance(world: &mut CryptofolioWorld, expected: String) {
+    use cryptofolio::db::holdings::HoldingRepository;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    let pool = world.pool();
+    let repo = HoldingRepository::new(pool);
+    let all = repo.list_all().await.expect("Failed to query holdings");
+
+    let btc_qty: Decimal = all
+        .iter()
+        .filter(|h| h.asset == "BTC")
+        .map(|h| h.quantity)
+        .sum();
+
+    let expected_qty = Decimal::from_str(&expected).expect("Invalid decimal in test");
+    assert_eq!(
+        btc_qty, expected_qty,
+        "Expected BTC balance {}, got {}",
+        expected_qty, btc_qty
+    );
 }
 
 #[then(expr = "the wallet balance should be {string} ETH")]
-async fn verify_eth_balance(_world: &mut CryptofolioWorld, _expected: String) {
-    // TODO: Query wallet balance from database
+async fn verify_eth_balance(world: &mut CryptofolioWorld, expected: String) {
+    use cryptofolio::db::holdings::HoldingRepository;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    let pool = world.pool();
+    let repo = HoldingRepository::new(pool);
+    let all = repo.list_all().await.expect("Failed to query holdings");
+
+    let eth_qty: Decimal = all
+        .iter()
+        .filter(|h| h.asset == "ETH")
+        .map(|h| h.quantity)
+        .sum();
+
+    let expected_qty = Decimal::from_str(&expected).expect("Invalid decimal in test");
+    assert_eq!(
+        eth_qty, expected_qty,
+        "Expected ETH balance {}, got {}",
+        expected_qty, eth_qty
+    );
 }
 
 #[then(expr = "I should have {int} wallets")]
-async fn verify_wallet_count(_world: &mut CryptofolioWorld, _count: u32) {
-    // TODO: Query wallet count from database
+async fn verify_wallet_count(world: &mut CryptofolioWorld, expected_count: u32) {
+    use cryptofolio::core::account::AccountType;
+    use cryptofolio::db::accounts::AccountRepository;
+
+    let pool = world.pool();
+    let repo = AccountRepository::new(pool);
+    let accounts = repo.list_accounts().await.expect("Failed to list accounts");
+
+    let wallet_count = accounts
+        .iter()
+        .filter(|a| {
+            matches!(
+                a.account_type,
+                AccountType::SoftwareWallet | AccountType::HardwareWallet
+            )
+        })
+        .count() as u32;
+
+    assert_eq!(
+        wallet_count, expected_count,
+        "Expected {} wallets, found {}",
+        expected_count, wallet_count
+    );
 }
 
 #[then(expr = "the wallet should be for blockchain {string}")]
-async fn verify_blockchain(_world: &mut CryptofolioWorld, _blockchain: String) {
-    // TODO: Verify blockchain field
+async fn verify_blockchain(world: &mut CryptofolioWorld, expected_blockchain: String) {
+    use cryptofolio::db::accounts::AccountRepository;
+
+    let pool = world.pool();
+    let repo = AccountRepository::new(pool);
+    let accounts = repo.list_accounts().await.expect("Failed to list accounts");
+
+    for account in &accounts {
+        let addresses = repo
+            .list_addresses(&account.id)
+            .await
+            .expect("Failed to list addresses");
+        let has_chain = addresses
+            .iter()
+            .any(|a| a.blockchain.eq_ignore_ascii_case(&expected_blockchain));
+        if has_chain {
+            return; // found at least one address on this chain
+        }
+    }
+
+    panic!(
+        "No wallet address found for blockchain '{}'",
+        expected_blockchain
+    );
 }

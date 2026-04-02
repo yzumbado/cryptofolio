@@ -1,4 +1,5 @@
 pub mod account;
+pub mod audit;
 pub mod category;
 pub mod config;
 pub mod currency;
@@ -14,6 +15,7 @@ pub mod tx;
 pub mod wallet;
 
 pub use account::handle_account_command;
+pub use audit::handle_audit_command;
 pub use category::handle_category_command;
 pub use config::handle_config_command;
 pub use currency::handle_currency_command;
