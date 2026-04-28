@@ -262,7 +262,7 @@ impl BlockchainClient for BlockstreamClient {
         let txs = raw
             .into_iter()
             .filter(|tx| match since_block {
-                Some(min) => tx.block_height.map_or(false, |h| h >= min),
+                Some(min) => tx.block_height.is_some_and(|h| h >= min),
                 None => true,
             })
             .map(|tx| {

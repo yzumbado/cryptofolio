@@ -18,7 +18,7 @@ use crate::blockchain::types::{Chain, WalletTransaction};
 // ---------------------------------------------------------------------------
 
 /// Options controlling a sync run.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SyncOptions {
     /// Only fetch transactions at or above this block height.
     /// Derived from `wallet_sync_state` on incremental syncs.
@@ -27,16 +27,6 @@ pub struct SyncOptions {
     pub full_history: bool,
     /// If true, do not write anything to the DB.
     pub dry_run: bool,
-}
-
-impl Default for SyncOptions {
-    fn default() -> Self {
-        Self {
-            since_block: None,
-            full_history: false,
-            dry_run: false,
-        }
-    }
 }
 
 /// Per-address sync result.

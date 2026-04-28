@@ -297,7 +297,7 @@ fn store_xpub_secure(account_id: &str, xpub: &str) -> Result<Option<String>> {
         keychain.store(&key, xpub).map_err(|e| {
             CryptofolioError::Other(format!("Failed to store xpub in macOS Keychain: {}", e))
         })?;
-        return Ok(None); // do not write xpub to DB
+        Ok(None) // do not write xpub to DB
     }
 
     #[cfg(not(target_os = "macos"))]

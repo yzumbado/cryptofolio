@@ -27,20 +27,15 @@ use crate::error::{CryptofolioError, Result};
 // ---------------------------------------------------------------------------
 
 /// Controls which provider tiers are eligible for use.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PrivacyMode {
     /// Only local nodes — address data never leaves the machine.
     Strict,
     /// Local if available, custom RPC second — no public third-party APIs.
+    #[default]
     Balanced,
     /// Use any provider; prefer the most reliable (usually public API).
     Convenience,
-}
-
-impl Default for PrivacyMode {
-    fn default() -> Self {
-        PrivacyMode::Balanced
-    }
 }
 
 /// Privacy level of a specific provider instance.

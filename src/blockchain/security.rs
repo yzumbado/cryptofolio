@@ -119,7 +119,7 @@ fn is_bip39_seed_phrase(s: &str) -> bool {
     }
     words.iter().all(|w| {
         let n = w.len();
-        n >= 3 && n <= 8 && w.chars().all(|c| c.is_ascii_lowercase())
+        (3..=8).contains(&n) && w.chars().all(|c| c.is_ascii_lowercase())
     })
 }
 
