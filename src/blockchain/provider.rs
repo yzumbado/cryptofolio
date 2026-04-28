@@ -12,7 +12,6 @@
 /// `PrivacyMode::Strict`      — Local only
 /// `PrivacyMode::Balanced`    — Local → Custom (no public API)
 /// `PrivacyMode::Convenience` — Local → Custom → Public
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -262,12 +261,18 @@ mod tests {
         let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "local", reachable: true }),
+            Arc::new(StubClient {
+                name: "local",
+                reachable: true,
+            }),
             PrivacyLevel::Local,
         );
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "public", reachable: true }),
+            Arc::new(StubClient {
+                name: "public",
+                reachable: true,
+            }),
             PrivacyLevel::Public,
         );
 
@@ -280,12 +285,18 @@ mod tests {
         let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "local", reachable: false }),
+            Arc::new(StubClient {
+                name: "local",
+                reachable: false,
+            }),
             PrivacyLevel::Local,
         );
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "public", reachable: true }),
+            Arc::new(StubClient {
+                name: "public",
+                reachable: true,
+            }),
             PrivacyLevel::Public,
         );
 
@@ -298,12 +309,18 @@ mod tests {
         let mut registry = ProviderRegistry::new(PrivacyMode::Strict);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "local", reachable: false }),
+            Arc::new(StubClient {
+                name: "local",
+                reachable: false,
+            }),
             PrivacyLevel::Local,
         );
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "public", reachable: true }),
+            Arc::new(StubClient {
+                name: "public",
+                reachable: true,
+            }),
             PrivacyLevel::Public,
         );
 
@@ -316,12 +333,18 @@ mod tests {
         let mut registry = ProviderRegistry::new(PrivacyMode::Balanced);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "custom", reachable: false }),
+            Arc::new(StubClient {
+                name: "custom",
+                reachable: false,
+            }),
             PrivacyLevel::Custom,
         );
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(StubClient { name: "public", reachable: true }),
+            Arc::new(StubClient {
+                name: "public",
+                reachable: true,
+            }),
             PrivacyLevel::Public,
         );
 
@@ -344,7 +367,9 @@ mod tests {
 
         #[async_trait]
         impl BlockchainClient for CountingClient {
-            fn provider_name(&self) -> &str { "counting" }
+            fn provider_name(&self) -> &str {
+                "counting"
+            }
             async fn health_check(&self) -> Result<HealthStatus> {
                 self.call_count.fetch_add(1, Ordering::SeqCst);
                 Ok(HealthStatus {
@@ -354,15 +379,25 @@ mod tests {
                     latency_ms: 1,
                 })
             }
-            async fn get_address_summary(&self, _: &str) -> Result<AddressSummary> { unimplemented!() }
-            async fn get_transactions(&self, _: &str, _: Option<u64>) -> Result<Vec<WalletTransaction>> { unimplemented!() }
+            async fn get_address_summary(&self, _: &str) -> Result<AddressSummary> {
+                unimplemented!()
+            }
+            async fn get_transactions(
+                &self,
+                _: &str,
+                _: Option<u64>,
+            ) -> Result<Vec<WalletTransaction>> {
+                unimplemented!()
+            }
         }
 
         let counter = Arc::new(AtomicU32::new(0));
         let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(CountingClient { call_count: Arc::clone(&counter) }),
+            Arc::new(CountingClient {
+                call_count: Arc::clone(&counter),
+            }),
             PrivacyLevel::Public,
         );
 
@@ -385,7 +420,9 @@ mod tests {
 
         #[async_trait]
         impl BlockchainClient for CountingClient {
-            fn provider_name(&self) -> &str { "counting" }
+            fn provider_name(&self) -> &str {
+                "counting"
+            }
             async fn health_check(&self) -> Result<HealthStatus> {
                 self.call_count.fetch_add(1, Ordering::SeqCst);
                 Ok(HealthStatus {
@@ -395,15 +432,25 @@ mod tests {
                     latency_ms: 1,
                 })
             }
-            async fn get_address_summary(&self, _: &str) -> Result<AddressSummary> { unimplemented!() }
-            async fn get_transactions(&self, _: &str, _: Option<u64>) -> Result<Vec<WalletTransaction>> { unimplemented!() }
+            async fn get_address_summary(&self, _: &str) -> Result<AddressSummary> {
+                unimplemented!()
+            }
+            async fn get_transactions(
+                &self,
+                _: &str,
+                _: Option<u64>,
+            ) -> Result<Vec<WalletTransaction>> {
+                unimplemented!()
+            }
         }
 
         let counter = Arc::new(AtomicU32::new(0));
         let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
         registry.register(
             &Chain::Bitcoin,
-            Arc::new(CountingClient { call_count: Arc::clone(&counter) }),
+            Arc::new(CountingClient {
+                call_count: Arc::clone(&counter),
+            }),
             PrivacyLevel::Public,
         );
 

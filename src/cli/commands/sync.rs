@@ -198,7 +198,9 @@ pub async fn handle_sync_history_command(
                 .map_err(|_| {
                     CryptofolioError::Other(format!("Invalid date '{}'. Expected YYYY-MM-DD.", s))
                 })
-                .map(|d| Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0).expect("0:00:00 is always valid")))
+                .map(|d| {
+                    Utc.from_utc_datetime(&d.and_hms_opt(0, 0, 0).expect("0:00:00 is always valid"))
+                })
         })
         .transpose()?;
 

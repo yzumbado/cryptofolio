@@ -51,11 +51,9 @@ pub fn derive_addresses(
     for i in 0..count {
         let child_idx = ChildNumber::from_normal_idx(i)
             .map_err(|e| CryptofolioError::Other(format!("Invalid child index {}: {}", i, e)))?;
-        let child = external
-            .ckd_pub(&secp, child_idx)
-            .map_err(|e| {
-                CryptofolioError::Other(format!("Key derivation error at index {}: {}", i, e))
-            })?;
+        let child = external.ckd_pub(&secp, child_idx).map_err(|e| {
+            CryptofolioError::Other(format!("Key derivation error at index {}: {}", i, e))
+        })?;
 
         let address = match addr_type {
             XpubAddressType::Legacy => Address::p2pkh(PublicKey::new(child.public_key), network),

@@ -44,7 +44,12 @@ impl Shell {
         let history_path = AppConfig::config_dir()?.join("history.txt");
         let _ = editor.load_history(&history_path);
 
-        Ok(Self { pool, opts, editor, context: ShellContext::new() })
+        Ok(Self {
+            pool,
+            opts,
+            editor,
+            context: ShellContext::new(),
+        })
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -111,7 +116,10 @@ impl Shell {
     async fn print_welcome(&self) -> Result<()> {
         println!();
         if colors_enabled() {
-            println!("  \x1b[1;36m🪙 Cryptofolio\x1b[0m v{}", env!("CARGO_PKG_VERSION"));
+            println!(
+                "  \x1b[1;36m🪙 Cryptofolio\x1b[0m v{}",
+                env!("CARGO_PKG_VERSION")
+            );
         } else {
             println!("  Cryptofolio v{}", env!("CARGO_PKG_VERSION"));
         }
@@ -215,9 +223,19 @@ impl Shell {
             Commands::Holdings { command } => {
                 handle_holdings_command(command, &self.pool, &opts).await?;
             }
-            Commands::Portfolio { by_account, by_category, account, category } => {
+            Commands::Portfolio {
+                by_account,
+                by_category,
+                account,
+                category,
+            } => {
                 handle_portfolio_command(
-                    by_account, by_category, account, category, &self.pool, &opts,
+                    by_account,
+                    by_category,
+                    account,
+                    category,
+                    &self.pool,
+                    &opts,
                 )
                 .await?;
             }
@@ -255,7 +273,11 @@ impl Shell {
                 )
                 .await?;
             }
-            Commands::Import { file, account, format } => {
+            Commands::Import {
+                file,
+                account,
+                format,
+            } => {
                 handle_import_command(file, account, format, &self.pool, &opts).await?;
             }
             Commands::Config { command } => {
@@ -314,8 +336,10 @@ impl Shell {
         let asset_refs: Vec<&str> = unique_assets.iter().map(|s| s.as_str()).collect();
         let prices = client.get_prices(&asset_refs).await.unwrap_or_default();
 
-        let price_map: std::collections::HashMap<String, rust_decimal::Decimal> =
-            prices.into_iter().map(|p| (p.symbol.to_uppercase(), p.price)).collect();
+        let price_map: std::collections::HashMap<String, rust_decimal::Decimal> = prices
+            .into_iter()
+            .map(|p| (p.symbol.to_uppercase(), p.price))
+            .collect();
 
         let mut total_value = rust_decimal::Decimal::ZERO;
         let mut total_cost = rust_decimal::Decimal::ZERO;
@@ -348,7 +372,10 @@ impl Shell {
             format!("{} ({:.2}%)", format_usd(pnl), pnl_percent)
         };
 
-        Ok(PortfolioSummary { total_value: format_usd(total_value), pnl: pnl_str })
+        Ok(PortfolioSummary {
+            total_value: format_usd(total_value),
+            pnl: pnl_str,
+        })
     }
 
     fn print_help(&self) {

@@ -1,11 +1,11 @@
-/// Ethereum blockchain clients (Etherscan API)
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use crate::blockchain::trait_def::BlockchainClient;
 use crate::blockchain::types::{
     AddressSummary, Chain, HealthStatus, TransactionDirection, WalletBalance, WalletTransaction,
 };
 use crate::error::{CryptofolioError, Result};
+/// Ethereum blockchain clients (Etherscan API)
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -383,14 +383,17 @@ impl BlockchainClient for EtherscanClient {
             result: String,
         }
 
-        let data: BlockNumberResponse = response
-            .json()
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to parse health response: {}", e)))?;
+        let data: BlockNumberResponse = response.json().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to parse health response: {}", e))
+        })?;
 
         let height = u64::from_str_radix(data.result.trim_start_matches("0x"), 16).unwrap_or(0);
 
-        Ok(HealthStatus::reachable(self.provider_name(), Some(height), latency_ms))
+        Ok(HealthStatus::reachable(
+            self.provider_name(),
+            Some(height),
+            latency_ms,
+        ))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
@@ -426,14 +429,15 @@ impl BlockchainClient for EtherscanClient {
         address: &str,
         since_block: Option<u64>,
     ) -> Result<Vec<WalletTransaction>> {
-        let raw = self.fetch_transactions_since(address, since_block.unwrap_or(0)).await?;
+        let raw = self
+            .fetch_transactions_since(address, since_block.unwrap_or(0))
+            .await?;
 
         let txs = raw
             .into_iter()
             .filter(|tx| !tx.is_error)
             .map(|tx| {
-                let timestamp = DateTime::from_timestamp(tx.timestamp, 0)
-                    .unwrap_or_else(Utc::now);
+                let timestamp = DateTime::from_timestamp(tx.timestamp, 0).unwrap_or_else(Utc::now);
 
                 let direction = if tx.to.eq_ignore_ascii_case(address) {
                     TransactionDirection::Incoming
@@ -445,9 +449,7 @@ impl BlockchainClient for EtherscanClient {
 
                 // Gas fee in ETH: gas_used * gas_price_gwei / 1e9
                 let fee = Some(
-                    Decimal::from(tx.gas_used)
-                        * tx.gas_price
-                        / Decimal::from(1_000_000_000u64),
+                    Decimal::from(tx.gas_used) * tx.gas_price / Decimal::from(1_000_000_000u64),
                 );
 
                 WalletTransaction {
