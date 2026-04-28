@@ -314,7 +314,7 @@ pub enum Commands {
 
     /// Start interactive shell mode
     #[command(
-        after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history\n    - Type natural language (AI mode)"
+        after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history"
     )]
     Shell,
 

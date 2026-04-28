@@ -5,7 +5,6 @@
 #![allow(clippy::format_in_format_args)]
 #![allow(clippy::manual_c_str_literals)]
 
-pub mod ai;
 pub mod blockchain;
 pub mod cli;
 pub mod config;
