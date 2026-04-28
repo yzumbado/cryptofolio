@@ -310,18 +310,8 @@ impl BlockchainClient for SolanaRpcClient {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         match result {
-            Ok(slot) => Ok(HealthStatus {
-                provider: self.provider_name().to_string(),
-                reachable: true,
-                block_height: slot.as_u64(),
-                latency_ms,
-            }),
-            Err(_) => Ok(HealthStatus {
-                provider: self.provider_name().to_string(),
-                reachable: false,
-                block_height: None,
-                latency_ms,
-            }),
+            Ok(slot) => Ok(HealthStatus::reachable(self.provider_name(), slot.as_u64(), latency_ms)),
+            Err(_) => Ok(HealthStatus::unreachable(self.provider_name(), latency_ms)),
         }
     }
 

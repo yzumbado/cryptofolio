@@ -9,6 +9,8 @@ use crate::error::{CryptofolioError, Result};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+const SATS_PER_BTC: u64 = 100_000_000;
+
 /// Bitcoin transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BitcoinTransaction {
@@ -75,10 +77,10 @@ impl BlockstreamClient {
         // Convert satoshis to BTC
         let balance =
             Decimal::from(data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum)
-                / Decimal::from(100_000_000);
+                / Decimal::from(SATS_PER_BTC);
         let total_received =
-            Decimal::from(data.chain_stats.funded_txo_sum) / Decimal::from(100_000_000);
-        let total_sent = Decimal::from(data.chain_stats.spent_txo_sum) / Decimal::from(100_000_000);
+            Decimal::from(data.chain_stats.funded_txo_sum) / Decimal::from(SATS_PER_BTC);
+        let total_sent = Decimal::from(data.chain_stats.spent_txo_sum) / Decimal::from(SATS_PER_BTC);
 
         Ok(AddressInfo {
             address: address.to_string(),
@@ -132,11 +134,11 @@ impl BlockstreamClient {
 
             let net_value = value_in - value_out;
             let is_incoming = net_value > 0;
-            let value = Decimal::from(net_value.abs()) / Decimal::from(100_000_000);
+            let value = Decimal::from(net_value.abs()) / Decimal::from(SATS_PER_BTC);
 
             let fee = tx
                 .fee
-                .map(|f| Decimal::from(f) / Decimal::from(100_000_000));
+                .map(|f| Decimal::from(f) / Decimal::from(SATS_PER_BTC));
 
             result.push(BitcoinTransaction {
                 txid: tx.txid,
@@ -214,12 +216,7 @@ impl BlockchainClient for BlockstreamClient {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         if !response.status().is_success() {
-            return Ok(HealthStatus {
-                provider: self.provider_name().to_string(),
-                reachable: false,
-                block_height: None,
-                latency_ms,
-            });
+            return Ok(HealthStatus::unreachable(self.provider_name(), latency_ms));
         }
 
         let height = response
@@ -230,12 +227,7 @@ impl BlockchainClient for BlockstreamClient {
             .parse::<u64>()
             .unwrap_or(0);
 
-        Ok(HealthStatus {
-            provider: self.provider_name().to_string(),
-            reachable: true,
-            block_height: Some(height),
-            latency_ms,
-        })
+        Ok(HealthStatus::reachable(self.provider_name(), Some(height), latency_ms))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {

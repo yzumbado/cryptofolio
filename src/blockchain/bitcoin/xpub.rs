@@ -41,14 +41,18 @@ pub fn derive_addresses(
         .map_err(|e| CryptofolioError::Other(format!("Invalid xpub: {}", e)))?;
 
     // Derive external chain: m/0
+    let external_idx = ChildNumber::from_normal_idx(0)
+        .map_err(|e| CryptofolioError::Other(format!("Key derivation error: {}", e)))?;
     let external = xpub
-        .ckd_pub(&secp, ChildNumber::from_normal_idx(0).unwrap())
+        .ckd_pub(&secp, external_idx)
         .map_err(|e| CryptofolioError::Other(format!("Key derivation error: {}", e)))?;
 
     let mut addrs = Vec::with_capacity(count as usize);
     for i in 0..count {
+        let child_idx = ChildNumber::from_normal_idx(i)
+            .map_err(|e| CryptofolioError::Other(format!("Invalid child index {}: {}", i, e)))?;
         let child = external
-            .ckd_pub(&secp, ChildNumber::from_normal_idx(i).unwrap())
+            .ckd_pub(&secp, child_idx)
             .map_err(|e| {
                 CryptofolioError::Other(format!("Key derivation error at index {}: {}", i, e))
             })?;

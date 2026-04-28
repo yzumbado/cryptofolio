@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use chrono::{NaiveDate, TimeZone, Utc};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -84,7 +86,7 @@ pub async fn handle_sync_command(
                 .unwrap_or_else(|_| ProgressStyle::default_spinner());
             pb.set_style(style);
             pb.set_message("Fetching balances...");
-            pb.enable_steady_tick(std::time::Duration::from_millis(100));
+            pb.enable_steady_tick(Duration::from_millis(100));
             Some(pb)
         } else {
             None
@@ -245,7 +247,7 @@ pub async fn handle_sync_history_command(
             .unwrap_or_else(|_| ProgressStyle::default_spinner());
         pb.set_style(style);
         pb.set_message("Fetching history from Binance...");
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        pb.enable_steady_tick(Duration::from_millis(100));
         Some(pb)
     } else {
         None
