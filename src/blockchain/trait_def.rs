@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
-use crate::error::Result;
 use super::types::{AddressSummary, ChainExtras, HealthStatus, WalletTransaction};
+use crate::error::Result;
 
 /// Common interface for all blockchain providers.
 ///

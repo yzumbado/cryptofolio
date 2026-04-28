@@ -3,7 +3,6 @@
 /// Spawns one `tokio` task per address via `JoinSet`. A single address failure
 /// does not abort the others. Block-height watermarks are persisted in the
 /// `wallet_sync_state` table so incremental syncs only fetch new transactions.
-
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -101,10 +100,9 @@ impl SyncEngine {
         opts: SyncOptions,
     ) -> SyncReport {
         let mp = MultiProgress::new();
-        let spinner_style = ProgressStyle::with_template(
-            "{spinner:.cyan} [{elapsed_precise}] {msg}",
-        )
-        .unwrap_or_else(|_| ProgressStyle::default_spinner());
+        let spinner_style =
+            ProgressStyle::with_template("{spinner:.cyan} [{elapsed_precise}] {msg}")
+                .unwrap_or_else(|_| ProgressStyle::default_spinner());
 
         let mut set: JoinSet<std::result::Result<AddressSyncResult, SyncError>> = JoinSet::new();
         let start = Instant::now();
@@ -193,13 +191,10 @@ async fn sync_single_address(
     let task_start = Instant::now();
 
     // Resolve provider
-    let client = registry
-        .get(&chain)
-        .await
-        .map_err(|e| SyncError {
-            address: address.clone(),
-            message: e.to_string(),
-        })?;
+    let client = registry.get(&chain).await.map_err(|e| SyncError {
+        address: address.clone(),
+        message: e.to_string(),
+    })?;
 
     let provider_name = client.provider_name().to_string();
 
@@ -242,13 +237,13 @@ async fn sync_single_address(
     ));
 
     // Fetch address summary (balance)
-    let summary = client
-        .get_address_summary(&address)
-        .await
-        .map_err(|e| {
-            let msg = format!("get_address_summary failed: {}", e);
-            SyncError { address: address.clone(), message: msg }
-        })?;
+    let summary = client.get_address_summary(&address).await.map_err(|e| {
+        let msg = format!("get_address_summary failed: {}", e);
+        SyncError {
+            address: address.clone(),
+            message: msg,
+        }
+    })?;
 
     // Persist balances
     let balances_updated = if !opts.dry_run {
@@ -268,13 +263,13 @@ async fn sync_single_address(
         .await
         .map_err(|e| {
             let msg = format!("get_transactions failed: {}", e);
-            SyncError { address: address.clone(), message: msg }
+            SyncError {
+                address: address.clone(),
+                message: msg,
+            }
         })?;
 
-    let highest_block = txs
-        .iter()
-        .filter_map(|tx| tx.block_height)
-        .max();
+    let highest_block = txs.iter().filter_map(|tx| tx.block_height).max();
 
     // Persist transactions
     let transactions_new = if !opts.dry_run {
@@ -325,15 +320,14 @@ async fn sync_single_address(
 // ---------------------------------------------------------------------------
 
 async fn load_watermark(pool: &SqlitePool, address: &str, chain: &Chain) -> Option<u64> {
-    let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT last_block FROM wallet_sync_state WHERE address = ? AND chain = ?",
-    )
-    .bind(address)
-    .bind(chain.as_str())
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT last_block FROM wallet_sync_state WHERE address = ? AND chain = ?")
+            .bind(address)
+            .bind(chain.as_str())
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     row.map(|(b,)| (b + 1) as u64) // start from next block
 }
@@ -399,13 +393,12 @@ async fn persist_transactions(
     for tx in txs {
         let external_id = format!("{}-{}", chain.as_str(), tx.external_id);
 
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM transactions WHERE external_id = ?)",
-        )
-        .bind(&external_id)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(true); // on error, skip to avoid duplicates
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM transactions WHERE external_id = ?)")
+                .bind(&external_id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or(true); // on error, skip to avoid duplicates
 
         if exists {
             continue;

@@ -15,7 +15,6 @@
 ///
 /// Run nightly via the `integration` job in ci.yml.
 /// BLOCKFROST_API_KEY and ETHERSCAN_API_KEY are injected from GitHub Secrets.
-
 use cryptofolio::blockchain::BlockchainClient;
 
 // ---------------------------------------------------------------------------
@@ -72,10 +71,16 @@ mod bitcoin {
             return;
         }
         let client = BlockstreamClient::new(false);
-        let status = client.health_check().await.expect("health_check should succeed");
+        let status = client
+            .health_check()
+            .await
+            .expect("health_check should succeed");
 
         assert!(status.reachable, "Blockstream should be reachable");
-        assert!(status.block_height.unwrap_or(0) > 0, "block_height should be > 0");
+        assert!(
+            status.block_height.unwrap_or(0) > 0,
+            "block_height should be > 0"
+        );
         assert_eq!(status.provider, "Blockstream");
     }
 
@@ -92,12 +97,21 @@ mod bitcoin {
 
         assert_eq!(summary.address, BTC_ADDRESS);
         assert_eq!(summary.chain, Chain::Bitcoin);
-        assert!(!summary.balances.is_empty(), "should have at least one balance entry");
+        assert!(
+            !summary.balances.is_empty(),
+            "should have at least one balance entry"
+        );
 
         let btc = &summary.balances[0];
         assert_eq!(btc.asset, "BTC");
-        assert!(btc.quantity > rust_decimal::Decimal::ZERO, "genesis address should have BTC");
-        assert!(summary.transaction_count > 0, "genesis address should have transactions");
+        assert!(
+            btc.quantity > rust_decimal::Decimal::ZERO,
+            "genesis address should have BTC"
+        );
+        assert!(
+            summary.transaction_count > 0,
+            "genesis address should have transactions"
+        );
     }
 
     #[tokio::test]
@@ -113,8 +127,14 @@ mod bitcoin {
 
         assert!(!txs.is_empty(), "genesis address should have transactions");
         for tx in &txs {
-            assert!(!tx.external_id.is_empty(), "external_id should not be empty");
-            assert!(tx.amount >= rust_decimal::Decimal::ZERO, "amount should be non-negative");
+            assert!(
+                !tx.external_id.is_empty(),
+                "external_id should not be empty"
+            );
+            assert!(
+                tx.amount >= rust_decimal::Decimal::ZERO,
+                "amount should be non-negative"
+            );
         }
     }
 
@@ -159,10 +179,16 @@ mod ethereum {
             return;
         }
         let client = EtherscanClient::new(false, etherscan_api_key());
-        let status = client.health_check().await.expect("health_check should succeed");
+        let status = client
+            .health_check()
+            .await
+            .expect("health_check should succeed");
 
         assert!(status.reachable, "Etherscan should be reachable");
-        assert!(status.block_height.unwrap_or(0) > 0, "block_height should be > 0");
+        assert!(
+            status.block_height.unwrap_or(0) > 0,
+            "block_height should be > 0"
+        );
         assert_eq!(status.provider, "Etherscan");
     }
 
@@ -183,7 +209,10 @@ mod ethereum {
 
         let eth = &summary.balances[0];
         assert_eq!(eth.asset, "ETH");
-        assert!(eth.quantity > rust_decimal::Decimal::ZERO, "Vitalik's address should have ETH");
+        assert!(
+            eth.quantity > rust_decimal::Decimal::ZERO,
+            "Vitalik's address should have ETH"
+        );
     }
 
     #[tokio::test]
@@ -198,9 +227,15 @@ mod ethereum {
             .expect("get_address_summary should succeed");
 
         // Vitalik's address holds many ERC-20 tokens
-        assert!(summary.balances.len() > 1, "should have ETH + ERC-20 tokens");
+        assert!(
+            summary.balances.len() > 1,
+            "should have ETH + ERC-20 tokens"
+        );
         for balance in &summary.balances[1..] {
-            assert!(!balance.asset.is_empty(), "token symbol should not be empty");
+            assert!(
+                !balance.asset.is_empty(),
+                "token symbol should not be empty"
+            );
         }
     }
 
@@ -215,7 +250,10 @@ mod ethereum {
             .await
             .expect("get_transactions should succeed");
 
-        assert!(!txs.is_empty(), "Vitalik's address should have transactions");
+        assert!(
+            !txs.is_empty(),
+            "Vitalik's address should have transactions"
+        );
         for tx in &txs {
             assert!(!tx.external_id.is_empty());
             assert!(tx.block_height.unwrap_or(0) > 0);
@@ -269,7 +307,10 @@ mod cardano {
             }
         };
         let client = BlockfrostClient::new(false, Some(api_key));
-        let status = client.health_check().await.expect("health_check should succeed");
+        let status = client
+            .health_check()
+            .await
+            .expect("health_check should succeed");
 
         assert!(status.reachable, "Blockfrost should be reachable");
         assert_eq!(status.provider, "Blockfrost");
@@ -282,7 +323,10 @@ mod cardano {
         }
         let api_key = match blockfrost_api_key() {
             Some(k) => k,
-            None => { eprintln!("BLOCKFROST_API_KEY not set — skipping"); return; }
+            None => {
+                eprintln!("BLOCKFROST_API_KEY not set — skipping");
+                return;
+            }
         };
         let client = BlockfrostClient::new(false, Some(api_key));
         let summary = client
@@ -307,7 +351,10 @@ mod cardano {
         }
         let api_key = match blockfrost_api_key() {
             Some(k) => k,
-            None => { eprintln!("BLOCKFROST_API_KEY not set — skipping"); return; }
+            None => {
+                eprintln!("BLOCKFROST_API_KEY not set — skipping");
+                return;
+            }
         };
         let client = BlockfrostClient::new(false, Some(api_key));
         let summary = client
@@ -329,7 +376,10 @@ mod cardano {
         }
         let api_key = match blockfrost_api_key() {
             Some(k) => k,
-            None => { eprintln!("BLOCKFROST_API_KEY not set — skipping"); return; }
+            None => {
+                eprintln!("BLOCKFROST_API_KEY not set — skipping");
+                return;
+            }
         };
         let client = BlockfrostClient::new(false, Some(api_key));
         let txs = client
@@ -366,10 +416,16 @@ mod solana {
         }
         let rpc_url = match solana_rpc_url() {
             Some(u) => u,
-            None => { eprintln!("SOLANA_RPC_URL not set — skipping"); return; }
+            None => {
+                eprintln!("SOLANA_RPC_URL not set — skipping");
+                return;
+            }
         };
         let client = SolanaRpcClient::new(rpc_url);
-        let status = client.health_check().await.expect("health_check should succeed");
+        let status = client
+            .health_check()
+            .await
+            .expect("health_check should succeed");
 
         assert!(status.reachable, "Solana RPC should be reachable");
         assert!(status.block_height.unwrap_or(0) > 0, "slot should be > 0");
@@ -383,7 +439,10 @@ mod solana {
         }
         let rpc_url = match solana_rpc_url() {
             Some(u) => u,
-            None => { eprintln!("SOLANA_RPC_URL not set — skipping"); return; }
+            None => {
+                eprintln!("SOLANA_RPC_URL not set — skipping");
+                return;
+            }
         };
         let client = SolanaRpcClient::new(rpc_url);
         let summary = client
@@ -407,7 +466,10 @@ mod solana {
         }
         let rpc_url = match solana_rpc_url() {
             Some(u) => u,
-            None => { eprintln!("SOLANA_RPC_URL not set — skipping"); return; }
+            None => {
+                eprintln!("SOLANA_RPC_URL not set — skipping");
+                return;
+            }
         };
         let client = SolanaRpcClient::new(rpc_url);
         let txs = client

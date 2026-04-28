@@ -629,13 +629,14 @@ async fn handle_audit_command_test(
             }
         }
         "sync" => {
-            let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM sync_audit_log WHERE (? IS NULL OR chain = ?)")
-                    .bind(&chain)
-                    .bind(&chain)
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+            let count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM sync_audit_log WHERE (? IS NULL OR chain = ?)",
+            )
+            .bind(&chain)
+            .bind(&chain)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
 
             if count.0 == 0 {
                 writeln!(output, "No sync audit entries found.")?;

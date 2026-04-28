@@ -2,7 +2,6 @@
 ///
 /// Solana addresses are base58-encoded 32-byte Ed25519 public keys.
 /// They look like: `vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg`
-
 use crate::error::{CryptofolioError, Result};
 
 /// Validate a Solana address.
@@ -11,10 +10,12 @@ use crate::error::{CryptofolioError, Result};
 /// - Must be valid base58
 /// - Decoded bytes must be exactly 32 (Ed25519 public key size)
 pub fn validate_address(address: &str) -> Result<()> {
-    let decoded = bitcoin::base58::decode(address)
-        .map_err(|_| CryptofolioError::InvalidAddress(
-            format!("Invalid Solana address: not valid base58 — {}", address)
-        ))?;
+    let decoded = bitcoin::base58::decode(address).map_err(|_| {
+        CryptofolioError::InvalidAddress(format!(
+            "Invalid Solana address: not valid base58 — {}",
+            address
+        ))
+    })?;
 
     // base58::decode from the bitcoin crate appends a 4-byte checksum;
     // raw Solana addresses have no checksum so the decoded length is exactly 32.
