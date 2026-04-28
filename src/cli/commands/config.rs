@@ -446,6 +446,7 @@ async fn handle_set_secret_command(
     // Fall back to TOML storage (or only option on non-macOS)
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = &pool;
         if security_level.is_some() {
             eprintln!("Warning: --security-level is only supported on macOS");
             eprintln!();

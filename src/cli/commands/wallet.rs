@@ -302,6 +302,7 @@ fn store_xpub_secure(account_id: &str, xpub: &str) -> Result<Option<String>> {
 
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = account_id;
         Ok(Some(xpub.to_string()))
     }
 }
