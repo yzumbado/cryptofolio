@@ -11,6 +11,7 @@ use crate::config::secrets::{
     read_secret_from_stdin, read_secret_interactive, show_security_warning,
 };
 use crate::config::AppConfig;
+#[cfg(target_os = "macos")]
 use crate::db::KeychainKeyRepository;
 use crate::error::{CryptofolioError, Result};
 
@@ -335,6 +336,7 @@ pub async fn handle_config_command(
 
             #[cfg(not(target_os = "macos"))]
             {
+                let _ = (key, to);
                 return Err(CryptofolioError::KeychainNotAvailable);
             }
         }
@@ -347,6 +349,7 @@ pub async fn handle_config_command(
 
             #[cfg(not(target_os = "macos"))]
             {
+                let _ = (key, to);
                 return Err(CryptofolioError::KeychainNotAvailable);
             }
         }

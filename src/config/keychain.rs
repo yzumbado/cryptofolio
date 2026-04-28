@@ -7,6 +7,7 @@
 //! - macOS: Keychain with Touch ID support
 //! - Linux/Windows: TOML fallback (keychain support coming in future versions)
 
+#[cfg(target_os = "macos")]
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
 
