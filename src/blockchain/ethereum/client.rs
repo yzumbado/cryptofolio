@@ -375,12 +375,7 @@ impl BlockchainClient for EtherscanClient {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         if !response.status().is_success() {
-            return Ok(HealthStatus {
-                provider: self.provider_name().to_string(),
-                reachable: false,
-                block_height: None,
-                latency_ms,
-            });
+            return Ok(HealthStatus::unreachable(self.provider_name(), latency_ms));
         }
 
         #[derive(serde::Deserialize)]
@@ -395,12 +390,7 @@ impl BlockchainClient for EtherscanClient {
 
         let height = u64::from_str_radix(data.result.trim_start_matches("0x"), 16).unwrap_or(0);
 
-        Ok(HealthStatus {
-            provider: self.provider_name().to_string(),
-            reachable: true,
-            block_height: Some(height),
-            latency_ms,
-        })
+        Ok(HealthStatus::reachable(self.provider_name(), Some(height), latency_ms))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {

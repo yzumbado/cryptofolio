@@ -175,3 +175,13 @@ pub struct HealthStatus {
     pub block_height: Option<u64>,
     pub latency_ms: u64,
 }
+
+impl HealthStatus {
+    pub fn reachable(provider: &str, block_height: Option<u64>, latency_ms: u64) -> Self {
+        Self { provider: provider.to_string(), reachable: true, block_height, latency_ms }
+    }
+
+    pub fn unreachable(provider: &str, latency_ms: u64) -> Self {
+        Self { provider: provider.to_string(), reachable: false, block_height: None, latency_ms }
+    }
+}

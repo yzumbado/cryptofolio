@@ -559,12 +559,7 @@ impl BlockchainClient for BlockfrostClient {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         if !response.status().is_success() {
-            return Ok(HealthStatus {
-                provider: self.provider_name().to_string(),
-                reachable: false,
-                block_height: None,
-                latency_ms,
-            });
+            return Ok(HealthStatus::unreachable(self.provider_name(), latency_ms));
         }
 
         // 2. Fetch latest block height
@@ -577,9 +572,7 @@ impl BlockchainClient for BlockfrostClient {
             .send()
             .await
             .ok()
-            .and_then(|r| {
-                if r.status().is_success() { Some(r) } else { None }
-            });
+            .and_then(|r| if r.status().is_success() { Some(r) } else { None });
 
         let block_height: Option<u64> = if let Some(resp) = block_height {
             resp.json::<LatestBlock>().await.ok().and_then(|b| b.height)
@@ -587,12 +580,7 @@ impl BlockchainClient for BlockfrostClient {
             None
         };
 
-        Ok(HealthStatus {
-            provider: self.provider_name().to_string(),
-            reachable: true,
-            block_height,
-            latency_ms,
-        })
+        Ok(HealthStatus::reachable(self.provider_name(), block_height, latency_ms))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
