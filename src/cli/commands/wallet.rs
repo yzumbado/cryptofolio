@@ -353,14 +353,24 @@ async fn handle_wallet_list(
                 println!(r#"    "type": "{}","#, account.account_type.as_str());
                 println!(r#"    "addresses": ["#);
                 for (j, addr) in filtered_addresses.iter().enumerate() {
+                    let has_extra = addr.label.is_some() || addr.xpub.is_some();
                     println!("      {{");
                     println!(r#"        "blockchain": "{}","#, addr.blockchain);
-                    println!(r#"        "address": "{}","#, addr.address);
+                    if has_extra {
+                        println!(r#"        "address": "{}","#, addr.address);
+                    } else {
+                        println!(r#"        "address": "{}""#, addr.address);
+                    }
                     if let Some(ref label) = addr.label {
-                        println!(r#"        "label": "{}","#, label);
+                        let has_xpub = addr.xpub.is_some();
+                        if has_xpub {
+                            println!(r#"        "label": "{}","#, label);
+                        } else {
+                            println!(r#"        "label": "{}""#, label);
+                        }
                     }
                     if let Some(ref xpub) = addr.xpub {
-                        println!(r#"        "xpub": "{}","#, xpub);
+                        println!(r#"        "xpub": "{}""#, xpub);
                     }
                     println!(
                         "      }}{}",

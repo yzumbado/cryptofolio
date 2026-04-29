@@ -130,7 +130,7 @@ export function registerManageWalletTool(server: McpServer): void {
             if (blockchain) args.push("--blockchain", blockchain);
 
             const raw = await runCli(args);
-            const wallets = (raw as CliWallet[]) ?? [];
+            const wallets = Array.isArray(raw) ? (raw as CliWallet[]) : [];
 
             return toContent(
               buildSuccess(

@@ -26,7 +26,7 @@ export function registerSyncExchangeTool(server: McpServer): void {
     async ({ account }) => {
       try {
         const args = ["sync"];
-        if (account) args.push(account);
+        if (account) args.push("--account", account);
 
         // sync command does not have --json output; use runCliRaw
         const output = await runCliRaw(args, SYNC_TIMEOUT_MS);
