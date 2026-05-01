@@ -1,15 +1,15 @@
-/// Cardano blockchain client (Blockfrost API)
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use crate::blockchain::trait_def::BlockchainClient;
 use crate::blockchain::types::{
     AddressSummary, Chain, ChainExtras, HealthStatus, TransactionDirection, WalletBalance,
     WalletTransaction,
 };
 use crate::error::{CryptofolioError, Result};
+/// Cardano blockchain client (Blockfrost API)
+use async_trait::async_trait;
 use bech32::{Bech32, Hrp};
 use blake2::digest::{FixedOutput, Update};
 use blake2::Blake2b;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -568,11 +568,13 @@ impl BlockchainClient for BlockfrostClient {
         if let Some(key) = &self.api_key {
             block_req = block_req.header("project_id", key);
         }
-        let block_height = block_req
-            .send()
-            .await
-            .ok()
-            .and_then(|r| if r.status().is_success() { Some(r) } else { None });
+        let block_height = block_req.send().await.ok().and_then(|r| {
+            if r.status().is_success() {
+                Some(r)
+            } else {
+                None
+            }
+        });
 
         let block_height: Option<u64> = if let Some(resp) = block_height {
             resp.json::<LatestBlock>().await.ok().and_then(|b| b.height)
@@ -580,7 +582,11 @@ impl BlockchainClient for BlockfrostClient {
             None
         };
 
-        Ok(HealthStatus::reachable(self.provider_name(), block_height, latency_ms))
+        Ok(HealthStatus::reachable(
+            self.provider_name(),
+            block_height,
+            latency_ms,
+        ))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
@@ -634,8 +640,7 @@ impl BlockchainClient for BlockfrostClient {
                 None => true,
             })
             .map(|tx| {
-                let timestamp = DateTime::from_timestamp(tx.block_time, 0)
-                    .unwrap_or_else(Utc::now);
+                let timestamp = DateTime::from_timestamp(tx.block_time, 0).unwrap_or_else(Utc::now);
 
                 WalletTransaction {
                     external_id: tx.hash,

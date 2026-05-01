@@ -1,11 +1,11 @@
-/// Bitcoin blockchain clients (RPC and public APIs)
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use crate::blockchain::trait_def::BlockchainClient;
 use crate::blockchain::types::{
     AddressSummary, Chain, HealthStatus, TransactionDirection, WalletBalance, WalletTransaction,
 };
 use crate::error::{CryptofolioError, Result};
+/// Bitcoin blockchain clients (RPC and public APIs)
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -80,7 +80,8 @@ impl BlockstreamClient {
                 / Decimal::from(SATS_PER_BTC);
         let total_received =
             Decimal::from(data.chain_stats.funded_txo_sum) / Decimal::from(SATS_PER_BTC);
-        let total_sent = Decimal::from(data.chain_stats.spent_txo_sum) / Decimal::from(SATS_PER_BTC);
+        let total_sent =
+            Decimal::from(data.chain_stats.spent_txo_sum) / Decimal::from(SATS_PER_BTC);
 
         Ok(AddressInfo {
             address: address.to_string(),
@@ -227,7 +228,11 @@ impl BlockchainClient for BlockstreamClient {
             .parse::<u64>()
             .unwrap_or(0);
 
-        Ok(HealthStatus::reachable(self.provider_name(), Some(height), latency_ms))
+        Ok(HealthStatus::reachable(
+            self.provider_name(),
+            Some(height),
+            latency_ms,
+        ))
     }
 
     async fn get_address_summary(&self, address: &str) -> Result<AddressSummary> {
@@ -257,7 +262,7 @@ impl BlockchainClient for BlockstreamClient {
         let txs = raw
             .into_iter()
             .filter(|tx| match since_block {
-                Some(min) => tx.block_height.map_or(false, |h| h >= min),
+                Some(min) => tx.block_height.is_some_and(|h| h >= min),
                 None => true,
             })
             .map(|tx| {

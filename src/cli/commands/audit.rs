@@ -187,8 +187,12 @@ async fn handle_audit_sync(
         let chain_short = truncate(&e.chain, chain_w);
         let prov_short = truncate(&e.provider, prov_w);
         let act_short = truncate(&e.action, act_w);
-        let ri = e.records_in.map_or("  -".to_string(), |v| format!("{:>6}", v));
-        let rn = e.records_new.map_or("  -".to_string(), |v| format!("{:>6}", v));
+        let ri = e
+            .records_in
+            .map_or("  -".to_string(), |v| format!("{:>6}", v));
+        let rn = e
+            .records_new
+            .map_or("  -".to_string(), |v| format!("{:>6}", v));
         let dur = e
             .duration_ms
             .map_or("      -".to_string(), |v| format!("{:>7}", v));
@@ -229,10 +233,10 @@ async fn handle_audit_coverage(
 ) -> Result<()> {
     // Join wallet_sync_state (left join — include unsynced addresses too)
     let rows: Vec<(
-        String, // account_name
-        String, // blockchain
-        String, // address
-        Option<i64>, // last_block
+        String,         // account_name
+        String,         // blockchain
+        String,         // address
+        Option<i64>,    // last_block
         Option<String>, // last_sync_at
     )> = sqlx::query_as(
         "SELECT
@@ -294,7 +298,9 @@ async fn handle_audit_coverage(
         rows.len(),
         synced,
         if never_synced > 0 {
-            format!("{} never synced", never_synced).yellow().to_string()
+            format!("{} never synced", never_synced)
+                .yellow()
+                .to_string()
         } else {
             "all synced".green().to_string()
         }
@@ -327,11 +333,7 @@ async fn handle_audit_coverage(
 
         println!(
             "  {:<wallet_w$}  {:<chain_w$}  {:<addr_w$}  {:>block_w$}  {}",
-            wallet_short,
-            bc,
-            addr_short,
-            block_str,
-            sync_str,
+            wallet_short, bc, addr_short, block_str, sync_str,
         );
     }
 
@@ -342,11 +344,7 @@ async fn handle_audit_coverage(
 // audit errors
 // ---------------------------------------------------------------------------
 
-async fn handle_audit_errors(
-    limit: i64,
-    pool: &SqlitePool,
-    opts: &GlobalOptions,
-) -> Result<()> {
+async fn handle_audit_errors(limit: i64, pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
     let rows: Vec<(String, String, String, String, String, String)> = sqlx::query_as(
         "SELECT
             sal.timestamp,

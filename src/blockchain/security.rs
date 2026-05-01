@@ -8,7 +8,6 @@
 ///   compressed: 52 chars starting K or L)
 /// - Ethereum raw private keys (64 hex chars, with or without 0x)
 /// - BIP39 seed phrases (12, 18 or 24 space-separated lowercase words)
-
 use crate::error::{CryptofolioError, Result};
 
 // ---------------------------------------------------------------------------
@@ -96,7 +95,10 @@ fn is_bitcoin_wif(s: &str) -> bool {
 /// Matches `[0-9a-fA-F]{64}` with optional `0x` prefix.
 /// A valid xpub or address is never 64 hex chars long.
 fn is_ethereum_raw_key(s: &str) -> bool {
-    let hex = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
+    let hex = s
+        .strip_prefix("0x")
+        .or_else(|| s.strip_prefix("0X"))
+        .unwrap_or(s);
     hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
@@ -117,7 +119,7 @@ fn is_bip39_seed_phrase(s: &str) -> bool {
     }
     words.iter().all(|w| {
         let n = w.len();
-        n >= 3 && n <= 8 && w.chars().all(|c| c.is_ascii_lowercase())
+        (3..=8).contains(&n) && w.chars().all(|c| c.is_ascii_lowercase())
     })
 }
 
@@ -230,7 +232,10 @@ mod tests {
         let key = "0x4c0883a69102937d6231471b5dbb6e538eba2ef62a0b8fe5b30f24a6f2b5f7a8";
         let err = reject_if_private_key(key).unwrap_err();
         let msg = err.to_string();
-        assert!(msg.contains("watch-only"), "error should mention watch-only");
+        assert!(
+            msg.contains("watch-only"),
+            "error should mention watch-only"
+        );
         assert!(msg.contains("private"), "error should mention private key");
     }
 }

@@ -15,7 +15,6 @@
 /// [blockchain.solana]
 /// rpc_url = "https://mainnet.helius-rpc.com/?api-key=<key>"
 /// ```
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -37,8 +36,7 @@ use crate::error::{CryptofolioError, Result};
 // Jupiter token list
 // ---------------------------------------------------------------------------
 
-const JUPITER_TOKEN_LIST_URL: &str =
-    "https://token.jup.ag/strict";
+const JUPITER_TOKEN_LIST_URL: &str = "https://token.jup.ag/strict";
 
 #[derive(Debug, Clone)]
 struct TokenInfo {
@@ -165,10 +163,7 @@ impl SolanaRpcClient {
 
     async fn get_sol_balance(&self, address: &str) -> Result<Decimal> {
         let result = self
-            .post_rpc(
-                "getBalance",
-                json!([address, {"commitment": "finalized"}]),
-            )
+            .post_rpc("getBalance", json!([address, {"commitment": "finalized"}]))
             .await?;
 
         let lamports = result["value"].as_u64().unwrap_or(0);
@@ -196,12 +191,8 @@ impl SolanaRpcClient {
             for account in accounts {
                 let info = &account["account"]["data"]["parsed"]["info"];
                 let mint = info["mint"].as_str().unwrap_or("").to_string();
-                let ui_amount = info["tokenAmount"]["uiAmount"]
-                    .as_f64()
-                    .unwrap_or(0.0);
-                let decimals = info["tokenAmount"]["decimals"]
-                    .as_u64()
-                    .unwrap_or(0) as u8;
+                let ui_amount = info["tokenAmount"]["uiAmount"].as_f64().unwrap_or(0.0);
+                let decimals = info["tokenAmount"]["decimals"].as_u64().unwrap_or(0) as u8;
 
                 if ui_amount == 0.0 {
                     continue;
@@ -310,7 +301,11 @@ impl BlockchainClient for SolanaRpcClient {
         let latency_ms = start.elapsed().as_millis() as u64;
 
         match result {
-            Ok(slot) => Ok(HealthStatus::reachable(self.provider_name(), slot.as_u64(), latency_ms)),
+            Ok(slot) => Ok(HealthStatus::reachable(
+                self.provider_name(),
+                slot.as_u64(),
+                latency_ms,
+            )),
             Err(_) => Ok(HealthStatus::unreachable(self.provider_name(), latency_ms)),
         }
     }
@@ -384,8 +379,7 @@ impl BlockchainClient for SolanaRpcClient {
             // Determine direction from pre/post balances
             let pre_balances = tx_data["meta"]["preBalances"].as_array();
             let post_balances = tx_data["meta"]["postBalances"].as_array();
-            let account_keys = tx_data["transaction"]["message"]["accountKeys"]
-                .as_array();
+            let account_keys = tx_data["transaction"]["message"]["accountKeys"].as_array();
 
             let direction = if let (Some(pre), Some(post), Some(keys)) =
                 (pre_balances, post_balances, account_keys)

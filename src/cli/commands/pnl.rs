@@ -179,7 +179,11 @@ async fn handle_realized(
         .await?;
 
     if pnls.is_empty() {
-        info("No realized P&L records found.");
+        if opts.json {
+            println!("[]");
+        } else {
+            info("No realized P&L records found.");
+        }
         return Ok(());
     }
 

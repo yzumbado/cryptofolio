@@ -109,7 +109,7 @@ async fn handle_wallet_command_test(
     use cryptofolio::cli::WalletCommands;
     use std::io::Write;
 
-    let pool = world.pool();
+    let pool = world.pool().clone();
     let opts = cryptofolio::cli::GlobalOptions {
         no_color: false,
         testnet: false,
@@ -171,7 +171,7 @@ async fn handle_wallet_command_test(
                 label: None,
             };
 
-            handle_wallet_command(cmd, pool, &opts).await?;
+            handle_wallet_command(cmd, &pool, &opts).await?;
 
             let testnet_tag = if network == Some("testnet") {
                 " [TESTNET]"
@@ -186,11 +186,11 @@ async fn handle_wallet_command_test(
         }
         "list" => {
             let cmd = WalletCommands::List { blockchain: None };
-            handle_wallet_command(cmd, pool, &opts).await?;
+            handle_wallet_command(cmd, &pool, &opts).await?;
 
             // Query wallets and write to output
             use cryptofolio::db::accounts::AccountRepository;
-            let repo = AccountRepository::new(pool);
+            let repo = AccountRepository::new(&pool);
             let accounts = repo.list_accounts().await?;
 
             for account in accounts {
@@ -212,7 +212,7 @@ async fn handle_wallet_command_test(
 
             // Get the wallet
             use cryptofolio::db::accounts::AccountRepository;
-            let repo = AccountRepository::new(pool);
+            let repo = AccountRepository::new(&pool);
             let account = match repo.get_account(&name).await {
                 Ok(Some(acc)) => acc,
                 Ok(None) => {
@@ -307,6 +307,14 @@ async fn handle_wallet_command_test(
                                 addr_info.total_sent
                             )?;
 
+                            // Persist balance to holdings
+                            use cryptofolio::db::holdings::HoldingRepository;
+                            let holdings_repo = HoldingRepository::new(&pool);
+                            holdings_repo
+                                .set_quantity(&account.id, "BTC", addr_info.balance, None)
+                                .await
+                                .ok();
+
                             if import_history {
                                 match client.fetch_transactions(&addr.address).await {
                                     Ok(txs) => {
@@ -349,6 +357,14 @@ async fn handle_wallet_command_test(
                                 addr_info.balance
                             )?;
 
+                            // Persist ETH balance to holdings
+                            use cryptofolio::db::holdings::HoldingRepository;
+                            let holdings_repo = HoldingRepository::new(&pool);
+                            holdings_repo
+                                .set_quantity(&account.id, "ETH", addr_info.balance, None)
+                                .await
+                                .ok();
+
                             // Show token balances
                             if addr_info.tokens.is_empty() {
                                 writeln!(output, "[INFO]   No tokens found")?;
@@ -360,6 +376,16 @@ async fn handle_wallet_command_test(
                                         "[INFO]   {}: {:.2}",
                                         token.symbol, token.balance
                                     )?;
+                                    // Persist each token holding
+                                    holdings_repo
+                                        .set_quantity(
+                                            &account.id,
+                                            &token.symbol,
+                                            token.balance,
+                                            None,
+                                        )
+                                        .await
+                                        .ok();
                                 }
                             }
 
@@ -401,6 +427,14 @@ async fn handle_wallet_command_test(
                         Ok(addr_info) => {
                             writeln!(output, "[OK] ✓ Synced ADA balance: {}", addr_info.balance)?;
 
+                            // Persist ADA balance to holdings
+                            use cryptofolio::db::holdings::HoldingRepository;
+                            let holdings_repo = HoldingRepository::new(&pool);
+                            holdings_repo
+                                .set_quantity(&account.id, "ADA", addr_info.balance, None)
+                                .await
+                                .ok();
+
                             // Show native token balances
                             if addr_info.tokens.is_empty() {
                                 writeln!(output, "[INFO]   No tokens found")?;
@@ -412,6 +446,16 @@ async fn handle_wallet_command_test(
                                         "[INFO]   {}: {:.2}",
                                         token.display_name, token.balance
                                     )?;
+                                    // Persist each native token holding
+                                    holdings_repo
+                                        .set_quantity(
+                                            &account.id,
+                                            &token.display_name,
+                                            token.balance,
+                                            None,
+                                        )
+                                        .await
+                                        .ok();
                                 }
                             }
 
@@ -464,7 +508,7 @@ async fn handle_wallet_command_test(
                 yes: true,
             };
 
-            handle_wallet_command(cmd, pool, &opts).await?;
+            handle_wallet_command(cmd, &pool, &opts).await?;
             writeln!(output, "[OK] ✓ Removed wallet '{}'", name)?;
         }
         _ => {
@@ -629,13 +673,14 @@ async fn handle_audit_command_test(
             }
         }
         "sync" => {
-            let count: (i64,) =
-                sqlx::query_as("SELECT COUNT(*) FROM sync_audit_log WHERE (? IS NULL OR chain = ?)")
-                    .bind(&chain)
-                    .bind(&chain)
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+            let count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM sync_audit_log WHERE (? IS NULL OR chain = ?)",
+            )
+            .bind(&chain)
+            .bind(&chain)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
 
             if count.0 == 0 {
                 writeln!(output, "No sync audit entries found.")?;

@@ -114,7 +114,7 @@ export function registerGetRealizedPnlTool(server: McpServer): void {
         if (to_date) args.push("--to", to_date);
 
         const raw = await runCli(args);
-        const entries = (raw as CliRealizedEntry[]) ?? [];
+        const entries = Array.isArray(raw) ? (raw as CliRealizedEntry[]) : [];
         const page = paginate(entries, offset, limit);
 
         return toContent(

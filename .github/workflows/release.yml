@@ -40,19 +40,9 @@ jobs:
             asset_name: cryptofolio-linux-amd64
 
           - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: cryptofolio
-            asset_name: cryptofolio-macos-amd64
-
-          - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: cryptofolio
             asset_name: cryptofolio-macos-arm64
-
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: cryptofolio.exe
-            asset_name: cryptofolio-windows-amd64.exe
 
     steps:
     - name: Checkout code
@@ -66,27 +56,16 @@ jobs:
     - name: Build release
       run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Strip binary (Linux and macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Strip binary
       run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
 
-    - name: Compress binary (Linux and macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Compress binary
       run: |
         cd target/${{ matrix.target }}/release
         tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
         cd -
 
-    - name: Compress binary (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        cd target/${{ matrix.target }}/release
-        7z a ${{ matrix.asset_name }}.zip ${{ matrix.artifact_name }}
-        cd -
-      shell: bash
-
-    - name: Upload Release Asset (Linux and macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,17 +74,6 @@ jobs:
         asset_path: ./target/${{ matrix.target }}/release/${{ matrix.asset_name }}.tar.gz
         asset_name: ${{ matrix.asset_name }}.tar.gz
         asset_content_type: application/gzip
-
-    - name: Upload Release Asset (Windows)
-      if: matrix.os == 'windows-latest'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.create-release.outputs.upload_url }}
-        asset_path: ./target/${{ matrix.target }}/release/${{ matrix.asset_name }}.zip
-        asset_name: ${{ matrix.asset_name }}.zip
-        asset_content_type: application/zip
 
   build-docker:
     name: Build and Push Docker Image
