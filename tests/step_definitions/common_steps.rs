@@ -378,7 +378,12 @@ async fn handle_wallet_command_test(
                                     )?;
                                     // Persist each token holding
                                     holdings_repo
-                                        .set_quantity(&account.id, &token.symbol, token.balance, None)
+                                        .set_quantity(
+                                            &account.id,
+                                            &token.symbol,
+                                            token.balance,
+                                            None,
+                                        )
                                         .await
                                         .ok();
                                 }
@@ -443,7 +448,12 @@ async fn handle_wallet_command_test(
                                     )?;
                                     // Persist each native token holding
                                     holdings_repo
-                                        .set_quantity(&account.id, &token.display_name, token.balance, None)
+                                        .set_quantity(
+                                            &account.id,
+                                            &token.display_name,
+                                            token.balance,
+                                            None,
+                                        )
                                         .await
                                         .ok();
                                 }
