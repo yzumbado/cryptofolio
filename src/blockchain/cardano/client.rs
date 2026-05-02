@@ -157,16 +157,44 @@ impl BlockfrostClient {
         .unwrap_or(Decimal::ZERO)
             / Decimal::from(1_000_000);
 
+        // Fetch tx_count from /total endpoint (not included in main address response)
+        let tx_count = self.get_address_tx_count(address).await.unwrap_or(0);
+
         Ok(AddressData {
             balance,
-            tx_count: data.tx_count,
+            tx_count,
             stake_address: data.stake_address,
         })
     }
 
+    /// Get transaction count from /addresses/{address}/total
+    async fn get_address_tx_count(&self, address: &str) -> Result<u64> {
+        let url = format!("{}/addresses/{}/total", self.base_url, address);
+        let client = reqwest::Client::new();
+        let mut request = client.get(&url);
+        if let Some(key) = &self.api_key {
+            request = request.header("project_id", key);
+        }
+        let response = request.send().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch tx count: {}", e))
+        })?;
+        if !response.status().is_success() {
+            return Ok(0);
+        }
+        #[derive(serde::Deserialize)]
+        struct TotalResponse {
+            tx_count: u64,
+        }
+        let data: TotalResponse = response
+            .json()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse total: {}", e)))?;
+        Ok(data.tx_count)
+    }
+
     /// Get native tokens for an address
     async fn get_native_tokens(&self, address: &str) -> Result<Vec<NativeToken>> {
-        let url = format!("{}/addresses/{}/total", self.base_url, address);
+        let url = format!("{}/addresses/{}", self.base_url, address);
 
         let client = reqwest::Client::new();
         let mut request = client.get(&url);
@@ -470,6 +498,8 @@ struct AddressData {
 #[derive(Debug, Deserialize)]
 struct BlockfrostAddressResponse {
     amount: Vec<AmountItem>,
+    #[serde(default)]
+    #[allow(dead_code)]
     tx_count: u64,
     stake_address: Option<String>,
 }
