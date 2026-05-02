@@ -29,5 +29,7 @@ import_cold_storage.csv
 ~$*.xlsx
 *.tmp
 
-# Claude Code settings
-.claude/
+# Claude Code settings (user-specific — not shared)
+.claude/*
+# Skills are part of the codebase — shared with the repo
+!.claude/skills
