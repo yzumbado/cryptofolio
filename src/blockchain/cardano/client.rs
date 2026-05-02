@@ -175,9 +175,10 @@ impl BlockfrostClient {
         if let Some(key) = &self.api_key {
             request = request.header("project_id", key);
         }
-        let response = request.send().await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch tx count: {}", e))
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch tx count: {}", e)))?;
         if !response.status().is_success() {
             return Ok(0);
         }
