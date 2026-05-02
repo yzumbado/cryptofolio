@@ -77,33 +77,54 @@ impl SolanaRpcClient {
             "params": params
         });
 
-        let response = self
-            .http
-            .post(&self.rpc_url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Solana RPC request failed: {}", e)))?;
+        // Retry up to 3 times on 429 rate-limit with exponential backoff.
+        let mut delay_ms = 1_000u64;
+        for attempt in 0..3 {
+            let response = self
+                .http
+                .post(&self.rpc_url)
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| {
+                    CryptofolioError::Network(format!("Solana RPC request failed: {}", e))
+                })?;
 
-        if !response.status().is_success() {
-            return Err(CryptofolioError::Network(format!(
-                "Solana RPC HTTP error: {}",
-                response.status()
-            )));
+            if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                if attempt < 2 {
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                    delay_ms *= 2;
+                    continue;
+                }
+                return Err(CryptofolioError::Network(
+                    "Solana RPC rate limited (429)".to_string(),
+                ));
+            }
+
+            if !response.status().is_success() {
+                return Err(CryptofolioError::Network(format!(
+                    "Solana RPC HTTP error: {}",
+                    response.status()
+                )));
+            }
+
+            let json: Value = response.json().await.map_err(|e| {
+                CryptofolioError::Network(format!("Failed to parse Solana RPC response: {}", e))
+            })?;
+
+            if let Some(err) = json.get("error") {
+                return Err(CryptofolioError::Network(format!(
+                    "Solana RPC error: {}",
+                    err
+                )));
+            }
+
+            return Ok(json["result"].clone());
         }
 
-        let json: Value = response.json().await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to parse Solana RPC response: {}", e))
-        })?;
-
-        if let Some(err) = json.get("error") {
-            return Err(CryptofolioError::Network(format!(
-                "Solana RPC error: {}",
-                err
-            )));
-        }
-
-        Ok(json["result"].clone())
+        Err(CryptofolioError::Network(
+            "Solana RPC: exceeded retry limit".to_string(),
+        ))
     }
 
     // -----------------------------------------------------------------------

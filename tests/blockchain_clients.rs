@@ -21,19 +21,20 @@ use cryptofolio::blockchain::BlockchainClient;
 // Known stable mainnet addresses
 // ---------------------------------------------------------------------------
 //
-// Bitcoin  — Satoshi's genesis coinbase. Never spent. People still send to it.
-const BTC_ADDRESS: &str = "1A1zP1eP5QGefi2DMPTfTL5SLmv7Divf";
+// Bitcoin  — Satoshi's genesis coinbase address. Never spent, 60k+ txs.
+const BTC_ADDRESS: &str = "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
 
-// Ethereum — Vitalik Buterin's publicly known address (linked to his ENS).
-const ETH_ADDRESS: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+// Ethereum — Uniswap DAO timelock: ETH balance, ERC-20 tokens, ~500 total txs.
+const ETH_ADDRESS: &str = "0x1a9C8182C09F50C8318d769245beA52c32Be35BC";
 
 // Cardano  — A well-known mainnet address used across Cardano documentation.
 const ADA_ADDRESS: &str =
     "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
 
-// Solana   — Marinade Finance staking program: a well-known, long-lived address
-//            with SOL balance and a stable transaction history.
-const SOL_ADDRESS: &str = "8szGkuLTAux9XMgZ2vtY39jVSowEovBGME4mDXQkNGNR";
+// Solana   — Solana Foundation wallet: substantial SOL balance, long transaction
+//            history, and signing activity (program accounts don't work with
+//            getSignaturesForAddress).
+const SOL_ADDRESS: &str = "GThUX1Atko4tqhN2NaiTazWSeFWMuiUvfFnyJyUghFMJ";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,11 +107,11 @@ mod bitcoin {
         assert_eq!(btc.asset, "BTC");
         assert!(
             btc.quantity > rust_decimal::Decimal::ZERO,
-            "genesis address should have BTC"
+            "address should have BTC"
         );
         assert!(
             summary.transaction_count > 0,
-            "genesis address should have transactions"
+            "address should have transactions"
         );
     }
 
@@ -125,7 +126,7 @@ mod bitcoin {
             .await
             .expect("get_transactions should succeed");
 
-        assert!(!txs.is_empty(), "genesis address should have transactions");
+        assert!(!txs.is_empty(), "address should have transactions");
         for tx in &txs {
             assert!(
                 !tx.external_id.is_empty(),
@@ -267,20 +268,24 @@ mod ethereum {
         }
         let client = EtherscanClient::new(false, etherscan_api_key());
 
-        let all_txs = client
-            .get_transactions(ETH_ADDRESS, None)
-            .await
-            .expect("get_transactions should succeed");
-
         let recent_txs = client
             .get_transactions(ETH_ADDRESS, Some(18_000_000))
             .await
             .expect("get_transactions with since_block should succeed");
 
+        // Verify the filter works: all returned txs must be at or after the filter block.
+        // We don't compare counts because Etherscan caps results at 10k per query.
         assert!(
-            recent_txs.len() <= all_txs.len(),
-            "since_block filter should not return more results than no filter"
+            !recent_txs.is_empty(),
+            "active address should have transactions after block 18_000_000"
         );
+        for tx in &recent_txs {
+            assert!(
+                tx.block_height.unwrap_or(0) >= 18_000_000,
+                "since_block filter should only return txs at or after block 18_000_000, got block {:?}",
+                tx.block_height
+            );
+        }
     }
 }
 

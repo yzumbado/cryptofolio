@@ -199,17 +199,20 @@ impl EtherscanClient {
         let mut tokens: Vec<ERC20Token> = token_map
             .into_iter()
             .filter(|(_, (_, _, balance, _))| *balance > 0)
-            .map(|(contract, (symbol, name, balance, decimals))| {
-                let divisor = Decimal::from(10_i128.pow(decimals as u32));
-                let token_balance = Decimal::from(balance) / divisor;
+            .filter_map(|(contract, (symbol, name, balance, decimals))| {
+                // Use from_str to avoid panicking on very large token values
+                let raw = Decimal::from_str(&balance.to_string()).ok()?;
+                let divisor = Decimal::from_str(&format!("1{}", "0".repeat(decimals as usize)))
+                    .unwrap_or(Decimal::ONE);
+                let token_balance = raw / divisor;
 
-                ERC20Token {
+                Some(ERC20Token {
                     symbol,
                     name,
                     contract_address: contract,
                     balance: token_balance,
                     decimals,
-                }
+                })
             })
             .collect();
 
