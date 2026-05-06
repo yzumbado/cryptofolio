@@ -233,11 +233,20 @@ impl BlockfrostClient {
                 (amount.unit.clone(), String::new())
             };
 
-            // Try to get token metadata for display name and decimals
-            let (display_name, decimals) = self
-                .get_token_metadata(&amount.unit)
-                .await
-                .unwrap_or_else(|_| (asset_name.clone(), 0));
+            // Try to get token metadata for display name and decimals.
+            // If metadata fetch fails (e.g. no API key), skip this token rather than
+            // storing a phantom balance with wrong decimal precision.
+            let (display_name, decimals) = match self.get_token_metadata(&amount.unit).await {
+                Ok(meta) => meta,
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Skipping token {} — metadata fetch failed: {}",
+                        asset_name,
+                        e
+                    );
+                    continue;
+                }
+            };
 
             // Calculate human-readable balance
             let quantity = Decimal::from_str(&amount.quantity).unwrap_or(Decimal::ZERO);
@@ -268,24 +277,33 @@ impl BlockfrostClient {
         Ok(tokens)
     }
 
-    /// Get token metadata (name, decimals)
+    /// Get token metadata (name, decimals).
+    /// Returns an error if no API key is configured — callers should skip the token
+    /// rather than using a default of 0 decimals, which produces phantom balances.
     async fn get_token_metadata(&self, unit: &str) -> Result<(String, u8)> {
+        let api_key = self.api_key.as_ref().ok_or_else(|| {
+            CryptofolioError::Config(
+                "Blockfrost API key required to fetch token metadata".to_string(),
+            )
+        })?;
+
         let url = format!("{}/assets/{}", self.base_url, unit);
 
         let client = reqwest::Client::new();
-        let mut request = client.get(&url);
-
-        if let Some(key) = &self.api_key {
-            request = request.header("project_id", key);
-        }
-
-        let response = request.send().await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch token metadata: {}", e))
-        })?;
+        let response = client
+            .get(&url)
+            .header("project_id", api_key)
+            .send()
+            .await
+            .map_err(|e| {
+                CryptofolioError::Network(format!("Failed to fetch token metadata: {}", e))
+            })?;
 
         if !response.status().is_success() {
-            // No metadata - use asset name
-            return Ok((String::new(), 0));
+            return Err(CryptofolioError::Network(format!(
+                "Blockfrost returned {} for asset metadata",
+                response.status()
+            )));
         }
 
         let data: BlockfrostAssetResponse = response
