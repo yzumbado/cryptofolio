@@ -215,8 +215,17 @@ async fn handle_wallet_add(
     } else if let Some(xpub_val) = xpub {
         // Derive the first 20 external-chain receiving addresses (BIP44 gap limit)
         let is_testnet_net = network == Some("testnet");
-        let derived = blockchain::bitcoin::derive_addresses(&xpub_val, is_testnet_net, 20)
-            .map_err(|e| CryptofolioError::Other(format!("xpub derivation failed: {}", e)))?;
+        // Allow explicit --type taproot to force BIP-86 P2TR derivation from a plain xpub
+        let force_type = match address_type.as_deref() {
+            Some("taproot") => Some(blockchain::bitcoin::XpubAddressType::Taproot),
+            Some("native_segwit") => Some(blockchain::bitcoin::XpubAddressType::NativeSegwit),
+            Some("segwit") => Some(blockchain::bitcoin::XpubAddressType::WrappedSegwit),
+            Some("legacy") => Some(blockchain::bitcoin::XpubAddressType::Legacy),
+            _ => None,
+        };
+        let derived =
+            blockchain::bitcoin::derive_addresses_with_type(&xpub_val, is_testnet_net, 20, force_type)
+                .map_err(|e| CryptofolioError::Other(format!("xpub derivation failed: {}", e)))?;
 
         // Secure xpub storage: macOS Keychain when available, DB column otherwise.
         let xpub_for_db = store_xpub_secure(&account_id, &xpub_val)?;

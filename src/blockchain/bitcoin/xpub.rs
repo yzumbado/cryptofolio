@@ -16,15 +16,31 @@ pub enum XpubAddressType {
     Legacy,        // xpub / tpub  → P2PKH  (1… / m…)
     WrappedSegwit, // ypub / upub  → P2SH-P2WPKH  (3…)
     NativeSegwit,  // zpub / vpub  → P2WPKH bech32 (bc1q…)
+    Taproot,       // BIP86 xpub  → P2TR bech32m (bc1p…)
 }
 
 /// Derive `count` external-chain receiving addresses from an xpub/ypub/zpub.
+///
+/// The address type is inferred from the key prefix (xpub → Legacy, ypub →
+/// WrappedSegwit, zpub → NativeSegwit). Pass `force_type` to override the
+/// inferred type — use `Some(XpubAddressType::Taproot)` for BIP-86 xpubs that
+/// share the same version bytes as Legacy keys.
 ///
 /// Returns a `Vec<(address_string, child_index)>`.
 pub fn derive_addresses(
     xpub_str: &str,
     is_testnet: bool,
     count: u32,
+) -> Result<Vec<(String, u32)>> {
+    derive_addresses_with_type(xpub_str, is_testnet, count, None)
+}
+
+/// Like [`derive_addresses`] but allows explicitly overriding the address type.
+pub fn derive_addresses_with_type(
+    xpub_str: &str,
+    is_testnet: bool,
+    count: u32,
+    force_type: Option<XpubAddressType>,
 ) -> Result<Vec<(String, u32)>> {
     let network = if is_testnet {
         Network::Testnet
@@ -34,7 +50,8 @@ pub fn derive_addresses(
 
     // Normalise ypub/zpub to the canonical xpub version bytes so the bitcoin
     // crate can parse the key, and remember which address type to produce.
-    let (xpub_canonical, addr_type) = normalize_to_xpub(xpub_str, is_testnet)?;
+    let (xpub_canonical, inferred_type) = normalize_to_xpub(xpub_str, is_testnet)?;
+    let addr_type = force_type.unwrap_or(inferred_type);
 
     let secp = Secp256k1::verification_only();
     let xpub = Xpub::from_str(&xpub_canonical)
@@ -64,6 +81,11 @@ pub fn derive_addresses(
             XpubAddressType::NativeSegwit => {
                 let compressed = CompressedPublicKey(child.public_key);
                 Address::p2wpkh(&compressed, network)
+            }
+            XpubAddressType::Taproot => {
+                // BIP-86: x-only pubkey → P2TR (bc1p… on mainnet)
+                let x_only = child.to_x_only_pub();
+                Address::p2tr(&secp, x_only, None, network)
             }
         };
 
@@ -158,5 +180,30 @@ mod tests {
     fn test_invalid_prefix_returns_error() {
         let result = derive_addresses("badprefix123", false, 1);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_derive_taproot_from_xpub_with_force_type() {
+        // BIP44 xpub — forced to Taproot (BIP86 path users pass --type taproot)
+        let xpub = "xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz";
+        let addrs =
+            derive_addresses_with_type(xpub, false, 3, Some(XpubAddressType::Taproot)).unwrap();
+        assert_eq!(addrs.len(), 3);
+        for (addr, _) in &addrs {
+            assert!(
+                addr.starts_with("bc1p"),
+                "Taproot address should start with bc1p, got: {}",
+                addr
+            );
+        }
+    }
+
+    #[test]
+    fn test_derive_addresses_with_type_none_matches_inferred() {
+        // force_type = None should produce same result as derive_addresses
+        let xpub = "xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz";
+        let inferred = derive_addresses(xpub, false, 3).unwrap();
+        let explicit = derive_addresses_with_type(xpub, false, 3, None).unwrap();
+        assert_eq!(inferred, explicit);
     }
 }

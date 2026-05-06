@@ -7,4 +7,4 @@ pub use address::{
 };
 
 pub use client::{AddressInfo, BitcoinTransaction, BlockstreamClient};
-pub use xpub::{derive_addresses, XpubAddressType};
+pub use xpub::{derive_addresses, derive_addresses_with_type, XpubAddressType};
