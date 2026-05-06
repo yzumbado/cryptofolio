@@ -278,30 +278,26 @@ impl BlockfrostClient {
     }
 
     /// Get token metadata (name, decimals).
-    /// Returns an error if no API key is configured — callers should skip the token
-    /// rather than using a default of 0 decimals, which produces phantom balances.
+    /// Returns an error on any non-200 response (including 401/403 when no API key is
+    /// configured). Callers should skip the token on error rather than using a default
+    /// of 0 decimals, which produces phantom balances.
     async fn get_token_metadata(&self, unit: &str) -> Result<(String, u8)> {
-        let api_key = self.api_key.as_ref().ok_or_else(|| {
-            CryptofolioError::Config(
-                "Blockfrost API key required to fetch token metadata".to_string(),
-            )
-        })?;
-
         let url = format!("{}/assets/{}", self.base_url, unit);
 
         let client = reqwest::Client::new();
-        let response = client
-            .get(&url)
-            .header("project_id", api_key)
-            .send()
-            .await
-            .map_err(|e| {
-                CryptofolioError::Network(format!("Failed to fetch token metadata: {}", e))
-            })?;
+        let mut request = client.get(&url);
+
+        if let Some(key) = &self.api_key {
+            request = request.header("project_id", key);
+        }
+
+        let response = request.send().await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch token metadata: {}", e))
+        })?;
 
         if !response.status().is_success() {
             return Err(CryptofolioError::Network(format!(
-                "Blockfrost returned {} for asset metadata",
+                "Blockfrost returned {} for asset metadata (configure API key with: cryptofolio config set-secret blockfrost.mainnet_api_key)",
                 response.status()
             )));
         }
