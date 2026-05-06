@@ -462,6 +462,7 @@ pub enum WalletCommands {
 }
 
 #[derive(Clone, ValueEnum)]
+#[clap(rename_all = "snake_case")]
 pub enum AccountTypeArg {
     Exchange,
     HardwareWallet,
