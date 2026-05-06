@@ -1132,7 +1132,17 @@ async fn handle_wallet_remove(
         }
     }
 
-    // Delete the account (cascades to addresses)
+    // Delete sync_audit_log rows explicitly (FK has no CASCADE)
+    let account = account_repo
+        .get_account(&name)
+        .await?
+        .ok_or_else(|| CryptofolioError::AccountNotFound(name.clone()))?;
+    sqlx::query("DELETE FROM sync_audit_log WHERE account_id = ?")
+        .bind(&account.id)
+        .execute(pool)
+        .await?;
+
+    // Delete the account (cascades to wallet_addresses, holdings, blockchain_sync_state, etc.)
     account_repo.delete_account(&name).await?;
 
     if opts.json {
