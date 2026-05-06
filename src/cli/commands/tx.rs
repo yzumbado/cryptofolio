@@ -144,7 +144,9 @@ pub async fn handle_tx_command(
             quantity,
             account,
             price,
+            date,
             notes,
+            cost_basis_only,
             dry_run,
         } => {
             let acc = account_repo
@@ -158,25 +160,34 @@ pub async fn handle_tx_command(
             let price_usd = Decimal::from_str(&price)
                 .map_err(|_| CryptofolioError::InvalidAmount(price.clone()))?;
 
+            let timestamp = if let Some(d) = date {
+                parse_date_filter(&d)?
+            } else {
+                Utc::now()
+            };
+
             if dry_run {
                 info(&format!(
-                    "[DRY RUN] Would record buy: {} {} @ {} in '{}' (total: {})",
+                    "[DRY RUN] Would record buy: {} {} @ {} in '{}' (total: {}){}",
                     format_quantity(qty),
                     asset.to_uppercase(),
                     format_usd(price_usd),
                     account,
-                    format_usd(qty * price_usd)
+                    format_usd(qty * price_usd),
+                    if cost_basis_only { " [cost-basis-only]" } else { "" }
                 ));
                 return Ok(());
             }
 
-            // Update holdings
-            holding_repo
-                .add_quantity(&acc.id, &asset, qty, Some(price_usd))
-                .await?;
+            // Update holdings (skip for synced accounts using --cost-basis-only)
+            if !cost_basis_only {
+                holding_repo
+                    .add_quantity(&acc.id, &asset, qty, Some(price_usd))
+                    .await?;
+            }
 
             // Record transaction
-            let mut tx = Transaction::new_buy(&acc.id, &asset, qty, price_usd, Utc::now());
+            let mut tx = Transaction::new_buy(&acc.id, &asset, qty, price_usd, timestamp);
             tx.notes = notes;
             let tx_id = tx_repo.insert(&tx).await?;
 
@@ -184,7 +195,7 @@ pub async fn handle_tx_command(
             let pnl_calc = PnLCalculator::new(pool);
             let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
             if let Err(e) = pnl_calc
-                .process_acquisition(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
+                .process_acquisition(tx_id, &acc.id, &asset, qty, price_usd, timestamp, method)
                 .await
             {
                 if !opts.quiet {
@@ -193,11 +204,12 @@ pub async fn handle_tx_command(
             }
 
             success(&format!(
-                "Recorded buy: {} {} @ {} in '{}'",
+                "Recorded buy: {} {} @ {} in '{}'{}",
                 format_quantity(qty),
                 asset.to_uppercase(),
                 format_usd(price_usd),
-                account
+                account,
+                if cost_basis_only { " (cost basis only)" } else { "" }
             ));
         }
 
@@ -206,6 +218,7 @@ pub async fn handle_tx_command(
             quantity,
             account,
             price,
+            date,
             notes,
             dry_run,
         } => {
@@ -219,6 +232,12 @@ pub async fn handle_tx_command(
 
             let price_usd = Decimal::from_str(&price)
                 .map_err(|_| CryptofolioError::InvalidAmount(price.clone()))?;
+
+            let timestamp = if let Some(d) = date {
+                parse_date_filter(&d)?
+            } else {
+                Utc::now()
+            };
 
             if dry_run {
                 info(&format!(
@@ -233,7 +252,7 @@ pub async fn handle_tx_command(
             }
 
             // Record transaction FIRST (need tx_id for P&L)
-            let mut tx = Transaction::new_sell(&acc.id, &asset, qty, price_usd, Utc::now());
+            let mut tx = Transaction::new_sell(&acc.id, &asset, qty, price_usd, timestamp);
             tx.notes = notes;
             let tx_id = tx_repo.insert(&tx).await?;
 
@@ -241,7 +260,7 @@ pub async fn handle_tx_command(
             let pnl_calc = PnLCalculator::new(pool);
             let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
             let realized_pnl = match pnl_calc
-                .process_disposal(tx_id, &acc.id, &asset, qty, price_usd, Utc::now(), method)
+                .process_disposal(tx_id, &acc.id, &asset, qty, price_usd, timestamp, method)
                 .await
             {
                 Ok(pnl) => Some(pnl),
@@ -284,6 +303,7 @@ pub async fn handle_tx_command(
             from,
             to,
             fee,
+            date,
             notes,
             dry_run,
         } => {
@@ -304,6 +324,12 @@ pub async fn handle_tx_command(
                 .map(|f| Decimal::from_str(&f))
                 .transpose()
                 .map_err(|_| CryptofolioError::InvalidAmount("fee".to_string()))?;
+
+            let timestamp = if let Some(d) = date {
+                parse_date_filter(&d)?
+            } else {
+                Utc::now()
+            };
 
             if dry_run {
                 let fee_str = fee_amount
@@ -343,7 +369,7 @@ pub async fn handle_tx_command(
 
             // Record transaction
             let mut tx =
-                Transaction::new_transfer(&from_acc.id, &to_acc.id, &asset, qty, Utc::now());
+                Transaction::new_transfer(&from_acc.id, &to_acc.id, &asset, qty, timestamp);
             tx.fee = fee_amount;
             tx.fee_asset = Some(asset.to_uppercase());
             tx.notes = notes;
@@ -365,6 +391,7 @@ pub async fn handle_tx_command(
             to_quantity,
             account,
             rate,
+            date,
             notes,
             dry_run,
         } => {
@@ -378,6 +405,12 @@ pub async fn handle_tx_command(
 
             let to_qty = Decimal::from_str(&to_quantity)
                 .map_err(|_| CryptofolioError::InvalidAmount(to_quantity.clone()))?;
+
+            let timestamp = if let Some(d) = date {
+                parse_date_filter(&d)?
+            } else {
+                Utc::now()
+            };
 
             if dry_run {
                 info(&format!(
@@ -418,7 +451,7 @@ pub async fn handle_tx_command(
                     from_asset.to_uppercase(),
                     to_asset.to_uppercase(),
                     rate_value,
-                    Utc::now(),
+                    timestamp,
                 );
                 currencies::add_exchange_rate(pool, &rate_record).await?;
 
@@ -452,7 +485,7 @@ pub async fn handle_tx_command(
                 from_qty,
                 &to_asset,
                 to_qty,
-                Utc::now(),
+                timestamp,
             );
             tx.exchange_rate = exchange_rate;
             tx.exchange_rate_pair = exchange_rate_pair;
@@ -462,7 +495,6 @@ pub async fn handle_tx_command(
             // Process P&L for swap (disposal of from_asset + acquisition of to_asset)
             let pnl_calc = PnLCalculator::new(pool);
             let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
-            let timestamp = Utc::now();
 
             // Process disposal of from_asset (if we have implied price)
             let realized_pnl = if let Some(price) = implied_price {
