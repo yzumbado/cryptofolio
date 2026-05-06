@@ -437,28 +437,45 @@ impl AppConfig {
     }
 
     /// Get Blockfrost API key based on network (mainnet/preprod/preview)
-    /// Falls back to environment variable BLOCKFROST_API_KEY if not in config
+    /// Priority: env var → keychain → config file
     pub fn get_blockfrost_api_key(
         &self,
         is_testnet: bool,
         network: Option<&str>,
     ) -> Option<String> {
-        // First, check environment variable
+        // 1. Environment variable (highest priority)
         if let Ok(env_key) = std::env::var("BLOCKFROST_API_KEY") {
             if !env_key.is_empty() {
                 return Some(env_key);
             }
         }
 
-        // Then check config based on network
+        // 2. Keychain (macOS)
+        #[cfg(target_os = "macos")]
+        {
+            let keychain_key = if is_testnet {
+                match network {
+                    Some("preview") => "blockfrost.preview_api_key",
+                    _ => "blockfrost.preprod_api_key",
+                }
+            } else {
+                "blockfrost.mainnet_api_key"
+            };
+            let keychain = get_keychain();
+            if keychain.exists(keychain_key) {
+                if let Ok(key) = keychain.retrieve(keychain_key) {
+                    return Some(key);
+                }
+            }
+        }
+
+        // 3. Config file
         if is_testnet {
-            // For testnet, check network-specific key or default to preprod
             match network {
                 Some("preview") => self.blockfrost.preview_api_key.clone(),
                 _ => self.blockfrost.preprod_api_key.clone(),
             }
         } else {
-            // For mainnet
             self.blockfrost.mainnet_api_key.clone()
         }
     }
