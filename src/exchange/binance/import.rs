@@ -351,7 +351,7 @@ impl<'a> TransactionImporter<'a> {
             .and_then(|h| h.avg_cost_basis)
             .unwrap_or(Decimal::ZERO);
 
-        let _ = self
+        if let Err(e) = self
             .pnl_calc
             .process_disposal(
                 tx_id,
@@ -362,7 +362,18 @@ impl<'a> TransactionImporter<'a> {
                 timestamp,
                 CostBasisMethod::Fifo,
             )
-            .await;
+            .await
+        {
+            // Log but don't fail the import — lots may not exist yet if buys
+            // haven't been imported.  Run `pnl backfill` after a full sync.
+            eprintln!(
+                "Warning: could not consume tax lots for withdrawal {} ({}): {}. \
+                 Run 'cryptofolio pnl backfill' to fix.",
+                withdrawal.id,
+                withdrawal.coin.to_uppercase(),
+                e
+            );
+        }
 
         // Update holdings (silently ignore if not enough balance)
         let _ = self

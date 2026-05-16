@@ -162,6 +162,81 @@ impl<'a> PnLCalculator<'a> {
         Ok(matches)
     }
 
+    /// Transfer FIFO tax lots from one account to another (internal portfolio transfer).
+    ///
+    /// Preserves original acquisition dates and prices — no P&L is recognised because
+    /// the asset stays within the portfolio. The source lots are reduced / closed and
+    /// new lots are opened in the destination account with the same cost basis.
+    ///
+    /// Returns the number of lots touched.
+    pub async fn transfer_lots(
+        &self,
+        from_account_id: &str,
+        to_account_id: &str,
+        asset: &str,
+        quantity: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<usize> {
+        let lots = self
+            .tax_lot_repo
+            .get_available_lots(from_account_id, asset, method)
+            .await?;
+
+        let total_available: Decimal = lots.iter().map(|lot| lot.remaining_quantity).sum();
+        if quantity > total_available {
+            // Not enough lots — this can happen if the account was synced but
+            // cost-basis entries haven't been recorded yet.  Return an error so
+            // callers can decide whether to warn or abort.
+            return Err(CryptofolioError::InsufficientTaxLots {
+                asset: asset.to_string(),
+                required: quantity,
+                available: total_available,
+            });
+        }
+
+        let mut remaining = quantity;
+        let mut touched = 0;
+
+        for lot in &lots {
+            if remaining <= Decimal::ZERO {
+                break;
+            }
+
+            let move_qty = remaining.min(lot.remaining_quantity);
+
+            // Reduce / close source lot
+            let new_src_remaining = lot.remaining_quantity - move_qty;
+            self.tax_lot_repo
+                .update_remaining(lot.id, new_src_remaining)
+                .await?;
+            if new_src_remaining == Decimal::ZERO {
+                self.tax_lot_repo.mark_disposed(lot.id).await?;
+            }
+
+            // Open matching lot in destination account
+            let dest_lot = TaxLot {
+                id: 0,
+                account_id: to_account_id.to_string(),
+                asset: asset.to_uppercase(),
+                quantity: move_qty,
+                remaining_quantity: move_qty,
+                acquisition_price: lot.acquisition_price,
+                acquisition_date: lot.acquisition_date,
+                acquisition_tx_id: lot.acquisition_tx_id, // link back to original buy
+                cost_basis_method: method,
+                fully_disposed: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            };
+            self.tax_lot_repo.create(&dest_lot).await?;
+
+            remaining -= move_qty;
+            touched += 1;
+        }
+
+        Ok(touched)
+    }
+
     /// Get total available quantity for an asset (sum of all tax lot remaining quantities)
     pub async fn get_available_quantity(&self, account_id: &str, asset: &str) -> Result<Decimal> {
         let lots = self
