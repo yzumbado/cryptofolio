@@ -1,7 +1,7 @@
 # Cryptofolio Roadmap
 
-**Last Updated:** March 2026
-**Current Version:** v0.3.1
+**Last Updated:** May 2026
+**Current Version:** v0.6.0
 
 ---
 
@@ -94,75 +94,66 @@ Build a **local-first, privacy-respecting cryptocurrency portfolio manager** tha
 
 ---
 
-## v0.4.0 (🎯 Planned - Q2 2026)
+## v0.4.0 (✅ Released - March 2026)
 
-### Binance Deep Integration & P&L Reporting
+### Binance Deep Integration
 
-**Focus:** Complete P&L implementation and enhanced exchange integration
-
-### P&L & Accounting
-- [ ] **P&L Command Interface**
-  - `pnl summary` - Overall realized/unrealized gains
-  - `pnl realized` - List all realized gains/losses
-  - `pnl unrealized` - Current portfolio P&L
-  - `pnl by-asset` - Per-asset breakdown
-  - `pnl backfill` - Replay historical transactions
-- [ ] **Advanced Cost Basis**
-  - HIFO (Highest In, First Out) method
-  - SpecificID lot selection
-  - Tax loss harvesting detection
-  - Wash sale tracking
-
-### Exchange Integration
-- [ ] **Binance Trade History Import**
-  - Automatic transaction sync from trade history
-  - Deposit/withdrawal history
-  - Fee reconciliation
-  - Historical data backfill
-
-### Portfolio Import
-- [ ] **CoinGecko Integration**
-  - Import portfolio from CoinGecko
-  - Sync holdings automatically
-  - Map CoinGecko IDs to local assets
-  - Historical data import
-
-- [ ] **CoinMarketCap Integration**
-  - Import portfolio from CoinMarketCap
-  - Sync holdings automatically
-  - Map CMC IDs to local assets
-  - Historical data import
-
-### Data Export & Reporting
-- [ ] **CSV Report Generation**
-  - Customizable templates
-  - Portfolio summary reports
-  - Transaction history reports
-  - P&L reports (realized + unrealized)
-  - Tax basis reports
-  - Asset allocation reports
-
-- [ ] **Advanced Data Extraction**
-  - JSON export (enhanced with filters)
-  - CSV export (all data types)
-  - SQLite database export
-  - Custom query export
-  - Batch export scripts
-
-### CLI Improvements
-- [ ] `--quiet` flag for all commands
-- [ ] Progress indicators for long-running operations
-- [ ] Improved error messages
-- [ ] "Did you mean?" suggestions
-
-**Target Metrics:**
-- 150+ tests
-- < 200ms command response time
-- Secure by default (keychain)
+**Features Delivered:**
+- ✅ `sync-history` command — full Binance transaction history import
+- ✅ Spot trades, deposits, withdrawals, fiat orders, internal transfers
+- ✅ Incremental sync with watermarks (fetches only new records)
+- ✅ Duplicate detection via `external_id` (safe to re-run)
+- ✅ `--dry-run` preview mode
+- ✅ 44 new integration tests, 341 total tests (100% passing)
+- ✅ Keychain access fix for macOS without code signing
 
 ---
 
-## v0.4.0 (🔬 Experimental - Q3 2026)
+## v0.5.0 (✅ Released - April 2026)
+
+### Multi-Chain Wallet Tracking
+
+**Features Delivered:**
+- ✅ `BlockchainClient` trait — unified async interface for all chain clients
+- ✅ `ProviderRegistry` — health-check-driven provider selection with `PrivacyMode`
+- ✅ `SyncEngine` — parallel sync via `JoinSet`, block-height watermarks
+- ✅ Bitcoin — Blockstream.info, all address types, xpub/zpub HD derivation
+- ✅ Ethereum — Etherscan API, ETH + ERC-20 token detection
+- ✅ Cardano — Blockfrost API, ADA + native tokens, stake delegation
+- ✅ Solana — JSON-RPC, SOL + SPL tokens (Jupiter metadata cache), stake accounts
+- ✅ Private key guard at `wallet add` boundary
+- ✅ xpub stored in macOS Keychain (not plaintext DB)
+- ✅ `sync_audit_log` for tamper-evident sync provenance
+- ✅ `audit sync`, `audit coverage`, `audit errors` commands
+
+---
+
+## v0.5.1 (✅ Released - May 2026)
+
+### Onboarding Bug Fixes
+
+**Features Delivered:**
+- ✅ Taproot xpub support (P2TR address derivation)
+- ✅ Blockfrost keychain lookup during wallet sync
+- ✅ `PrivacyMode::Balanced` now correctly uses Convenience for public APIs
+- ✅ 10 total bug fixes from real onboarding sessions
+
+---
+
+## v0.6.0 (✅ Released - May 2026)
+
+### MCP Server & AI-Native Portfolio Management
+
+**Features Delivered:**
+- ✅ MCP server (`mcp/`) with 18 `cryptofolio_*` tools via stdio protocol
+- ✅ `/portfolio` Claude Code skill — natural language portfolio management
+- ✅ Code quality: removed incomplete `src/ai/` module, xpub panic safety, health check constructors, dead code removal
+- ✅ CI fixes: linux-amd64 + macos-arm64 cross-compile targets only, removed tarpaulin, fixed 6h timeout
+- ✅ Bug fixes: `wallet list --json` trailing commas, `pnl realized` empty output, `sync_exchange` account flag
+
+---
+
+## v0.7.0 (🎯 Planned - 2026)
 
 ### Visual Data Exploration Dashboard
 
@@ -366,5 +357,5 @@ cryptofolio dashboard stop
 
 ---
 
-**Last Updated:** February 19, 2026
-**Next Review:** May 1, 2026
+**Last Updated:** May 2026
+**Next Review:** August 1, 2026

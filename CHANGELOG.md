@@ -12,7 +12,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CoinMarketCap portfolio import
 - CSV report generation
 - Advanced P&L reporting (per-asset, per-year)
-- MCP server for AI assistant integration (v0.6.0)
+- v0.7.0: Local dashboard (Node.js, charts, interactive explorer)
+- v0.7.0: Deeper exchange integrations
+
+## [0.6.0] - 2026-05-01
+
+### Added — MCP Server & AI-Native Portfolio Management
+
+#### MCP Server (`mcp/`)
+- 18 `cryptofolio_*` tools exposed via stdio MCP protocol, wired to Claude Desktop
+- Tools cover: portfolio, accounts, transactions, P&L, prices, market data, wallet sync,
+  exchange sync, audit log, export, and system status
+- `/portfolio` Claude Code skill — natural language interface for portfolio management
+  powered by the MCP server
+
+#### Code Quality
+- Removed incomplete `src/ai/` module (dead code, replaced by MCP layer)
+- xpub panic safety — replaced `.unwrap()` calls with proper error propagation
+- Health check constructors — DRY constructors for provider health checks
+- Dead code removal across multiple modules
+
+#### CI
+- Fixed cross-compile targets: linux-amd64 + macos-arm64 only (removed unused targets)
+- Removed tarpaulin (coverage tool) from CI to fix 6-hour timeout
+- Pipeline now completes reliably
+
+#### Bug Fixes
+- `wallet list --json` invalid output (trailing commas in JSON array)
+- `pnl realized` command produced empty output on non-empty P&L records
+- `sync_exchange` incorrectly flagged account during sync
+
+## [0.5.1] - 2026-05-01
+
+### Fixed — Onboarding Bug Fixes (10 total)
+- **Taproot xpub support** — Bitcoin Taproot extended public key (xpub) derivation
+  now correctly handles P2TR address generation
+- **Blockfrost keychain lookup** — Fixed Cardano Blockfrost API key retrieval from
+  macOS Keychain during wallet sync
+- **PrivacyMode::Balanced** — Now correctly uses Convenience tier for public APIs
+  in wallet sync (was incorrectly defaulting to Strict, blocking public endpoints)
+- 7 additional bug fixes from real-world onboarding sessions
 
 ## [0.5.0] - 2026-04-01
 
@@ -385,6 +424,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| **0.6.0** | 2026-05-01 | MCP server (18 tools), /portfolio Claude Code skill, code quality, CI fixes |
+| **0.5.1** | 2026-05-01 | Taproot xpub, Blockfrost keychain, PrivacyMode fix, 10 onboarding bug fixes |
+| **0.5.0** | 2026-04-01 | Multi-chain wallet tracking (Bitcoin, Ethereum, Cardano, Solana), audit command |
+| **0.4.0** | 2026-03-28 | Binance deep integration (sync-history, full trade/deposit/withdrawal import) |
 | **0.3.1** | 2026-03-01 | Keychain security, P&L foundation, quality improvements (259 tests) |
 | **0.2.0** | 2026-02-19 | Multi-currency support, security enhancements, JSON output |
 | **0.1.0** | 2026-01-15 | Initial release with portfolio management and AI features |

@@ -2,7 +2,7 @@
 
 > AI-Powered CLI for Multi-Currency Crypto Portfolio Management
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](CHANGELOG.md)
 [![CI](https://github.com/yzumbado/cryptofolio/workflows/CI/badge.svg)](https://github.com/yzumbado/cryptofolio/actions)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
@@ -18,6 +18,7 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
+🤖 **MCP Server** — 18 tools for LLM-native portfolio management via Claude Desktop
 ✅ **4-Chain Wallet Sync** — Bitcoin, Ethereum, Cardano, Solana from blockchain
 ✅ **HD Wallet Support** — xpub/zpub derivation for Bitcoin (BIP44/BIP84)
 ✅ **ERC-20 & SPL Tokens** — Automatic token detection on Ethereum and Solana
@@ -73,7 +74,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.5.0
+# cryptofolio 0.6.0
 ```
 
 ### First Steps
@@ -265,7 +266,7 @@ Natural language commands powered by Claude or local Ollama.
 ```bash
 cryptofolio shell
 
-  🪙 Cryptofolio v0.5.0
+  🪙 Cryptofolio v0.6.0
   AI-Powered Portfolio Assistant
 
   💰 Portfolio: $61,442.89 (+109.57%)
@@ -346,6 +347,42 @@ When creating your Binance API key:
 - **WRITE permissions:** Attacker can steal funds → Total loss ❌
 
 [Security best practices →](SECURITY.md)
+
+### 🤖 MCP Server & Claude Code Integration (NEW in v0.6.0)
+
+Manage your portfolio with natural language via Claude Desktop or Claude Code.
+
+**MCP Server — 18 tools via stdio:**
+```bash
+# The MCP server exposes all cryptofolio operations as LLM-callable tools:
+# cryptofolio_get_portfolio, cryptofolio_list_accounts, cryptofolio_get_prices,
+# cryptofolio_get_pnl_summary, cryptofolio_sync_wallet, cryptofolio_sync_exchange,
+# cryptofolio_record_transaction, cryptofolio_list_transactions, and 10 more.
+```
+
+**Claude Code `/portfolio` skill:**
+```bash
+# In Claude Code, type:
+/portfolio
+
+# Then ask naturally:
+# "What's my total portfolio value?"
+# "Show me realized P&L for this year"
+# "Sync my Bitcoin wallet"
+# "What's the BTC price right now?"
+```
+
+**Claude Desktop integration:**
+Add the MCP server to your Claude Desktop config and query your portfolio directly
+from any Claude conversation — no terminal required.
+
+[MCP server setup →](mcp/README.md)
+
+**Features:**
+- ✅ 18 portfolio management tools via MCP protocol
+- ✅ Natural language interface with `/portfolio` Claude Code skill
+- ✅ Reads from your local SQLite database (privacy preserved)
+- ✅ Works with Claude Desktop and Claude Code
 
 ### 📊 Developer-Friendly
 
@@ -573,7 +610,7 @@ sudo cp target/release/cryptofolio /usr/local/bin/
 **Verify:**
 ```bash
 cryptofolio --version
-# cryptofolio 0.3.1
+# cryptofolio 0.6.0
 ```
 
 ### Platform-Specific Notes
@@ -865,13 +902,28 @@ jobs:
 
 [View v0.4.0 release notes →](RELEASE_NOTES_v0.4.0.md)
 
-### v0.5.0 (Planned) - Visual Data Exploration (Experimental)
+### v0.5.0 (✅ Released - April 2026) - Multi-Chain Wallet Tracking
+- ✅ Bitcoin, Ethereum, Cardano, Solana blockchain sync
+- ✅ HD wallet (xpub/zpub) derivation
+- ✅ ERC-20 and SPL token detection
+- ✅ Sync audit log and tamper-evident provenance
+- ✅ Private key guard at wallet add boundary
+
+### v0.5.1 (✅ Released - May 2026) - Onboarding Bug Fixes
+- ✅ Taproot xpub support, Blockfrost keychain fix
+- ✅ PrivacyMode::Balanced provider selection fix
+- ✅ 10 bug fixes from real onboarding
+
+### v0.6.0 (✅ Released - May 2026) - MCP Server
+- ✅ 18 `cryptofolio_*` MCP tools via stdio (Claude Desktop)
+- ✅ `/portfolio` Claude Code skill for natural language management
+- ✅ Code quality cleanup, CI pipeline fixes
+
+### v0.7.0 (Planned) - Local Dashboard
 - [ ] Local Node.js dashboard (no external dependencies)
 - [ ] Rich data visualization (charts, graphs, trends)
 - [ ] Interactive portfolio explorer
-- [ ] Time-series analysis
-- [ ] Portfolio composition breakdown
-- [ ] Historical performance tracking
+- [ ] Deeper exchange integrations
 
 ### Long-Term Vision
 - Multi-chain DeFi integration
