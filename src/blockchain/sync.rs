@@ -394,23 +394,55 @@ async fn persist_transactions(
             continue;
         }
 
-        let (tx_type, from_id, to_id) = match tx.direction {
-            TransactionDirection::Incoming => ("receive", None::<&str>, Some(account_id)),
-            TransactionDirection::Outgoing => ("send", Some(account_id), None::<&str>),
-            TransactionDirection::Internal => ("transfer", Some(account_id), Some(account_id)),
-        };
+        // Use canonical TransactionType strings and correct asset/quantity columns.
+        // Incoming:  asset arrives in account → to_asset / to_quantity
+        // Outgoing:  asset leaves account     → from_asset / from_quantity
+        // Internal:  stays within account     → from_asset / from_quantity
+        let (tx_type, from_id, to_id, from_asset, from_qty, to_asset, to_qty) =
+            match tx.direction {
+                TransactionDirection::Incoming => (
+                    "receive",
+                    None::<&str>,
+                    Some(account_id),
+                    None::<&str>,
+                    None::<String>,
+                    Some(tx.asset.as_str()),
+                    Some(tx.amount.to_string()),
+                ),
+                TransactionDirection::Outgoing => (
+                    "transfer_out",
+                    Some(account_id),
+                    None::<&str>,
+                    Some(tx.asset.as_str()),
+                    Some(tx.amount.to_string()),
+                    None::<&str>,
+                    None::<String>,
+                ),
+                TransactionDirection::Internal => (
+                    "transfer_internal",
+                    Some(account_id),
+                    Some(account_id),
+                    Some(tx.asset.as_str()),
+                    Some(tx.amount.to_string()),
+                    None::<&str>,
+                    None::<String>,
+                ),
+            };
 
         sqlx::query(
             "INSERT INTO transactions
-             (tx_type, from_account_id, to_account_id, to_asset, to_quantity,
+             (tx_type, from_account_id, to_account_id,
+              from_asset, from_quantity, to_asset, to_quantity,
               fee, fee_asset, external_id, notes, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(tx_type)
         .bind(from_id)
         .bind(to_id)
-        .bind(&tx.asset)
-        .bind(tx.amount.to_string())
+        .bind(from_asset)
+        .bind(from_qty)
+        .bind(to_asset)
+        .bind(to_qty)
         .bind(tx.fee.map(|f| f.to_string()))
         .bind(tx.fee_asset.as_deref())
         .bind(&external_id)

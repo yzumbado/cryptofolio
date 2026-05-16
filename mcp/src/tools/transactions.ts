@@ -160,6 +160,12 @@ export function registerRecordTransactionTool(server: McpServer): void {
           "Transaction timestamp in ISO 8601 format (default: now)"
         ),
       notes: z.string().optional().describe("Optional notes or memo"),
+      cost_basis_only: z
+        .boolean()
+        .optional()
+        .describe(
+          "For buy transactions on synced accounts: record cost basis tax lot only, do NOT update holdings quantity. Use this when the account balance comes from an exchange/blockchain sync to avoid double-counting holdings."
+        ),
     },
     async ({
       type,
@@ -176,6 +182,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
       fee,
       timestamp,
       notes,
+      cost_basis_only,
     }) => {
       try {
         let args: string[];
@@ -200,6 +207,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
               "--price",
               price_usd,
             ];
+            if (cost_basis_only === true) args.push("--cost-basis-only");
             break;
 
           case "sell":
@@ -277,7 +285,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
             break;
         }
 
-        if (timestamp) args.push("--timestamp", timestamp);
+        if (timestamp) args.push("--date", timestamp);
         if (notes) args.push("--notes", notes);
 
         const raw = await runCli(args);
