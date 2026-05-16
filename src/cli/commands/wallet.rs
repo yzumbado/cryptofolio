@@ -589,10 +589,12 @@ async fn handle_wallet_sync(
         return Ok(());
     }
 
-    // Build ProviderRegistry with public providers (Balanced mode by default)
-    let mut registry = ProviderRegistry::new(PrivacyMode::Balanced);
+    // Build ProviderRegistry — Convenience mode allows Public providers (Blockstream,
+    // Etherscan, Blockfrost). Balanced mode incorrectly excludes Public-level providers
+    // even when the user has explicitly configured API keys for them.
+    let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
 
-    // Bitcoin — Blockstream (public)
+    // Bitcoin — Blockstream (keyless public API)
     {
         use crate::blockchain::bitcoin::BlockstreamClient;
         registry.register(
@@ -602,25 +604,35 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Ethereum — Etherscan (public, optional API key from env)
+    // Ethereum — Etherscan (API key from env or config)
     {
         use crate::blockchain::ethereum::EtherscanClient;
         let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
+        let level = if api_key.is_some() {
+            PrivacyLevel::Custom
+        } else {
+            PrivacyLevel::Public
+        };
         registry.register(
             &Chain::Ethereum,
             Arc::new(EtherscanClient::new(false, api_key)),
-            PrivacyLevel::Public,
+            level,
         );
     }
 
-    // Cardano — Blockfrost (public, optional API key from env)
+    // Cardano — Blockfrost (API key from env or config)
     {
         use crate::blockchain::cardano::BlockfrostClient;
         let api_key = std::env::var("BLOCKFROST_API_KEY").ok();
+        let level = if api_key.is_some() {
+            PrivacyLevel::Custom
+        } else {
+            PrivacyLevel::Public
+        };
         registry.register(
             &Chain::Cardano,
             Arc::new(BlockfrostClient::new(false, api_key)),
-            PrivacyLevel::Public,
+            level,
         );
     }
 
