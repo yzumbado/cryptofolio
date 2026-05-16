@@ -174,7 +174,11 @@ pub async fn handle_tx_command(
                     format_usd(price_usd),
                     account,
                     format_usd(qty * price_usd),
-                    if cost_basis_only { " [cost-basis-only]" } else { "" }
+                    if cost_basis_only {
+                        " [cost-basis-only]"
+                    } else {
+                        ""
+                    }
                 ));
                 return Ok(());
             }
@@ -209,7 +213,11 @@ pub async fn handle_tx_command(
                 asset.to_uppercase(),
                 format_usd(price_usd),
                 account,
-                if cost_basis_only { " (cost basis only)" } else { "" }
+                if cost_basis_only {
+                    " (cost basis only)"
+                } else {
+                    ""
+                }
             ));
         }
 
@@ -479,14 +487,8 @@ pub async fn handle_tx_command(
             };
 
             // Record transaction FIRST (need tx_id for P&L)
-            let mut tx = Transaction::new_swap(
-                &acc.id,
-                &from_asset,
-                from_qty,
-                &to_asset,
-                to_qty,
-                timestamp,
-            );
+            let mut tx =
+                Transaction::new_swap(&acc.id, &from_asset, from_qty, &to_asset, to_qty, timestamp);
             tx.exchange_rate = exchange_rate;
             tx.exchange_rate_pair = exchange_rate_pair;
             tx.notes = notes;

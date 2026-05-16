@@ -84,9 +84,15 @@ pub async fn handle_config_command(
                         api_secret_configured: config.binance.api_secret.is_some(),
                     },
                     blockfrost: BlockfrostConfigOutput {
-                        mainnet_api_key_configured: config.get_blockfrost_api_key(false, None).is_some(),
-                        preprod_api_key_configured: config.get_blockfrost_api_key(true, Some("preprod")).is_some(),
-                        preview_api_key_configured: config.get_blockfrost_api_key(true, Some("preview")).is_some(),
+                        mainnet_api_key_configured: config
+                            .get_blockfrost_api_key(false, None)
+                            .is_some(),
+                        preprod_api_key_configured: config
+                            .get_blockfrost_api_key(true, Some("preprod"))
+                            .is_some(),
+                        preview_api_key_configured: config
+                            .get_blockfrost_api_key(true, Some("preview"))
+                            .is_some(),
                     },
                     display: DisplayConfig {
                         color: config.display.color,
@@ -167,7 +173,10 @@ pub async fn handle_config_command(
                 );
                 print_kv(
                     "preprod_api_key",
-                    if config.get_blockfrost_api_key(true, Some("preprod")).is_some() {
+                    if config
+                        .get_blockfrost_api_key(true, Some("preprod"))
+                        .is_some()
+                    {
                         "***configured***"
                     } else {
                         "-"
@@ -175,7 +184,10 @@ pub async fn handle_config_command(
                 );
                 print_kv(
                     "preview_api_key",
-                    if config.get_blockfrost_api_key(true, Some("preview")).is_some() {
+                    if config
+                        .get_blockfrost_api_key(true, Some("preview"))
+                        .is_some()
+                    {
                         "***configured***"
                     } else {
                         "-"

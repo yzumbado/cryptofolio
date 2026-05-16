@@ -223,9 +223,13 @@ async fn handle_wallet_add(
             Some("legacy") => Some(blockchain::bitcoin::XpubAddressType::Legacy),
             _ => None,
         };
-        let derived =
-            blockchain::bitcoin::derive_addresses_with_type(&xpub_val, is_testnet_net, 20, force_type)
-                .map_err(|e| CryptofolioError::Other(format!("xpub derivation failed: {}", e)))?;
+        let derived = blockchain::bitcoin::derive_addresses_with_type(
+            &xpub_val,
+            is_testnet_net,
+            20,
+            force_type,
+        )
+        .map_err(|e| CryptofolioError::Other(format!("xpub derivation failed: {}", e)))?;
 
         // Secure xpub storage: macOS Keychain when available, DB column otherwise.
         let xpub_for_db = store_xpub_secure(&account_id, &xpub_val)?;

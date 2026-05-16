@@ -241,8 +241,7 @@ impl BlockfrostClient {
                 Err(e) => {
                     eprintln!(
                         "Warning: Skipping token {} — metadata fetch failed: {}",
-                        asset_name,
-                        e
+                        asset_name, e
                     );
                     continue;
                 }

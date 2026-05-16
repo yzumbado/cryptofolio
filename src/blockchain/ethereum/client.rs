@@ -499,7 +499,11 @@ impl BlockchainClient for EtherscanClient {
         }
 
         // Sort merged list by block number then hash for deterministic ordering
-        raw.sort_by(|a, b| a.block_number.cmp(&b.block_number).then(a.hash.cmp(&b.hash)));
+        raw.sort_by(|a, b| {
+            a.block_number
+                .cmp(&b.block_number)
+                .then(a.hash.cmp(&b.hash))
+        });
 
         // Deduplicate by hash (same tx can appear in both lists)
         raw.dedup_by(|a, b| a.hash == b.hash);
