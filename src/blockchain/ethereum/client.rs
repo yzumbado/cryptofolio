@@ -287,6 +287,58 @@ impl EtherscanClient {
         Ok(result)
     }
 
+    /// Get internal transactions (contract-originated ETH transfers) since a block.
+    async fn fetch_internal_transactions_since(
+        &self,
+        address: &str,
+        start_block: u64,
+    ) -> Result<Vec<EthereumTransaction>> {
+        let mut url = format!(
+            "{}?chainid={}&module=account&action=txlistinternal&address={}&startblock={}&endblock=99999999&sort=asc",
+            self.base_url, self.chain_id, address, start_block
+        );
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let response = reqwest::get(&url).await.map_err(|e| {
+            CryptofolioError::Network(format!("Failed to fetch internal transactions: {}", e))
+        })?;
+
+        if !response.status().is_success() {
+            return Ok(Vec::new()); // Non-fatal: internal txs may not exist
+        }
+
+        let data: EtherscanTxResponse = match response.json().await {
+            Ok(d) => d,
+            Err(_) => return Ok(Vec::new()),
+        };
+
+        if data.status != "1" {
+            return Ok(Vec::new()); // "No transactions found" is normal
+        }
+
+        let mut result = Vec::new();
+        for tx in data.result {
+            let value_wei = Decimal::from_str(&tx.value).unwrap_or(Decimal::ZERO);
+            let value_eth = value_wei / Decimal::from(1_000_000_000_000_000_000u64);
+
+            result.push(EthereumTransaction {
+                hash: tx.hash,
+                from: tx.from,
+                to: tx.to,
+                value: value_eth,
+                gas_used: tx.gas_used.parse().unwrap_or(0),
+                gas_price: Decimal::ZERO, // internal txs don't have their own gas price
+                timestamp: tx.time_stamp.parse().unwrap_or(0),
+                block_number: tx.block_number.parse().unwrap_or(0),
+                is_error: tx.is_error != "0",
+            });
+        }
+
+        Ok(result)
+    }
+
     /// Get transactions for an address (raw Etherscan types).
     /// Used internally and by the BlockchainClient trait impl.
     pub async fn fetch_transactions(&self, address: &str) -> Result<Vec<EthereumTransaction>> {
@@ -432,9 +484,29 @@ impl BlockchainClient for EtherscanClient {
         address: &str,
         since_block: Option<u64>,
     ) -> Result<Vec<WalletTransaction>> {
-        let raw = self
-            .fetch_transactions_since(address, since_block.unwrap_or(0))
-            .await?;
+        let start_block = since_block.unwrap_or(0);
+
+        // Fetch normal and internal transactions in parallel
+        let (normal_result, internal_result) = tokio::join!(
+            self.fetch_transactions_since(address, start_block),
+            self.fetch_internal_transactions_since(address, start_block),
+        );
+
+        let mut raw = normal_result?;
+        // Internal txs are best-effort; ignore errors (e.g. no API key)
+        if let Ok(internal) = internal_result {
+            raw.extend(internal);
+        }
+
+        // Sort merged list by block number then hash for deterministic ordering
+        raw.sort_by(|a, b| {
+            a.block_number
+                .cmp(&b.block_number)
+                .then(a.hash.cmp(&b.hash))
+        });
+
+        // Deduplicate by hash (same tx can appear in both lists)
+        raw.dedup_by(|a, b| a.hash == b.hash);
 
         let txs = raw
             .into_iter()

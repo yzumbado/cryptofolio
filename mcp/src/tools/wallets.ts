@@ -57,10 +57,30 @@ export function registerManageWalletTool(server: McpServer): void {
         .optional()
         .describe("Derivation path for xpub (e.g. m/84'/0'/0')"),
       address_type: z
-        .enum(["legacy", "segwit", "native_segwit", "erc20"])
+        .enum(["legacy", "segwit", "native_segwit", "taproot", "erc20"])
         .optional()
-        .describe("Address type for xpub derivation"),
+        .describe(
+          "Address type for xpub derivation. Use taproot for BIP-86 P2TR (bc1p) wallets."
+        ),
       label: z.string().optional().describe("Optional label for this address"),
+      account_type: z
+        .enum([
+          "exchange",
+          "hardware_wallet",
+          "software_wallet",
+          "custodial_service",
+          "bank",
+        ])
+        .optional()
+        .describe(
+          "If provided and the account does not exist, it will be created automatically with this type."
+        ),
+      category: z
+        .string()
+        .optional()
+        .describe(
+          'Category for auto-created account (e.g. "cold-storage"). Required when account_type is provided.'
+        ),
     },
     async ({
       action,
@@ -71,6 +91,8 @@ export function registerManageWalletTool(server: McpServer): void {
       derivation_path,
       address_type,
       label,
+      account_type,
+      category,
     }) => {
       try {
         switch (action) {
@@ -111,7 +133,44 @@ export function registerManageWalletTool(server: McpServer): void {
             if (address_type) args.push("--address-type", address_type);
             if (label) args.push("--label", label);
 
-            const raw = await runCli(args);
+            let raw: unknown;
+            try {
+              raw = await runCli(args);
+            } catch (err: unknown) {
+              // Auto-create the account if it doesn't exist and the caller
+              // supplied account_type + category
+              const msg = err instanceof Error ? err.message : String(err);
+              const isNotFound =
+                msg.toLowerCase().includes("account not found") ||
+                msg.toLowerCase().includes("no such account");
+
+              if (isNotFound && account_type && category) {
+                // Create category (ignore error if it already exists)
+                await runCliRaw(["category", "add", category]).catch(() => {});
+                // Create account
+                await runCli([
+                  "account",
+                  "add",
+                  name,
+                  "--type",
+                  account_type,
+                  "--category",
+                  category,
+                ]);
+                // Retry wallet add
+                raw = await runCli(args);
+              } else if (isNotFound) {
+                return toContent(
+                  buildError(
+                    `Account "${name}" not found. Provide account_type and category to create it automatically.`,
+                    "ACCOUNT_NOT_FOUND",
+                    'Example: { action: "add", name: "Ledger", blockchain: "bitcoin", address: "bc1q...", account_type: "hardware_wallet", category: "cold-storage" }'
+                  )
+                );
+              } else {
+                throw err;
+              }
+            }
             const result = raw as CliWalletAddResult;
 
             return toContent(

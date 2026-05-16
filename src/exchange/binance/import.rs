@@ -338,6 +338,32 @@ impl<'a> TransactionImporter<'a> {
 
         let tx_id = self.tx_repo.insert(&tx).await?;
 
+        // Consume FIFO tax lots for the disposal.
+        // Use avg cost basis as the disposal price so no phantom gain/loss is
+        // recorded (a transfer out to an external wallet is a disposal event in
+        // terms of lot tracking, but P&L recognition depends on jurisdiction).
+        let disposal_price = self
+            .holding_repo
+            .get(account_id, &withdrawal.coin.to_uppercase())
+            .await
+            .ok()
+            .flatten()
+            .and_then(|h| h.avg_cost_basis)
+            .unwrap_or(Decimal::ZERO);
+
+        let _ = self
+            .pnl_calc
+            .process_disposal(
+                tx_id,
+                account_id,
+                &withdrawal.coin.to_uppercase(),
+                total_sent,
+                disposal_price,
+                timestamp,
+                CostBasisMethod::Fifo,
+            )
+            .await;
+
         // Update holdings (silently ignore if not enough balance)
         let _ = self
             .holding_repo

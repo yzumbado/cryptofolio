@@ -233,11 +233,19 @@ impl BlockfrostClient {
                 (amount.unit.clone(), String::new())
             };
 
-            // Try to get token metadata for display name and decimals
-            let (display_name, decimals) = self
-                .get_token_metadata(&amount.unit)
-                .await
-                .unwrap_or_else(|_| (asset_name.clone(), 0));
+            // Try to get token metadata for display name and decimals.
+            // If metadata fetch fails (e.g. no API key), skip this token rather than
+            // storing a phantom balance with wrong decimal precision.
+            let (display_name, decimals) = match self.get_token_metadata(&amount.unit).await {
+                Ok(meta) => meta,
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Skipping token {} — metadata fetch failed: {}",
+                        asset_name, e
+                    );
+                    continue;
+                }
+            };
 
             // Calculate human-readable balance
             let quantity = Decimal::from_str(&amount.quantity).unwrap_or(Decimal::ZERO);
@@ -268,7 +276,10 @@ impl BlockfrostClient {
         Ok(tokens)
     }
 
-    /// Get token metadata (name, decimals)
+    /// Get token metadata (name, decimals).
+    /// Returns an error on any non-200 response (including 401/403 when no API key is
+    /// configured). Callers should skip the token on error rather than using a default
+    /// of 0 decimals, which produces phantom balances.
     async fn get_token_metadata(&self, unit: &str) -> Result<(String, u8)> {
         let url = format!("{}/assets/{}", self.base_url, unit);
 
@@ -284,8 +295,10 @@ impl BlockfrostClient {
         })?;
 
         if !response.status().is_success() {
-            // No metadata - use asset name
-            return Ok((String::new(), 0));
+            return Err(CryptofolioError::Network(format!(
+                "Blockfrost returned {} for asset metadata (configure API key with: cryptofolio config set-secret blockfrost.mainnet_api_key)",
+                response.status()
+            )));
         }
 
         let data: BlockfrostAssetResponse = response

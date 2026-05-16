@@ -462,6 +462,7 @@ pub enum WalletCommands {
 }
 
 #[derive(Clone, ValueEnum)]
+#[clap(rename_all = "snake_case")]
 pub enum AccountTypeArg {
     Exchange,
     HardwareWallet,
@@ -700,9 +701,17 @@ pub enum TxCommands {
         #[arg(long, required = true)]
         price: String,
 
+        /// Transaction date (YYYY-MM-DD or ISO 8601). Defaults to now.
+        #[arg(long)]
+        date: Option<String>,
+
         /// Transaction notes
         #[arg(long)]
         notes: Option<String>,
+
+        /// Only record cost basis (no holdings update). Use for synced accounts.
+        #[arg(long)]
+        cost_basis_only: bool,
 
         /// Simulate without making changes
         #[arg(long)]
@@ -724,6 +733,10 @@ pub enum TxCommands {
         /// Price per unit in USD
         #[arg(long, required = true)]
         price: String,
+
+        /// Transaction date (YYYY-MM-DD or ISO 8601). Defaults to now.
+        #[arg(long)]
+        date: Option<String>,
 
         /// Transaction notes
         #[arg(long)]
@@ -753,6 +766,10 @@ pub enum TxCommands {
         /// Transfer fee amount
         #[arg(long)]
         fee: Option<String>,
+
+        /// Transaction date (YYYY-MM-DD or ISO 8601). Defaults to now.
+        #[arg(long)]
+        date: Option<String>,
 
         /// Transaction notes
         #[arg(long)]
@@ -784,6 +801,10 @@ pub enum TxCommands {
         /// Exchange rate (how many FROM per 1 TO) - for fiat swaps
         #[arg(long)]
         rate: Option<String>,
+
+        /// Transaction date (YYYY-MM-DD or ISO 8601). Defaults to now.
+        #[arg(long)]
+        date: Option<String>,
 
         /// Transaction notes
         #[arg(long)]

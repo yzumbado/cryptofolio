@@ -34,10 +34,10 @@ impl TransactionType {
             "buy" => Some(TransactionType::Buy),
             "sell" => Some(TransactionType::Sell),
             "transfer_in" | "deposit" => Some(TransactionType::TransferIn),
-            "transfer_out" | "withdrawal" => Some(TransactionType::TransferOut),
+            "transfer_out" | "withdrawal" | "send" => Some(TransactionType::TransferOut),
             "transfer_internal" | "transfer" => Some(TransactionType::TransferInternal),
             "swap" | "trade" => Some(TransactionType::Swap),
-            "receive" | "airdrop" | "reward" => Some(TransactionType::Receive),
+            "receive" | "airdrop" | "reward" | "incoming" => Some(TransactionType::Receive),
             "fee" => Some(TransactionType::Fee),
             _ => None,
         }
