@@ -107,15 +107,27 @@ async fn handle_wallet_add(
         blockchain::bitcoin::validate_xpub(xpub_val)?;
     }
 
-    // Create or get the account for this wallet
-    let account_id = name.to_lowercase().replace(" ", "-");
-
-    // Check if account already exists
-    if account_repo.get_account(&name).await?.is_some() {
-        return Err(CryptofolioError::Other(format!(
-            "Wallet '{}' already exists",
-            name
-        )));
+    // Use existing account if present, otherwise create one automatically.
+    // This allows `wallet add` to work whether the user ran `account add` first or not.
+    let account_id;
+    if let Some(existing) = account_repo.get_account(&name).await? {
+        account_id = existing.id.clone();
+    } else {
+        account_id = name.to_lowercase().replace(" ", "-");
+        let account = Account {
+            id: account_id.clone(),
+            name: name.clone(),
+            category_id: "hot-wallets".to_string(),
+            account_type: if xpub.is_some() {
+                AccountType::HardwareWallet
+            } else {
+                AccountType::SoftwareWallet
+            },
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+        account_repo.create_account(&account).await?;
     }
 
     // Check for duplicate address
@@ -134,23 +146,6 @@ async fn handle_wallet_add(
             }
         }
     }
-
-    // Create the account
-    let account = Account {
-        id: account_id.clone(),
-        name: name.clone(),
-        category_id: "hot-wallets".to_string(),
-        account_type: if xpub.is_some() {
-            AccountType::HardwareWallet
-        } else {
-            AccountType::SoftwareWallet
-        },
-        config: AccountConfig::default(),
-        sync_enabled: false,
-        created_at: Utc::now(),
-    };
-
-    account_repo.create_account(&account).await?;
 
     // Detect network (mainnet or testnet)
     let network = if blockchain.eq_ignore_ascii_case("bitcoin") {
