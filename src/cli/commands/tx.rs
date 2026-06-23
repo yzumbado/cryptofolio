@@ -813,9 +813,22 @@ fn transaction_to_csv_record(tx: &Transaction) -> CsvExportRecord {
                     .unwrap_or_default(),
             )
         }
-        TransactionType::Swap => (
+        TransactionType::Swap | TransactionType::Unstake => (
             tx.from_asset.clone().unwrap_or_default(),
             tx.from_quantity.map(|q| q.to_string()).unwrap_or_default(),
+        ),
+        TransactionType::Stake
+        | TransactionType::Earn
+        | TransactionType::Airdrop
+        | TransactionType::Correction => (
+            tx.to_asset
+                .clone()
+                .or_else(|| tx.from_asset.clone())
+                .unwrap_or_default(),
+            tx.to_quantity
+                .or(tx.from_quantity)
+                .map(|q| q.to_string())
+                .unwrap_or_default(),
         ),
     };
 

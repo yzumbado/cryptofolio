@@ -23,7 +23,8 @@ impl<'a> TransactionRepository<'a> {
             SELECT id, tx_type, from_account_id, from_asset, from_quantity,
                    to_account_id, to_asset, to_quantity, price_usd,
                    price_currency, price_amount, exchange_rate, exchange_rate_pair,
-                   fee, fee_asset, external_id, notes, timestamp, created_at
+                   fee, fee_asset, tx_hash, external_id, source, trust_level,
+                   notes, timestamp, created_at
             FROM transactions
             ORDER BY timestamp DESC
             LIMIT ?
@@ -50,7 +51,8 @@ impl<'a> TransactionRepository<'a> {
             SELECT id, tx_type, from_account_id, from_asset, from_quantity,
                    to_account_id, to_asset, to_quantity, price_usd,
                    price_currency, price_amount, exchange_rate, exchange_rate_pair,
-                   fee, fee_asset, external_id, notes, timestamp, created_at
+                   fee, fee_asset, tx_hash, external_id, source, trust_level,
+                   notes, timestamp, created_at
             FROM transactions
             WHERE from_account_id = ? OR to_account_id = ?
             ORDER BY timestamp DESC
@@ -75,8 +77,8 @@ impl<'a> TransactionRepository<'a> {
                 tx_type, from_account_id, from_asset, from_quantity,
                 to_account_id, to_asset, to_quantity, price_usd,
                 price_currency, price_amount, exchange_rate, exchange_rate_pair,
-                fee, fee_asset, external_id, notes, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                fee, fee_asset, tx_hash, external_id, source, trust_level, notes, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(tx.tx_type.as_str())
@@ -93,7 +95,10 @@ impl<'a> TransactionRepository<'a> {
         .bind(&tx.exchange_rate_pair)
         .bind(tx.fee.map(|d| d.to_string()))
         .bind(&tx.fee_asset)
+        .bind(&tx.tx_hash)
         .bind(&tx.external_id)
+        .bind(&tx.source)
+        .bind(&tx.trust_level)
         .bind(&tx.notes)
         .bind(tx.timestamp.to_rfc3339())
         .execute(self.pool)
@@ -128,7 +133,10 @@ impl<'a> TransactionRepository<'a> {
             exchange_rate_pair: row.exchange_rate_pair,
             fee: parse_decimal(row.fee)?,
             fee_asset: row.fee_asset,
+            tx_hash: row.tx_hash,
             external_id: row.external_id,
+            source: row.source,
+            trust_level: row.trust_level,
             notes: row.notes,
             timestamp: DateTime::parse_from_rfc3339(&row.timestamp)
                 .map(|dt| dt.with_timezone(&Utc))
@@ -157,7 +165,10 @@ struct TransactionRow {
     exchange_rate_pair: Option<String>,
     fee: Option<String>,
     fee_asset: Option<String>,
+    tx_hash: Option<String>,
     external_id: Option<String>,
+    source: String,
+    trust_level: String,
     notes: Option<String>,
     timestamp: String,
     created_at: String,
@@ -166,12 +177,12 @@ struct TransactionRow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
+    use crate::db::schema;
     use chrono::TimeZone;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
 
         // Create test category and account
         sqlx::query("INSERT INTO categories (id, name) VALUES ('test-cat', 'Test Category')")
@@ -214,7 +225,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: Some(Decimal::from_str("10").unwrap()),
             fee_asset: Some("USD".to_string()),
+            tx_hash: None,
             external_id: Some("EXT123".to_string()),
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: Some("Test buy".to_string()),
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -233,6 +247,42 @@ mod tests {
             Some(Decimal::from_str("1.5").unwrap())
         );
         assert_eq!(transactions[0].external_id, Some("EXT123".to_string()));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_ledger_is_immutable() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TransactionRepository::new(&pool);
+
+        let tx = Transaction::new_buy(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Decimal::from_str("45000").unwrap(),
+            Utc::now(),
+        );
+        let tx_id = repo.insert(&tx).await?;
+
+        // UPDATE must abort — corrections are new rows, never edits.
+        let update = sqlx::query("UPDATE transactions SET to_quantity = '999' WHERE id = ?")
+            .bind(tx_id)
+            .execute(&pool)
+            .await;
+        assert!(update.is_err(), "UPDATE on transactions should be rejected");
+
+        // DELETE must abort — the ledger is append-only.
+        let delete = sqlx::query("DELETE FROM transactions WHERE id = ?")
+            .bind(tx_id)
+            .execute(&pool)
+            .await;
+        assert!(delete.is_err(), "DELETE on transactions should be rejected");
+
+        // The original row is intact and unchanged.
+        let rows = repo.list(Some(10)).await?;
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].to_quantity, Some(Decimal::from_str("1.0").unwrap()));
 
         Ok(())
     }
@@ -258,7 +308,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: None,
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -300,7 +353,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: Some(Decimal::from_str("0.0001").unwrap()),
             fee_asset: Some("BTC".to_string()),
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: Some("Cold storage transfer".to_string()),
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -345,7 +401,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: Some(Decimal::from_str("0.01").unwrap()),
             fee_asset: Some("ETH".to_string()),
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: Some("BTC to ETH swap".to_string()),
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -387,7 +446,10 @@ mod tests {
                 exchange_rate_pair: None,
                 fee: None,
                 fee_asset: None,
+                tx_hash: None,
                 external_id: None,
+                source: "manual".to_string(),
+                trust_level: "manual".to_string(),
                 notes: None,
                 timestamp,
                 created_at: Utc::now(),
@@ -438,7 +500,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: None,
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -460,7 +525,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: None,
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -482,7 +550,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: None,
             timestamp: Utc::now(),
             created_at: Utc::now(),
@@ -525,7 +596,10 @@ mod tests {
             exchange_rate_pair: None,
             fee: Some(Decimal::from_str("0.00000001").unwrap()),
             fee_asset: Some("BTC".to_string()),
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
             notes: None,
             timestamp: Utc::now(),
             created_at: Utc::now(),

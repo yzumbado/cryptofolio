@@ -1,5 +1,6 @@
 mod alpha;
 mod client;
+pub mod csv;
 mod endpoints;
 pub mod import;
 pub mod models;

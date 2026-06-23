@@ -1,11 +1,13 @@
 #![allow(dead_code)]
 
 pub mod accounts;
+pub mod address_registry;
 pub mod currencies;
+pub mod discovery_queue;
 pub mod holdings;
 pub mod keychain;
-pub mod migrations;
 pub mod realized_pnl;
+pub mod schema;
 pub mod sync_state;
 pub mod tax_lots;
 pub mod transactions;
@@ -16,6 +18,8 @@ use crate::config::AppConfig;
 use crate::error::Result;
 
 pub use accounts::AccountRepository;
+pub use address_registry::AddressRegistry;
+pub use discovery_queue::DiscoveryQueue;
 pub use holdings::HoldingRepository;
 pub use keychain::KeychainKeyRepository;
 pub use realized_pnl::RealizedPnLRepository;
@@ -39,8 +43,7 @@ pub async fn init_pool() -> Result<SqlitePool> {
         .connect(&db_url)
         .await?;
 
-    // Run migrations
-    migrations::run(&pool).await?;
+    schema::create(&pool).await?;
 
     Ok(pool)
 }
@@ -52,7 +55,7 @@ pub async fn init_memory_pool() -> Result<SqlitePool> {
         .connect("sqlite::memory:")
         .await?;
 
-    migrations::run(&pool).await?;
+    schema::create(&pool).await?;
 
     Ok(pool)
 }

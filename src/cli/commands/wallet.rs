@@ -830,7 +830,10 @@ async fn sync_bitcoin_wallet(
                                 exchange_rate_pair: None,
                                 fee: tx.fee,
                                 fee_asset: tx.fee.map(|_| "BTC".to_string()),
+                                tx_hash: Some(tx.txid.clone()),
                                 external_id: Some(external_id),
+                                source: "blockstream".to_string(),
+                                trust_level: "chain_verified".to_string(),
                                 notes: None,
                                 timestamp,
                                 created_at: Utc::now(),
@@ -993,7 +996,10 @@ async fn sync_ethereum_wallet(
                                 exchange_rate_pair: None,
                                 fee: Some(fee_eth),
                                 fee_asset: Some("ETH".to_string()),
+                                tx_hash: Some(external_id.clone()),
                                 external_id: Some(external_id),
+                                source: "etherscan".to_string(),
+                                trust_level: "chain_verified".to_string(),
                                 notes: None,
                                 timestamp,
                                 created_at: Utc::now(),
@@ -1139,9 +1145,13 @@ async fn handle_wallet_remove(
         return Err(CryptofolioError::AccountNotFound(name));
     }
 
-    // Confirm deletion
+    // Confirm archival
     if !yes && !opts.quiet {
-        println!("Are you sure you want to remove wallet '{}'? (y/N): ", name);
+        println!(
+            "Are you sure you want to archive wallet '{}'? Its transactions and sync history \
+             are retained — the ledger is immutable. (y/N): ",
+            name
+        );
         use std::io::{self, BufRead};
         let stdin = io::stdin();
         let mut line = String::new();
@@ -1152,23 +1162,17 @@ async fn handle_wallet_remove(
         }
     }
 
-    // Delete sync_audit_log rows explicitly (FK has no CASCADE)
-    let account = account_repo
-        .get_account(&name)
-        .await?
-        .ok_or_else(|| CryptofolioError::AccountNotFound(name.clone()))?;
-    sqlx::query("DELETE FROM sync_audit_log WHERE account_id = ?")
-        .bind(&account.id)
-        .execute(pool)
-        .await?;
-
-    // Delete the account (cascades to wallet_addresses, holdings, blockchain_sync_state, etc.)
-    account_repo.delete_account(&name).await?;
+    // Archive (soft-delete) the account. Transactions, holdings, wallet addresses,
+    // and sync_audit_log are all retained; the account is hidden from the active set.
+    account_repo.archive_account(&name).await?;
 
     if opts.json {
-        println!(r#"{{"success": true, "removed": "{}"}}"#, name);
+        println!(r#"{{"success": true, "archived": "{}"}}"#, name);
     } else {
-        success(&format!("✓ Removed wallet '{}'", name));
+        success(&format!(
+            "✓ Archived wallet '{}' (transactions retained; reactivate to restore)",
+            name
+        ));
     }
 
     Ok(())

@@ -345,13 +345,13 @@ pub async fn list_exchange_rates(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
+    use crate::db::schema;
     use chrono::TimeZone;
     use std::str::FromStr;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
         Ok(pool)
     }
 

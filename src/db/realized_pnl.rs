@@ -414,12 +414,12 @@ impl<'a> RealizedPnLRepository<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
+    use crate::db::schema;
     use chrono::TimeZone;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
 
         // Create test account and category
         sqlx::query("INSERT INTO categories (id, name) VALUES ('test-cat', 'Test Category')")

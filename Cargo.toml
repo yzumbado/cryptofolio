@@ -87,6 +87,9 @@ shell-words = "1"
 # Regex for pattern matching
 regex = "1"
 
+# ZIP archive reading (Binance exports are zipped CSVs)
+zip = "2"
+
 # macOS Keychain integration (conditional)
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "2.9"

@@ -60,7 +60,7 @@ const ACCOUNT_TYPES = [
 export function registerManageAccountTool(server: McpServer): void {
   server.tool(
     "cryptofolio_manage_account",
-    'Add or remove a portfolio account. Use action "add" to create a new account (exchange, hardware wallet, etc.) or "remove" to delete one. This is required during initial setup — create at least one account before recording any transactions.',
+    'Add or remove a portfolio account. Use action "add" to create a new account (exchange, hardware wallet, etc.) or "remove" to archive (deactivate) one. Removal is a soft-delete: the account is hidden from the active portfolio but its transactions and holdings are retained, because the ledger is immutable. This is required during initial setup — create at least one account before recording any transactions.',
     {
       action: z
         .enum(["add", "remove"])
@@ -147,12 +147,12 @@ export function registerManageAccountTool(server: McpServer): void {
             )
           );
         } else {
-          // action === "remove"
+          // action === "remove" — soft-delete (archive); transactions are retained
           await runCliRaw(["account", "remove", name, "--yes"]);
           return toContent(
             buildSuccess(
               { name },
-              `Account "${name}" removed successfully.`
+              `Account "${name}" archived (deactivated). Its transactions are retained — the ledger is immutable.`
             )
           );
         }

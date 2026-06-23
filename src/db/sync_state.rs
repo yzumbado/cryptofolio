@@ -334,12 +334,12 @@ fn parse_datetime(s: &str) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
+    use crate::db::schema;
     use sqlx::SqlitePool;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
 
         // Create test category and account
         sqlx::query("INSERT INTO categories (id, name) VALUES ('test-cat', 'Test')")

@@ -280,6 +280,13 @@ impl Shell {
             } => {
                 handle_import_command(file, account, format, &self.pool, &opts).await?;
             }
+            Commands::ImportBinance {
+                file,
+                account,
+                dry_run,
+            } => {
+                handle_import_binance_command(file, account, dry_run, &self.pool, &opts).await?;
+            }
             Commands::Config { command } => {
                 handle_config_command(command, &self.pool, &opts).await?;
             }

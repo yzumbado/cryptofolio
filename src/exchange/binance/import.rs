@@ -233,7 +233,10 @@ impl<'a> TransactionImporter<'a> {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: deposit.tx_id.clone(),
             external_id: Some(external_id),
+            source: "binance_api".to_string(),
+            trust_level: "exchange_verified".to_string(),
             notes: Some(format!(
                 "Binance deposit #{} via {} network{}",
                 deposit.id,
@@ -320,7 +323,10 @@ impl<'a> TransactionImporter<'a> {
             exchange_rate_pair: None,
             fee: Some(withdrawal.transaction_fee),
             fee_asset: Some(withdrawal.coin.to_uppercase()),
+            tx_hash: withdrawal.tx_id.clone(),
             external_id: Some(external_id),
+            source: "binance_api".to_string(),
+            trust_level: "exchange_verified".to_string(),
             notes: Some(format!(
                 "Binance withdrawal #{} via {} to {}{}",
                 withdrawal.id,
@@ -722,13 +728,13 @@ mod tests {
 
     // ---- Integration-style tests using in-memory DB ----
 
-    use crate::db::migrations;
+    use crate::db::schema;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
     async fn setup_db() -> sqlx::SqlitePool {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-        migrations::run(&pool).await.unwrap();
+        schema::create(&pool).await.unwrap();
         sqlx::query("INSERT INTO categories (id, name) VALUES ('cat', 'Test')")
             .execute(&pool)
             .await

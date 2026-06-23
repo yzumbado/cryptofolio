@@ -11,8 +11,13 @@ pub enum TransactionType {
     TransferOut,
     TransferInternal,
     Swap,
+    Stake,
+    Unstake,
+    Earn,
     Receive,
     Fee,
+    Airdrop,
+    Correction,
 }
 
 impl TransactionType {
@@ -24,8 +29,13 @@ impl TransactionType {
             TransactionType::TransferOut => "transfer_out",
             TransactionType::TransferInternal => "transfer_internal",
             TransactionType::Swap => "swap",
+            TransactionType::Stake => "stake",
+            TransactionType::Unstake => "unstake",
+            TransactionType::Earn => "earn",
             TransactionType::Receive => "receive",
             TransactionType::Fee => "fee",
+            TransactionType::Airdrop => "airdrop",
+            TransactionType::Correction => "correction",
         }
     }
 
@@ -37,8 +47,13 @@ impl TransactionType {
             "transfer_out" | "withdrawal" | "send" => Some(TransactionType::TransferOut),
             "transfer_internal" | "transfer" => Some(TransactionType::TransferInternal),
             "swap" | "trade" => Some(TransactionType::Swap),
-            "receive" | "airdrop" | "reward" | "incoming" => Some(TransactionType::Receive),
+            "stake" => Some(TransactionType::Stake),
+            "unstake" => Some(TransactionType::Unstake),
+            "earn" | "reward" | "interest" => Some(TransactionType::Earn),
+            "receive" | "incoming" => Some(TransactionType::Receive),
             "fee" => Some(TransactionType::Fee),
+            "airdrop" => Some(TransactionType::Airdrop),
+            "correction" => Some(TransactionType::Correction),
             _ => None,
         }
     }
@@ -51,8 +66,13 @@ impl TransactionType {
             TransactionType::TransferOut => "Transfer Out",
             TransactionType::TransferInternal => "Internal Transfer",
             TransactionType::Swap => "Swap",
+            TransactionType::Stake => "Stake",
+            TransactionType::Unstake => "Unstake",
+            TransactionType::Earn => "Earn",
             TransactionType::Receive => "Receive",
             TransactionType::Fee => "Fee",
+            TransactionType::Airdrop => "Airdrop",
+            TransactionType::Correction => "Correction",
         }
     }
 }
@@ -86,8 +106,12 @@ pub struct Transaction {
     pub fee: Option<Decimal>,
     pub fee_asset: Option<String>,
 
-    // Metadata
+    // Provenance
+    pub tx_hash: Option<String>,
     pub external_id: Option<String>,
+    pub source: String,
+    pub trust_level: String,
+
     pub notes: Option<String>,
     pub timestamp: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
@@ -117,7 +141,10 @@ impl Transaction {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "unverified".to_string(),
             notes: None,
             timestamp,
             created_at: Utc::now(),
@@ -147,7 +174,10 @@ impl Transaction {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "unverified".to_string(),
             notes: None,
             timestamp,
             created_at: Utc::now(),
@@ -177,7 +207,10 @@ impl Transaction {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "unverified".to_string(),
             notes: None,
             timestamp,
             created_at: Utc::now(),
@@ -208,7 +241,10 @@ impl Transaction {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: None,
             external_id: None,
+            source: "manual".to_string(),
+            trust_level: "unverified".to_string(),
             notes: None,
             timestamp,
             created_at: Utc::now(),
@@ -289,11 +325,11 @@ mod tests {
         );
         assert_eq!(
             TransactionType::from_str("airdrop"),
-            Some(TransactionType::Receive)
+            Some(TransactionType::Airdrop)
         );
         assert_eq!(
             TransactionType::from_str("reward"),
-            Some(TransactionType::Receive)
+            Some(TransactionType::Earn)
         );
 
         // Test case insensitivity

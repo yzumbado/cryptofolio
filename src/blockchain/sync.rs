@@ -398,36 +398,35 @@ async fn persist_transactions(
         // Incoming:  asset arrives in account → to_asset / to_quantity
         // Outgoing:  asset leaves account     → from_asset / from_quantity
         // Internal:  stays within account     → from_asset / from_quantity
-        let (tx_type, from_id, to_id, from_asset, from_qty, to_asset, to_qty) =
-            match tx.direction {
-                TransactionDirection::Incoming => (
-                    "receive",
-                    None::<&str>,
-                    Some(account_id),
-                    None::<&str>,
-                    None::<String>,
-                    Some(tx.asset.as_str()),
-                    Some(tx.amount.to_string()),
-                ),
-                TransactionDirection::Outgoing => (
-                    "transfer_out",
-                    Some(account_id),
-                    None::<&str>,
-                    Some(tx.asset.as_str()),
-                    Some(tx.amount.to_string()),
-                    None::<&str>,
-                    None::<String>,
-                ),
-                TransactionDirection::Internal => (
-                    "transfer_internal",
-                    Some(account_id),
-                    Some(account_id),
-                    Some(tx.asset.as_str()),
-                    Some(tx.amount.to_string()),
-                    None::<&str>,
-                    None::<String>,
-                ),
-            };
+        let (tx_type, from_id, to_id, from_asset, from_qty, to_asset, to_qty) = match tx.direction {
+            TransactionDirection::Incoming => (
+                "receive",
+                None::<&str>,
+                Some(account_id),
+                None::<&str>,
+                None::<String>,
+                Some(tx.asset.as_str()),
+                Some(tx.amount.to_string()),
+            ),
+            TransactionDirection::Outgoing => (
+                "transfer_out",
+                Some(account_id),
+                None::<&str>,
+                Some(tx.asset.as_str()),
+                Some(tx.amount.to_string()),
+                None::<&str>,
+                None::<String>,
+            ),
+            TransactionDirection::Internal => (
+                "transfer_internal",
+                Some(account_id),
+                Some(account_id),
+                Some(tx.asset.as_str()),
+                Some(tx.amount.to_string()),
+                None::<&str>,
+                None::<String>,
+            ),
+        };
 
         sqlx::query(
             "INSERT INTO transactions

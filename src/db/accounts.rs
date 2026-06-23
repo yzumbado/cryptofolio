@@ -126,7 +126,7 @@ impl<'a> AccountRepository<'a> {
 
     pub async fn list_accounts(&self) -> Result<Vec<Account>> {
         let rows = sqlx::query_as::<_, (String, String, String, String, Option<String>, bool, String)>(
-            "SELECT id, name, category_id, account_type, config, sync_enabled, created_at FROM accounts ORDER BY name"
+            "SELECT id, name, category_id, account_type, config, sync_enabled, created_at FROM accounts WHERE archived = 0 ORDER BY name"
         )
         .fetch_all(self.pool)
         .await?;
@@ -247,35 +247,33 @@ impl<'a> AccountRepository<'a> {
         Ok(())
     }
 
-    pub async fn delete_account(&self, name: &str) -> Result<()> {
-        // First, get the account ID
+    /// Archive (soft-delete) an account. The ledger is immutable, so accounts are
+    /// never hard-deleted — that would require purging transactions, which the DB
+    /// triggers forbid. Archiving hides the account from `list_accounts` (and thus
+    /// from portfolio/sync) while retaining all transactions, holdings, and wallet
+    /// addresses. Reactivate with `reactivate_account`.
+    pub async fn archive_account(&self, name: &str) -> Result<()> {
         let account = self
             .get_account(name)
             .await?
             .ok_or_else(|| CryptofolioError::AccountNotFound(name.to_string()))?;
 
-        // Delete related records in order (respecting foreign keys)
-        // 1. Delete wallet addresses
-        sqlx::query("DELETE FROM wallet_addresses WHERE account_id = ?")
+        sqlx::query("UPDATE accounts SET archived = 1 WHERE id = ?")
             .bind(&account.id)
             .execute(self.pool)
             .await?;
 
-        // 2. Delete holdings
-        sqlx::query("DELETE FROM holdings WHERE account_id = ?")
-            .bind(&account.id)
-            .execute(self.pool)
-            .await?;
+        Ok(())
+    }
 
-        // 3. Delete transactions (both from and to)
-        sqlx::query("DELETE FROM transactions WHERE from_account_id = ? OR to_account_id = ?")
-            .bind(&account.id)
-            .bind(&account.id)
-            .execute(self.pool)
-            .await?;
+    /// Restore a previously archived account back into the active set.
+    pub async fn reactivate_account(&self, name: &str) -> Result<()> {
+        let account = self
+            .get_account(name)
+            .await?
+            .ok_or_else(|| CryptofolioError::AccountNotFound(name.to_string()))?;
 
-        // 4. Finally delete the account
-        sqlx::query("DELETE FROM accounts WHERE id = ?")
+        sqlx::query("UPDATE accounts SET archived = 0 WHERE id = ?")
             .bind(&account.id)
             .execute(self.pool)
             .await?;
@@ -403,11 +401,11 @@ impl<'a> AccountRepository<'a> {
 mod tests {
     use super::*;
     use crate::core::account::{AccountConfig, AccountType};
-    use crate::db::migrations;
+    use crate::db::schema;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
         Ok(pool)
     }
 
@@ -648,7 +646,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_account() -> Result<()> {
+    async fn test_archive_account() -> Result<()> {
         let pool = setup_test_db().await?;
         let repo = AccountRepository::new(&pool);
 
@@ -663,37 +661,36 @@ mod tests {
         };
 
         repo.create_account(&account).await?;
-
-        // Add a wallet address and holding to test cascading delete
         repo.add_address("test-acc", "Bitcoin", "bc1qtest", None)
             .await?;
 
-        sqlx::query("INSERT INTO holdings (account_id, asset, quantity) VALUES (?, ?, ?)")
-            .bind("test-acc")
-            .bind("BTC")
-            .bind("1.0")
-            .execute(&pool)
-            .await?;
+        repo.archive_account("Test Account").await?;
 
-        repo.delete_account("Test Account").await?;
+        // Archived account is hidden from the active set...
+        let listed = repo.list_accounts().await?;
+        assert!(!listed.iter().any(|a| a.name == "Test Account"));
 
-        // Verify account is deleted
-        let account = repo.get_account("Test Account").await?;
-        assert!(account.is_none());
+        // ...but still resolvable by name (so it can be reactivated)...
+        assert!(repo.get_account("Test Account").await?.is_some());
 
-        // Verify related records are deleted (cascading)
+        // ...and its related records are RETAINED, not purged.
         let addresses = repo.list_addresses("test-acc").await?;
-        assert_eq!(addresses.len(), 0);
+        assert_eq!(addresses.len(), 1);
+
+        // Reactivation restores it to the active set.
+        repo.reactivate_account("Test Account").await?;
+        let listed = repo.list_accounts().await?;
+        assert!(listed.iter().any(|a| a.name == "Test Account"));
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_delete_account_not_found() -> Result<()> {
+    async fn test_archive_account_not_found() -> Result<()> {
         let pool = setup_test_db().await?;
         let repo = AccountRepository::new(&pool);
 
-        let result = repo.delete_account("NonExistent").await;
+        let result = repo.archive_account("NonExistent").await;
         assert!(result.is_err());
         match result {
             Err(CryptofolioError::AccountNotFound(_)) => {}

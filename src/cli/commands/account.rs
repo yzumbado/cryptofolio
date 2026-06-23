@@ -170,7 +170,11 @@ pub async fn handle_account_command(
         AccountCommands::Remove { name, yes } => {
             if !yes {
                 // Show confirmation prompt
-                println!("This will delete account '{}' and all its holdings.", name);
+                println!(
+                    "This will archive account '{}' (deactivate it). Its transactions and \
+                     holdings are retained — the ledger is immutable.",
+                    name
+                );
                 print!("Are you sure? [y/N] ");
                 use std::io::{self, Write};
                 io::stdout().flush()?;
@@ -184,8 +188,11 @@ pub async fn handle_account_command(
                 }
             }
 
-            repo.delete_account(&name).await?;
-            success(&format!("Account '{}' removed", name));
+            repo.archive_account(&name).await?;
+            success(&format!(
+                "Account '{}' archived (transactions retained; reactivate to restore)",
+                name
+            ));
         }
 
         AccountCommands::Show { name } => {
