@@ -29,6 +29,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 - [x] Dedup keys are identity-stable; a legitimate same-second/same-amount pair does **not** collide. `disambiguate_external_ids` gives colliding content-hash ids a stable `#N` suffix (idempotent across re-imports). Proven by `csv::tests::test_identical_rows_get_distinct_external_ids`.
 - [x] Unknown Binance operations **fail closed** — `map_operation` returns `Option`; an unrecognised op becomes a reported skip (with the op name), never a silent `Earn`. Proven by `csv::tests::test_unknown_operation_fails_closed_not_earn`.
 - [ ] Schema/enum drift removed (no dead `'transfer'` value); `Cargo.toml` version matches CHANGELOG; tags backfilled.
+  - Dead `'transfer'` value removed from `tx_type` CHECK in `src/db/schema.rs` (W1.5, 2026-06-23). `Cargo.toml` pinned to `0.6.0` matching CHANGELOG. **Tag backfill deferred — needs explicit user approval before pushing.**
 
 ### Quality gates (regression-proof)
 - [x] MCP TypeScript tests run in CI on every PR — `mcp-test` job in `.github/workflows/ci.yml` runs `npm ci/typecheck/lint/test` (Node 20). Verified locally: `npm ci` clean, 50/50 tests pass.

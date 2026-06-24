@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     tx_type         TEXT NOT NULL CHECK(tx_type IN (
                         'buy', 'sell',
-                        'transfer', 'transfer_in', 'transfer_out', 'transfer_internal',
+                        'transfer_in', 'transfer_out', 'transfer_internal',
                         'swap', 'stake', 'unstake',
                         'earn', 'receive', 'fee', 'airdrop', 'correction')),
 
