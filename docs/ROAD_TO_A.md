@@ -35,7 +35,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 - [x] MCP TypeScript tests run in CI on every PR — `mcp-test` job in `.github/workflows/ci.yml` runs `npm ci/typecheck/lint/test` (Node 20). Verified locally: `npm ci` clean, 50/50 tests pass.
 - [x] `eslint` config present; MCP lint green in CI — `mcp/eslint.config.js` (flat, typescript-eslint recommended); `npm run lint` exits 0 (fixed an unused import in `status.ts`).
 - [x] Production `unwrap`/`expect` count gated in CI (baseline: **8** known-infallible; no regression). Gate: `bash scripts/check_unwraps.sh` in the `test` job; baseline measured 2026-06-23.
-- [ ] Coverage reported for both Rust and MCP (floor gated once baseline is known).
+- [x] Coverage reported for both Rust and MCP (floor gated once baseline is known). MCP: 79.98% stmts/lines, 74.89% branches, 88.46% functions (W2.4, 2026-06-23). Rust: pending first CI run (cargo-llvm-cov in non-blocking `coverage` job).
 
 ### Agent practice
 - [x] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI. 66 tests (was 50), all 18 tools covered — W3.1, 2026-06-23.
@@ -64,5 +64,5 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 | Rust unit tests | 298 passing (was 290) | `cargo test --lib` |
 | MCP tests | 66 (all 18 tools, ≥3 cases each) | Vitest |
 | LLM scenario pass-rate | _TBD_ | W3.2 |
-| Rust coverage | _TBD_ | W2.4 |
-| MCP coverage | _TBD_ | W2.4 |
+| Rust coverage | pending first CI run | W2.4 (cargo-llvm-cov in non-blocking CI job) |
+| MCP coverage | 79.98% stmts, 74.89% branches, 88.46% funcs | W2.4, 2026-06-23 |
