@@ -164,7 +164,7 @@ describe("cryptofolio_manage_account", () => {
     expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
   });
 
-  it("removes an account with --yes flag", async () => {
+  it("archives an account with --yes flag", async () => {
     vi.mocked(runCliRaw).mockResolvedValueOnce("");
 
     const server = makeServer();
@@ -177,7 +177,8 @@ describe("cryptofolio_manage_account", () => {
     };
 
     expect(parsed.success).toBe(true);
-    expect(parsed.message).toContain("removed");
+    // Removal is a soft-delete: the account is archived, transactions retained.
+    expect(parsed.message).toContain("archived");
     expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
       expect.arrayContaining(["account", "remove", "OldAccount", "--yes"])
     );

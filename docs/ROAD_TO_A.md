@@ -31,8 +31,8 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 - [ ] Schema/enum drift removed (no dead `'transfer'` value); `Cargo.toml` version matches CHANGELOG; tags backfilled.
 
 ### Quality gates (regression-proof)
-- [ ] MCP TypeScript tests run in CI on every PR (Node job, green).
-- [ ] `eslint` config present; MCP lint green in CI.
+- [x] MCP TypeScript tests run in CI on every PR — `mcp-test` job in `.github/workflows/ci.yml` runs `npm ci/typecheck/lint/test` (Node 20). Verified locally: `npm ci` clean, 50/50 tests pass.
+- [x] `eslint` config present; MCP lint green in CI — `mcp/eslint.config.js` (flat, typescript-eslint recommended); `npm run lint` exits 0 (fixed an unused import in `status.ts`).
 - [ ] Production `unwrap`/`expect` count gated in CI (baseline: **8** known-infallible; no regression).
 - [ ] Coverage reported for both Rust and MCP (floor gated once baseline is known).
 
