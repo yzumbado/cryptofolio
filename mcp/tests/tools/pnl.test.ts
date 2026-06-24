@@ -90,6 +90,23 @@ describe("cryptofolio_get_pnl_summary", () => {
       expect.arrayContaining(["pnl", "summary", "--account", "Binance", "--from", "2024-01-01", "--to", "2024-12-31"])
     );
   });
+
+  it("returns error envelope when CLI fails", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "no transactions found", "pnl summary")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_pnl_summary");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe("cryptofolio_get_realized_pnl", () => {
@@ -130,6 +147,21 @@ describe("cryptofolio_get_realized_pnl", () => {
 
     expect(parsed.success).toBe(true);
     expect(parsed.data.items).toHaveLength(0);
+  });
+
+  it("passes asset and date range filters to CLI", async () => {
+    vi.mocked(runCli).mockResolvedValueOnce([
+      { asset: "BTC", proceeds: "50000", cost_basis: "30000", gain_loss: "20000" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_realized_pnl");
+
+    await tool!.handler({ asset: "BTC", from_date: "2024-01-01", to_date: "2024-12-31", limit: 50, offset: 0 });
+
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["pnl", "realized", "--asset", "BTC", "--from", "2024-01-01", "--to", "2024-12-31"])
+    );
   });
 });
 
@@ -173,6 +205,21 @@ describe("cryptofolio_get_unrealized_pnl", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.data.total_unrealized_pnl).toBe("0.00");
   });
+
+  it("passes account and asset filters to CLI", async () => {
+    vi.mocked(runCli).mockResolvedValueOnce([
+      { asset: "SOL", quantity: "100", unrealized_pnl: "500.00" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_unrealized_pnl");
+
+    await tool!.handler({ account: "Binance", asset: "SOL" });
+
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["pnl", "unrealized", "--account", "Binance", "--asset", "SOL"])
+    );
+  });
 });
 
 describe("cryptofolio_analyze_asset", () => {
@@ -212,6 +259,26 @@ describe("cryptofolio_analyze_asset", () => {
 
     expect(vi.mocked(runCli)).toHaveBeenCalledWith(
       expect.arrayContaining(["pnl", "by-asset", "ETH", "--account", "Ledger"])
+    );
+  });
+
+  it("returns error envelope when CLI fails for unknown asset", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "asset 'DOGE' has no transactions", "pnl by-asset")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_analyze_asset");
+
+    const result = await tool!.handler({ asset: "DOGE" });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["pnl", "by-asset", "DOGE"])
     );
   });
 });

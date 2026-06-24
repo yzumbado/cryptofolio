@@ -38,7 +38,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 - [ ] Coverage reported for both Rust and MCP (floor gated once baseline is known).
 
 ### Agent practice
-- [ ] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI.
+- [x] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI. 66 tests (was 50), all 18 tools covered — W3.1, 2026-06-23.
 - [ ] **LLM-in-the-loop** scenario suite exists (≥8 graded scenarios with a rubric); runs nightly/manual; baseline pass-rate recorded.
 - [ ] `/portfolio` skill hardened: error/rate-limit fallback, pagination guidance, staleness rules — each covered by an eval scenario.
 - [ ] **CLAUDE.md honesty pass**: no claim documented that isn't enforced; missing sections (secrets hygiene, staleness policy, testing strategy) added.
@@ -62,7 +62,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 |---|---|---|
 | Production `unwrap`/`expect` | 8 (all known-infallible) | Eval 2026-06-21 |
 | Rust unit tests | 298 passing (was 290) | `cargo test --lib` |
-| MCP tests | 53 (local-only) | Vitest |
+| MCP tests | 66 (all 18 tools, ≥3 cases each) | Vitest |
 | LLM scenario pass-rate | _TBD_ | W3.2 |
 | Rust coverage | _TBD_ | W2.4 |
 | MCP coverage | _TBD_ | W2.4 |

@@ -23,11 +23,13 @@ vi.mock("../../src/cli.js", () => ({
   SYNC_TIMEOUT_MS: 120_000,
 }));
 
-import { runCli } from "../../src/cli.js";
+import { runCli, runCliRaw } from "../../src/cli.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   registerListTransactionsTool,
   registerRecordTransactionTool,
+  registerTrackConversionTool,
+  registerExportTransactionsTool,
 } from "../../src/tools/transactions.js";
 
 const fixturesDir = join(import.meta.dirname, "../fixtures");
@@ -43,6 +45,8 @@ function makeServer() {
   const server = new McpServer({ name: "test", version: "0.0.1" });
   registerListTransactionsTool(server);
   registerRecordTransactionTool(server);
+  registerTrackConversionTool(server);
+  registerExportTransactionsTool(server);
   return server;
 }
 
@@ -219,5 +223,216 @@ describe("cryptofolio_record_transaction", () => {
         "--fee", "0.0001",
       ])
     );
+  });
+
+  it("records a sell transaction", async () => {
+    vi.mocked(runCli).mockResolvedValueOnce(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_record_transaction");
+
+    const result = await tool!.handler({
+      type: "sell",
+      asset: "ETH",
+      quantity: "2.0",
+      account: "Binance",
+      price_usd: "3500",
+    });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      message: string;
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.message).toContain("SELL");
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["tx", "sell", "ETH", "2.0", "--account", "Binance", "--price", "3500"])
+    );
+  });
+
+  it("records a buy with cost_basis_only flag", async () => {
+    vi.mocked(runCli).mockResolvedValueOnce(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_record_transaction");
+
+    await tool!.handler({
+      type: "buy",
+      asset: "BTC",
+      quantity: "0.05",
+      account: "Binance",
+      price_usd: "60000",
+      cost_basis_only: true,
+    });
+
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["--cost-basis-only"])
+    );
+  });
+
+  it("returns MISSING_PARAMS when transfer is missing from_account", async () => {
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_record_transaction");
+
+    const result = await tool!.handler({
+      type: "transfer",
+      asset: "BTC",
+      quantity: "0.1",
+      to_account: "Ledger",
+    });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      code: string;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.code).toBe("MISSING_PARAMS");
+    expect(vi.mocked(runCli)).not.toHaveBeenCalled();
+  });
+});
+
+describe("cryptofolio_track_conversion", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("records a multi-step conversion and reports step counts", async () => {
+    vi.mocked(runCli).mockResolvedValue(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    const result = await tool!.handler({
+      description: "Monthly DCA: CRC to BTC",
+      steps: [
+        { from: "CRC", to: "USD", amount: "500000", rate: "0.001" },
+        { from: "USD", to: "BTC", amount: "500", rate: "0.0000153" },
+      ],
+    });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: { steps_recorded: string[]; errors: string[] };
+      message: string;
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.steps_recorded).toHaveLength(2);
+    expect(parsed.data.errors).toHaveLength(0);
+    expect(parsed.message).toContain("2/2");
+    expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
+  });
+
+  it("records partial success when one step fails", async () => {
+    vi.mocked(runCli)
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error("account not found"));
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    const result = await tool!.handler({
+      description: "Test partial",
+      steps: [
+        { from: "CRC", to: "USD", amount: "100", account: "LocalExchange" },
+        { from: "USD", to: "BTC", amount: "100", account: "Missing" },
+      ],
+    });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: { steps_recorded: string[]; errors: string[] };
+    };
+
+    // Partial success: still a success envelope, but errors are reported
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.steps_recorded).toHaveLength(1);
+    expect(parsed.data.errors).toHaveLength(1);
+  });
+
+  it("returns CONVERSION_FAILED error envelope when all steps fail", async () => {
+    vi.mocked(runCli).mockRejectedValue(new Error("network unavailable"));
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    const result = await tool!.handler({
+      description: "Failing conversion",
+      steps: [
+        { from: "CRC", to: "USD", amount: "100" },
+      ],
+    });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      code: string;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.code).toBe("CONVERSION_FAILED");
+  });
+});
+
+describe("cryptofolio_export_transactions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("exports as CSV and returns file path", async () => {
+    vi.mocked(runCliRaw).mockResolvedValueOnce("");
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_export_transactions");
+
+    const result = await tool!.handler({ format: "csv" });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: { file_path: string; format: string };
+      message: string;
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.format).toBe("csv");
+    expect(parsed.data.file_path).toContain("transactions-");
+    expect(parsed.data.file_path).toMatch(/\.csv$/);
+    expect(parsed.message).toContain("Exported to:");
+    expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
+      expect.arrayContaining(["tx", "export"])
+    );
+  });
+
+  it("exports as JSON with date range and account filters", async () => {
+    vi.mocked(runCliRaw).mockResolvedValueOnce("");
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_export_transactions");
+
+    await tool!.handler({
+      format: "json",
+      from_date: "2024-01-01",
+      to_date: "2024-12-31",
+      account: "Binance",
+      asset: "BTC",
+    });
+
+    expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        "--format", "json",
+        "--from", "2024-01-01",
+        "--to", "2024-12-31",
+        "--account", "Binance",
+        "--asset", "BTC",
+      ])
+    );
+  });
+
+  it("returns error envelope when CLI fails during export", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCliRaw).mockRejectedValueOnce(
+      new CliError(1, "permission denied writing to exports dir", "tx export")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_export_transactions");
+
+    const result = await tool!.handler({ format: "csv" });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
   });
 });

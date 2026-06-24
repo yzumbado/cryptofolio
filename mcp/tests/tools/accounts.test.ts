@@ -87,6 +87,24 @@ describe("cryptofolio_list_accounts", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.data.accounts).toHaveLength(0);
   });
+
+  it("invokes CLI with account list command and returns error envelope on CliError", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "database locked", "account list")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_list_accounts");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(["account", "list"]);
+  });
 });
 
 describe("cryptofolio_manage_account", () => {
