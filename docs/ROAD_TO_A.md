@@ -40,7 +40,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 ### Agent practice
 - [x] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI. 66 tests (was 50), all 18 tools covered — W3.1, 2026-06-23.
 - [ ] **LLM-in-the-loop** scenario suite exists (≥8 graded scenarios with a rubric); runs nightly/manual; baseline pass-rate recorded.
-- [ ] `/portfolio` skill hardened: error/rate-limit fallback, pagination guidance, staleness rules — each covered by an eval scenario.
+- [x] `/portfolio` skill hardened: error/rate-limit fallback, pagination guidance, staleness rules — W3.3, 2026-06-23. Eval scenario coverage deferred to W3.2 (LLM-in-the-loop harness, pending).
 - [ ] **CLAUDE.md honesty pass**: no claim documented that isn't enforced; missing sections (secrets hygiene, staleness policy, testing strategy) added.
 
 ---
