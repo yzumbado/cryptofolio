@@ -56,6 +56,9 @@ jobs:
     - name: Run clippy
       run: cargo clippy -- -D warnings
 
+    - name: unwrap gate
+      run: bash scripts/check_unwraps.sh
+
     - name: Build
       run: cargo build --verbose
 

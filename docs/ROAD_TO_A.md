@@ -33,7 +33,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 ### Quality gates (regression-proof)
 - [x] MCP TypeScript tests run in CI on every PR — `mcp-test` job in `.github/workflows/ci.yml` runs `npm ci/typecheck/lint/test` (Node 20). Verified locally: `npm ci` clean, 50/50 tests pass.
 - [x] `eslint` config present; MCP lint green in CI — `mcp/eslint.config.js` (flat, typescript-eslint recommended); `npm run lint` exits 0 (fixed an unused import in `status.ts`).
-- [ ] Production `unwrap`/`expect` count gated in CI (baseline: **8** known-infallible; no regression).
+- [x] Production `unwrap`/`expect` count gated in CI (baseline: **8** known-infallible; no regression). Gate: `bash scripts/check_unwraps.sh` in the `test` job; baseline measured 2026-06-23.
 - [ ] Coverage reported for both Rust and MCP (floor gated once baseline is known).
 
 ### Agent practice
