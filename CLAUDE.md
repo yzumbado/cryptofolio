@@ -16,13 +16,15 @@ src/                    Rust CLI binary (cryptofolio)
 ├── error.rs            Single CryptofolioError enum — all errors live here
 ├── core/               Domain models (Account, Transaction, Holdings, P&L)
 ├── db/                 SQLite repositories + schema
-│   ├── schema.rs       Single source of truth for all tables
+│   ├── schema.rs       Single source of truth for all tables + immutability triggers
+│   ├── address_registry.rs / discovery_queue.rs   Importer-discovered addresses
 │   └── SPEC.md         Database design decisions
 ├── blockchain/         On-chain wallet sync (Bitcoin, Ethereum, Cardano, Solana)
 │   ├── trait_def.rs    BlockchainClient trait — all clients implement this
 │   ├── types.rs        Shared types (Chain enum, WalletTransaction, etc.)
 │   └── {chain}/        Per-chain: address.rs, client.rs, mod.rs
 ├── exchange/           Exchange integrations (Binance)
+│   └── binance/csv.rs  Generic Binance CSV/ZIP importer (see Importer conventions)
 ├── cli/                Command handlers + output formatting
 │   ├── output.rs       All display/format functions — use these, don't invent new ones
 │   └── commands/       One file per subcommand group
@@ -38,22 +40,34 @@ mcp/src/               TypeScript MCP server
     └── response.ts     buildSuccess / buildError / toContent / handleCliError
 ```
 
-## Running tests
+## Testing & eval strategy
 
+This is a polyglot product (Rust CLI + TypeScript MCP server) and both halves are gated.
+
+**Rust:**
 ```bash
-# Unit + repository tests (fast, in-memory DB)
-cargo test --lib
-
-# BDD acceptance tests
-cargo test --test bdd
-
-# Integration tests (real APIs, needs keys)
+cargo test --lib            # unit + repository tests (fast, in-memory DB)
+cargo test --test bdd       # BDD acceptance tests (cucumber)
 CRYPTOFOLIO_INTEGRATION_TESTS=1 \
-  ETHERSCAN_API_KEY=... \
-  BLOCKFROST_API_KEY=... \
-  SOLANA_RPC_URL=... \
-  cargo test --test blockchain_clients
+  ETHERSCAN_API_KEY=... BLOCKFROST_API_KEY=... SOLANA_RPC_URL=... \
+  cargo test --test blockchain_clients   # real-API integration (needs keys)
 ```
+
+**MCP server (`mcp/`):**
+```bash
+npm run typecheck           # tsc --noEmit
+npm run lint                # eslint (flat config in eslint.config.js)
+npm test                    # vitest — unit + programmatic agent-evals
+npm run test:coverage       # vitest with coverage
+```
+The MCP tests include **programmatic agent-evals** (≥3 cases per tool): each verifies the tool selects the right CLI argv and returns an actionable error envelope on bad input. They mock the CLI — they do not invoke a real model.
+
+**CI gates (`.github/workflows/ci.yml`) — all must pass on every PR:**
+`cargo fmt --check`, `cargo clippy -- -D warnings` (zero warnings), the unwrap gate (`scripts/check_unwraps.sh`), `cargo test --lib` + integration tests, and the `mcp-test` job (typecheck + lint + vitest). A non-blocking `coverage` job reports Rust + MCP coverage.
+
+**Before committing,** run the relevant ritual until green: for Rust changes, `cargo fmt && cargo clippy --quiet && cargo test --lib`; for MCP changes, `npm run typecheck && npm run lint && npm test` in `mcp/`.
+
+> The A-tier roadmap and its scorecard live in `docs/ROAD_TO_A.md`; the execution playbook (for implementing agents) is `docs/ROAD_TO_A_PLAYBOOK.md`.
 
 ---
 
@@ -75,6 +89,8 @@ let account = repo.get(&id).await.unwrap();
 ```
 
 **Rule:** `.unwrap()` is acceptable only in test code. In `src/` library and CLI code, always use `?` or return a descriptive error variant.
+
+**This is gated in CI.** `scripts/check_unwraps.sh` counts production `.unwrap()`/`.expect(` (excluding test modules) and fails if it exceeds the baseline (**8**, all provably infallible — `String::write`, static `Hrp::parse`, etc.). Adding a production unwrap breaks the build. If you genuinely need one, it must be infallible and you must update the baseline with justification.
 
 ### Decimal and monetary values
 
@@ -183,9 +199,17 @@ Two UNIQUE constraints on `transactions` prevent duplicate imports — enforced 
 
 A duplicate insert hits the constraint and returns a `sqlx::Error`. Catch it and skip — do not check for existence before inserting.
 
-### Immutable ledger
+### Immutable ledger (enforced)
 
-**Never UPDATE or DELETE rows in `transactions`.** If something was recorded wrongly, insert a new row with `tx_type = 'correction'`. This preserves the audit trail and makes cost basis replay deterministic.
+**The `transactions` table is append-only — and this is enforced by the database, not just by convention.** Two `BEFORE UPDATE`/`BEFORE DELETE` triggers in `schema.rs` (`trg_transactions_no_update`, `trg_transactions_no_delete`) `RAISE(ABORT)` on any mutation. Consequences:
+
+- If something was recorded wrongly, insert a new row with `tx_type = 'correction'`. This is the *only* sanctioned way to change ledger state.
+- Do **not** use `INSERT OR REPLACE`/`UPSERT` on `transactions` — the implicit delete fires the trigger and aborts.
+- A test proves it: `db::transactions::tests::test_ledger_is_immutable`.
+
+### Accounts are archived, never deleted
+
+Because transactions are immutable, an account cannot be hard-deleted (that would orphan or require purging ledger rows). `delete_account` does not exist — use `archive_account(name)` (soft-delete) and `reactivate_account(name)`. Archiving sets `accounts.archived = 1`; `list_accounts` returns only active accounts, while `get_account`/`get_account_by_id` still resolve archived ones (so they can be reactivated and names stay reserved). Transactions, holdings, and wallet addresses are all retained. The CLI `account remove` / `wallet remove` and the MCP `manage_account` "remove" action all archive.
 
 ### Trust levels
 
@@ -200,6 +224,10 @@ Every transaction row has a `trust_level` column:
 
 Agents must check `trust_level` and `reconciliation_log.status` before acting on balances.
 
+### Data staleness
+
+Balances and P&L are only as fresh as the last sync. Before quoting figures, an agent should check each account's `last_synced` timestamp; if data is older than ~24h (shorter for volatile/active accounts), say so explicitly and offer to refresh before relying on the numbers. Never fabricate or interpolate a value to fill a gap left by a failed or stale sync — report the uncertainty. The `/portfolio` skill encodes this behavior for the agent layer.
+
 ### Test setup
 
 ```rust
@@ -212,6 +240,17 @@ async fn my_test() -> Result<()> {
 ```
 
 For integration tests that share setup: use `tests/common::setup_test_db()`.
+
+---
+
+## Importer conventions (Binance CSV)
+
+`src/exchange/binance/csv.rs` is a generic parser for all six Binance export formats (auto-detected from headers; handles `.csv` and `.zip`, strips the UTF-8 BOM). `cryptofolio import-binance <file> --account <name>` drives it. Rules for anything that touches importing:
+
+- **Fail closed — never lose a record silently.** Parsing returns `ParseReport { rows, skipped: Vec<SkippedRow> }`. Malformed rows and unrecognised operations go into `skipped` *with a reason and line number*; they are never dropped or guessed. `map_operation` returns `Option` — an unknown operation becomes a reported skip, **never** a defaulted `Earn` (which would invent phantom income). The import command surfaces duplicate / parse-skipped / write-error counts separately.
+- **Capture provenance you have in hand.** Trade/order rows capture `price` + `price_asset`; withdraw/deposit rows capture `tx_hash`, `address`, and `network`. `import_binance.rs` maps price to `price_usd` when the quote is a USD-equivalent, else to `price_currency`/`price_amount`. Chain is resolved from the export's **Network** column via `network_to_chain` — `infer_chain(coin)` is a last resort only when no network is present.
+- **Identity-stable dedup.** Where an export has no stable ID (Transaction History), `external_id` is a content hash; `disambiguate_external_ids` appends a stable `#N` so legitimately-identical rows don't collapse under `UNIQUE(external_id)`, and re-imports stay idempotent.
+- **Discovered addresses** feed `address_registry` (classification) and `discovery_queue` (pending sync) via their repositories in `src/db/`.
 
 ---
 

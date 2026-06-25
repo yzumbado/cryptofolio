@@ -41,7 +41,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 - [x] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI. 66 tests (was 50), all 18 tools covered — W3.1, 2026-06-23.
 - [ ] **LLM-in-the-loop** scenario suite exists (≥8 graded scenarios with a rubric); runs nightly/manual; baseline pass-rate recorded.
 - [x] `/portfolio` skill hardened: error/rate-limit fallback, pagination guidance, staleness rules — W3.3, 2026-06-23. Eval scenario coverage deferred to W3.2 (LLM-in-the-loop harness, pending).
-- [ ] **CLAUDE.md honesty pass**: no claim documented that isn't enforced; missing sections (secrets hygiene, staleness policy, testing strategy) added.
+- [x] **CLAUDE.md honesty pass**: claims reconciled with enforcement — immutable ledger now documented as *trigger-enforced* (+ account archiving), the `unwrap` rule notes its CI gate, and the testing section reflects MCP CI + coverage. Added sections: testing/eval strategy, importer conventions (fail-closed), data-staleness policy. Secrets hygiene was already present.
 
 ---
 
