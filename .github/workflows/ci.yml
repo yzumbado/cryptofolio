@@ -132,10 +132,14 @@ jobs:
       run: npm ci
     - name: Type check
       run: npm run typecheck
+    - name: Eval harness typecheck
+      run: npm run eval:typecheck
     - name: Lint
       run: npm run lint
     - name: Run tests
       run: npm test
+    - name: Agent-eval harness self-test (mock — no API key)
+      run: npm run eval:mock
 
   coverage:
     name: Coverage Report (non-blocking)

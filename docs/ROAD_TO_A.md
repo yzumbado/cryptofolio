@@ -39,7 +39,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 
 ### Agent practice
 - [x] Every MCP tool has ≥3 **programmatic** eval cases (correct tool + params from structured input); suite green in CI. 66 tests (was 50), all 18 tools covered — W3.1, 2026-06-23.
-- [ ] **LLM-in-the-loop** scenario suite exists (≥8 graded scenarios with a rubric); runs nightly/manual; baseline pass-rate recorded.
+- [x] **LLM-in-the-loop** scenario suite exists (8 graded scenarios with trace-based rubrics) in `mcp/evals/`, drives the **real** MCP server over stdio; runs nightly/manual (`.github/workflows/agent-evals.yml`, non-blocking). Harness is unit-tested: grader covered by `tests/evals/grader.test.ts`, and the `--mock` self-test (8/8) runs in CI on every PR. **Live baseline pass-rate pending a keyed run** (set `ANTHROPIC_API_KEY` + `CRYPTOFOLIO_BIN`, run `npm run eval`).
 - [x] `/portfolio` skill hardened: error/rate-limit fallback, pagination guidance, staleness rules — W3.3, 2026-06-23. Eval scenario coverage deferred to W3.2 (LLM-in-the-loop harness, pending).
 - [x] **CLAUDE.md honesty pass**: claims reconciled with enforcement — immutable ledger now documented as *trigger-enforced* (+ account archiving), the `unwrap` rule notes its CI gate, and the testing section reflects MCP CI + coverage. Added sections: testing/eval strategy, importer conventions (fail-closed), data-staleness policy. Secrets hygiene was already present.
 
@@ -62,7 +62,7 @@ by CI), *measure* (agent behavior is evaluated, not assumed).
 |---|---|---|
 | Production `unwrap`/`expect` | 8 (all known-infallible) | Eval 2026-06-21 |
 | Rust unit tests | 298 passing (was 290) | `cargo test --lib` |
-| MCP tests | 66 (all 18 tools, ≥3 cases each) | Vitest |
-| LLM scenario pass-rate | _TBD_ | W3.2 |
+| MCP tests | 73 (66 tool evals + 7 grader unit tests) | Vitest |
+| LLM scenario pass-rate (live) | pending keyed run | W3.2 (`mcp/evals/`); mock self-test 8/8 |
 | Rust coverage | pending first CI run | W2.4 (cargo-llvm-cov in non-blocking CI job) |
 | MCP coverage | 79.98% stmts, 74.89% branches, 88.46% funcs | W2.4, 2026-06-23 |
