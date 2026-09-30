@@ -184,11 +184,49 @@ pub async fn handle_sync_history_command(
     }
 
     // Parse symbols list
-    let symbol_list: Vec<String> = symbols
+    let mut symbol_list: Vec<String> = symbols
         .split(',')
         .map(|s| s.trim().to_uppercase())
         .filter(|s| !s.is_empty())
         .collect();
+
+    // If no symbols were given, DERIVE them from this account's current
+    // holdings instead of silently importing no trades (the old behavior:
+    // sync_trades was gated on a non-empty symbol list, so an omitted
+    // --symbols meant zero trades imported — the cause of empty realized P&L).
+    // We pair each real asset with USDT (Binance's dominant quote) and skip
+    // stablecoins and LD* Simple-Earn wrapper tokens, which aren't spot pairs.
+    if symbol_list.is_empty() && !no_trades {
+        let holding_repo = HoldingRepository::new(pool);
+        let holdings = holding_repo.list_by_account(&acc.id).await?;
+        let mut derived: Vec<String> = holdings
+            .iter()
+            .map(|h| h.asset.to_uppercase())
+            .filter(|a| {
+                !a.starts_with("LD") // Simple-Earn wrappers (LDBTC, LDUSDT, ...)
+                    && crate::core::defi::stablecoin_peg(a).is_none() // USDT/USDC/... aren't pairs vs USDT
+                    && a != "USD"
+            })
+            .map(|a| format!("{a}USDT"))
+            .collect();
+        derived.sort();
+        derived.dedup();
+        symbol_list = derived;
+
+        if !opts.quiet {
+            if symbol_list.is_empty() {
+                warning(
+                    "No --symbols given and no tradable holdings found; no trades will be synced.",
+                );
+            } else {
+                warning(&format!(
+                    "No --symbols given; derived {} symbol(s) from holdings: {}",
+                    symbol_list.len(),
+                    symbol_list.join(", ")
+                ));
+            }
+        }
+    }
 
     // Parse optional start date
     let start_time = from

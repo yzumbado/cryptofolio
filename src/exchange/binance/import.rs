@@ -344,44 +344,14 @@ impl<'a> TransactionImporter<'a> {
 
         let tx_id = self.tx_repo.insert(&tx).await?;
 
-        // Consume FIFO tax lots for the disposal.
-        // Use avg cost basis as the disposal price so no phantom gain/loss is
-        // recorded (a transfer out to an external wallet is a disposal event in
-        // terms of lot tracking, but P&L recognition depends on jurisdiction).
-        let disposal_price = self
-            .holding_repo
-            .get(account_id, &withdrawal.coin.to_uppercase())
-            .await
-            .ok()
-            .flatten()
-            .and_then(|h| h.avg_cost_basis)
-            .unwrap_or(Decimal::ZERO);
-
-        if let Err(e) = self
-            .pnl_calc
-            .process_disposal(
-                tx_id,
-                account_id,
-                &withdrawal.coin.to_uppercase(),
-                total_sent,
-                disposal_price,
-                timestamp,
-                CostBasisMethod::Fifo,
-            )
-            .await
-        {
-            // Log but don't fail the import — lots may not exist yet if buys
-            // haven't been imported.  Run `pnl backfill` after a full sync.
-            eprintln!(
-                "Warning: could not consume tax lots for withdrawal {} ({}): {}. \
-                 Run 'cryptofolio pnl backfill' to fix.",
-                withdrawal.id,
-                withdrawal.coin.to_uppercase(),
-                e
-            );
-        }
-
-        // Update holdings (silently ignore if not enough balance)
+        // A withdrawal is a TRANSFER of your own coins off the exchange, NOT a
+        // sale — so it must not recognize realized gain/loss. (The prior code
+        // called process_disposal using avg_cost_basis as the price to net to
+        // zero, but when a balance-only sync left avg_cost_basis unset it fell
+        // back to price 0, booking a phantom realized LOSS equal to the whole
+        // cost basis.) We intentionally do NOT dispose lots here; cost basis
+        // travels with the coins and is realized on the eventual real sale.
+        // Only adjust the on-exchange balance.
         let _ = self
             .holding_repo
             .remove_quantity(account_id, &withdrawal.coin.to_uppercase(), total_sent)
