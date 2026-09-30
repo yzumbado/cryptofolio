@@ -432,11 +432,19 @@ async fn handle_backfill(
     let tx_repo = TransactionRepository::new(pool);
     let pnl_calc = PnLCalculator::new(pool);
 
-    // Get all transactions in chronological order
+    // Get all transactions in chronological (oldest-first) order. Backfill MUST
+    // see the full history and replay buys before sells; the paged `list`/
+    // `list_by_account` cap at 50 rows and order DESC, which silently drops
+    // history and mis-orders lots.
     let transactions = if let Some(ref acc) = account {
-        tx_repo.list_by_account(acc, None).await?
+        let mut all = tx_repo.list_all_chronological().await?;
+        all.retain(|t| {
+            t.from_account_id.as_deref() == Some(acc.as_str())
+                || t.to_account_id.as_deref() == Some(acc.as_str())
+        });
+        all
     } else {
-        tx_repo.list(None).await?
+        tx_repo.list_all_chronological().await?
     };
 
     if transactions.is_empty() {

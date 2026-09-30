@@ -39,6 +39,30 @@ impl<'a> TransactionRepository<'a> {
             .collect()
     }
 
+    /// Return EVERY transaction in chronological (oldest-first) order, with no
+    /// row limit. Required for P&L backfill/replay: `list(None)` caps at 50 rows
+    /// and orders DESC, which silently drops history and replays sells before
+    /// their buys. Do not use the paged `list` for replay.
+    pub async fn list_all_chronological(&self) -> Result<Vec<Transaction>> {
+        let rows = sqlx::query_as::<_, TransactionRow>(
+            r#"
+            SELECT id, tx_type, from_account_id, from_asset, from_quantity,
+                   to_account_id, to_asset, to_quantity, price_usd,
+                   price_currency, price_amount, exchange_rate, exchange_rate_pair,
+                   fee, fee_asset, tx_hash, external_id, source, trust_level,
+                   notes, timestamp, created_at
+            FROM transactions
+            ORDER BY timestamp ASC, id ASC
+            "#,
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        rows.into_iter()
+            .map(|r| self.parse_transaction(r))
+            .collect()
+    }
+
     pub async fn list_by_account(
         &self,
         account_id: &str,
