@@ -123,6 +123,32 @@ pub fn stablecoin_peg(symbol: &str) -> Option<rust_decimal::Decimal> {
     }
 }
 
+/// A liquid-staking token priceable from its own on-chain ETH exchange rate.
+#[derive(Debug, Clone, Copy)]
+pub struct LstInfo {
+    /// The LST token contract on Ethereum mainnet.
+    pub contract: &'static str,
+    /// 4-byte selector for the contract's ETH-rate getter.
+    pub rate_selector: &'static str,
+}
+
+/// Resolve a symbol to its LST on-chain rate source, if it is a supported
+/// liquid-staking token. Priced as `rate × ETH_price`, with the rate read LIVE
+/// from the contract (rETH `getExchangeRate()`, wstETH `stEthPerToken()`).
+pub fn lst_info(symbol: &str) -> Option<LstInfo> {
+    match symbol.to_uppercase().as_str() {
+        "RETH" => Some(LstInfo {
+            contract: "0xae78736Cd615f374D3085123A210448E74Fc6393",
+            rate_selector: "0xe6aa216c", // getExchangeRate()
+        }),
+        "WSTETH" => Some(LstInfo {
+            contract: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+            rate_selector: "0x035faf82", // stEthPerToken()
+        }),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,5 +194,24 @@ mod tests {
     fn bare_prefix_without_remainder_is_plain() {
         // A symbol that is exactly a prefix (no underlying) must not classify.
         assert_eq!(classify("aeth").kind, DefiKind::Plain);
+    }
+
+    #[test]
+    fn lst_registry_resolves_reth_and_wsteth() {
+        let reth = lst_info("rETH").expect("rETH is an LST");
+        assert_eq!(reth.rate_selector, "0xe6aa216c"); // getExchangeRate()
+        let wsteth = lst_info("WSTETH").expect("wstETH is an LST (case-insensitive)");
+        assert_eq!(wsteth.rate_selector, "0x035faf82"); // stEthPerToken()
+        assert!(lst_info("ETH").is_none());
+        assert!(lst_info("USDT").is_none());
+    }
+
+    #[test]
+    fn aave_lst_collateral_maps_to_lst_underlying() {
+        // aEthrETH -> Supply/rETH, and rETH is itself LST-priceable.
+        let a = classify("aEthrETH");
+        assert_eq!(a.kind, DefiKind::Supply);
+        assert_eq!(a.underlying, "rETH");
+        assert!(lst_info(&a.underlying).is_some());
     }
 }

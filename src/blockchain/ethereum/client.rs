@@ -129,6 +129,43 @@ impl EtherscanClient {
         )))
     }
 
+    /// Read a liquid-staking token's ETH exchange rate via `eth_call`.
+    ///
+    /// `contract` is the LST token contract; `selector` is the 4-byte method
+    /// selector for its rate getter (rETH `getExchangeRate()` = `0xe6aa216c`,
+    /// wstETH `stEthPerToken()` = `0x035faf82`). Both return a `uint256`
+    /// 18-decimal fixed-point value = how many ETH (stETH≈ETH) one LST token is
+    /// worth. Returns that ratio as a Decimal (e.g. ~1.17 for rETH). Fetched
+    /// LIVE because LST:ETH ratios drift upward as staking rewards accrue.
+    pub async fn get_lst_eth_rate(&self, contract: &str, selector: &str) -> Result<Decimal> {
+        let mut url = format!(
+            "{}?chainid={}&module=proxy&action=eth_call&to={}&data={}&tag=latest",
+            self.base_url, self.chain_id, contract, selector
+        );
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let body = self.fetch_text_with_retry(&url).await?;
+
+        #[derive(serde::Deserialize)]
+        struct EthCallResponse {
+            result: Option<String>,
+        }
+        let data: EthCallResponse = serde_json::from_str(&body)
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse eth_call: {}", e)))?;
+
+        let hex = data
+            .result
+            .ok_or_else(|| CryptofolioError::Network("eth_call returned no result".into()))?;
+        let hex = hex.trim_start_matches("0x");
+        // uint256 fits in u128 for any realistic exchange rate (< 2^128 wei-scaled).
+        let raw = u128::from_str_radix(hex, 16)
+            .map_err(|e| CryptofolioError::Other(format!("Invalid eth_call rate: {}", e)))?;
+        let rate = Decimal::from(raw) / Decimal::from(1_000_000_000_000_000_000u64);
+        Ok(rate)
+    }
+
     /// Get ETH balance for an address
     async fn get_eth_balance(&self, address: &str) -> Result<Decimal> {
         let mut url = format!(

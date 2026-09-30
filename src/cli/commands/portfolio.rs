@@ -127,6 +127,35 @@ pub async fn handle_portfolio_command(
         }
     }
 
+    // Price liquid-staking tokens (rETH, wstETH) from their LIVE on-chain ETH
+    // exchange rate × the ETH price. LST:ETH ratios drift upward as staking
+    // rewards accrue, so the rate must be read live rather than assumed. Needs
+    // an Etherscan key (env or config); skipped silently if unavailable so the
+    // rest of the portfolio still renders.
+    if let Some(eth_price) = price_map.get("ETH").copied() {
+        let etherscan_key = std::env::var("ETHERSCAN_API_KEY")
+            .ok()
+            .or_else(|| config.get_etherscan_api_key());
+        if etherscan_key.is_some() {
+            use crate::blockchain::ethereum::EtherscanClient;
+            let client = EtherscanClient::new(use_testnet, etherscan_key);
+            for asset in &unique_assets {
+                let up = asset.to_uppercase();
+                if price_map.contains_key(&up) {
+                    continue;
+                }
+                if let Some(lst) = crate::core::defi::lst_info(&up) {
+                    if let Ok(rate) = client
+                        .get_lst_eth_rate(lst.contract, lst.rate_selector)
+                        .await
+                    {
+                        price_map.insert(up, rate * eth_price);
+                    }
+                }
+            }
+        }
+    }
+
     // Build portfolio entries
     let mut entries: Vec<PortfolioEntry> = Vec::new();
 
