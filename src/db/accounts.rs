@@ -159,6 +159,17 @@ impl<'a> AccountRepository<'a> {
             .collect()
     }
 
+    /// Return EVERY account id, including archived ones. Backfill needs the full
+    /// set to tell an internal transfer (basis travels) from one that leaves the
+    /// tracked set; `list_accounts` omits archived accounts, which would misread
+    /// a transfer into an archived account as leaving.
+    pub async fn list_all_ids(&self) -> Result<Vec<String>> {
+        let rows = sqlx::query_as::<_, (String,)>("SELECT id FROM accounts")
+            .fetch_all(self.pool)
+            .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
     pub async fn get_account(&self, name: &str) -> Result<Option<Account>> {
         let row = sqlx::query_as::<_, (String, String, String, String, Option<String>, bool, String)>(
             "SELECT id, name, category_id, account_type, config, sync_enabled, created_at FROM accounts WHERE LOWER(name) = LOWER(?)"
