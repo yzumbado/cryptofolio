@@ -27,6 +27,14 @@ pub struct HoldingWithPrice {
     pub current_value: Option<Decimal>,
     pub unrealized_pnl: Option<Decimal>,
     pub unrealized_pnl_percent: Option<Decimal>,
+    /// DeFi classification of the holding's symbol (Plain / Supply / Debt).
+    /// Debt positions carry a negative `current_value`.
+    #[serde(default = "default_defi_kind")]
+    pub defi_kind: crate::core::defi::DefiKind,
+}
+
+fn default_defi_kind() -> crate::core::defi::DefiKind {
+    crate::core::defi::DefiKind::Plain
 }
 
 impl HoldingWithPrice {
@@ -49,6 +57,39 @@ impl HoldingWithPrice {
             current_value,
             unrealized_pnl,
             unrealized_pnl_percent,
+            defi_kind: crate::core::defi::DefiKind::Plain,
+        }
+    }
+
+    /// Build a holding valued through its DeFi classification. `underlying_price`
+    /// is the USD price of the *underlying* asset (e.g. USDT for `aEthUSDT`,
+    /// GHO for `variableDebtEthGHO`). Debt positions get a negative value so
+    /// they subtract from net worth. aTokens track the underlying ~1:1 in token
+    /// terms, so quantity × underlying price is the correct supplied value.
+    pub fn from_holding_defi(
+        holding: Holding,
+        classified: &crate::core::defi::DefiAsset,
+        underlying_price: Option<Decimal>,
+    ) -> Self {
+        use crate::core::defi::DefiKind;
+
+        if classified.kind == DefiKind::Plain {
+            return Self::from_holding(holding, underlying_price);
+        }
+
+        let sign = Decimal::from(classified.sign() as i64);
+        let current_value = underlying_price.map(|p| sign * p * holding.quantity);
+
+        // Cost basis / P&L are not meaningful for protocol receipt tokens in the
+        // current model (they carry no acquisition cost), so leave them None and
+        // report the position by value only.
+        Self {
+            holding,
+            current_price: underlying_price,
+            current_value,
+            unrealized_pnl: None,
+            unrealized_pnl_percent: None,
+            defi_kind: classified.kind,
         }
     }
 }

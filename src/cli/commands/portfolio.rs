@@ -38,6 +38,8 @@ struct HoldingOutput {
     cost_basis: Option<String>,
     unrealized_pnl: Option<String>,
     unrealized_pnl_percent: Option<String>,
+    /// "plain" | "supply" | "debt" — debt positions carry a negative value.
+    defi_kind: String,
 }
 
 pub async fn handle_portfolio_command(
@@ -68,11 +70,16 @@ pub async fn handle_portfolio_command(
         .map(|c| (c.id.clone(), c.name.clone()))
         .collect();
 
-    // Collect all unique assets
+    // Collect all unique assets — including the UNDERLYING of any DeFi receipt
+    // token (aToken / debt token), which is the symbol we actually price.
     let all_holdings = holding_repo.list_all().await?;
     let unique_assets: Vec<String> = all_holdings
         .iter()
-        .map(|h| h.asset.clone())
+        .flat_map(|h| {
+            let classified = crate::core::defi::classify(&h.asset);
+            // Price the underlying for DeFi tokens; the raw symbol otherwise.
+            vec![h.asset.clone(), classified.underlying]
+        })
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
@@ -108,6 +115,18 @@ pub async fn handle_portfolio_command(
         }
     }
 
+    // Final fallback: peg known USD stablecoins to $1.00 when no feed priced
+    // them (e.g. USDT has no USDTUSDT pair; GHO is not on Binance). This is what
+    // lets Aave USDT collateral and borrowed-GHO debt value correctly.
+    for asset in &unique_assets {
+        let up = asset.to_uppercase();
+        if let std::collections::hash_map::Entry::Vacant(e) = price_map.entry(up) {
+            if let Some(peg) = crate::core::defi::stablecoin_peg(e.key()) {
+                e.insert(peg);
+            }
+        }
+    }
+
     // Build portfolio entries
     let mut entries: Vec<PortfolioEntry> = Vec::new();
 
@@ -133,8 +152,11 @@ pub async fn handle_portfolio_command(
         let holdings_with_price: Vec<HoldingWithPrice> = holdings
             .into_iter()
             .map(|h| {
-                let price = price_map.get(&h.asset.to_uppercase()).copied();
-                HoldingWithPrice::from_holding(h, price)
+                let classified = crate::core::defi::classify(&h.asset);
+                let price = price_map
+                    .get(&classified.underlying.to_uppercase())
+                    .copied();
+                HoldingWithPrice::from_holding_defi(h, &classified, price)
             })
             .collect();
 
@@ -183,6 +205,12 @@ pub async fn handle_portfolio_command(
                             cost_basis: h.holding.avg_cost_basis.map(|c| c.to_string()),
                             unrealized_pnl: h.unrealized_pnl.map(|p| p.to_string()),
                             unrealized_pnl_percent: h.unrealized_pnl_percent.map(|p| p.to_string()),
+                            defi_kind: match h.defi_kind {
+                                crate::core::defi::DefiKind::Plain => "plain",
+                                crate::core::defi::DefiKind::Supply => "supply",
+                                crate::core::defi::DefiKind::Debt => "debt",
+                            }
+                            .to_string(),
                         })
                         .collect(),
                 })
