@@ -602,6 +602,9 @@ async fn handle_wallet_sync(
     // even when the user has explicitly configured API keys for them.
     let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
 
+    // Load config once; API keys/RPC resolve env-first, then from here.
+    let cfg = crate::config::AppConfig::load().ok();
+
     // Bitcoin — Blockstream (keyless public API)
     {
         use crate::blockchain::bitcoin::BlockstreamClient;
@@ -612,10 +615,12 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Ethereum — Etherscan (API key from env or config)
+    // Ethereum — Etherscan (API key from env var OR [etherscan] config).
     {
         use crate::blockchain::ethereum::EtherscanClient;
-        let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
+        let api_key = std::env::var("ETHERSCAN_API_KEY")
+            .ok()
+            .or_else(|| cfg.as_ref().and_then(|c| c.etherscan.resolve_api_key()));
         let level = if api_key.is_some() {
             PrivacyLevel::Custom
         } else {
@@ -628,10 +633,13 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Cardano — Blockfrost (API key from env or config)
+    // Cardano — Blockfrost (API key from env var OR [blockfrost] config).
     {
         use crate::blockchain::cardano::BlockfrostClient;
-        let api_key = std::env::var("BLOCKFROST_API_KEY").ok();
+        let api_key = std::env::var("BLOCKFROST_API_KEY").ok().or_else(|| {
+            cfg.as_ref()
+                .and_then(|c| c.blockfrost.mainnet_api_key.clone())
+        });
         let level = if api_key.is_some() {
             PrivacyLevel::Custom
         } else {
@@ -646,9 +654,7 @@ async fn handle_wallet_sync(
 
     // Solana — RPC from SOLANA_RPC_URL env var or [solana] rpc_url in config.
     // Warn (not silently skip) when absent, so a dark Solana sync is visible.
-    let solana_rpc = crate::config::AppConfig::load()
-        .ok()
-        .and_then(|c| c.solana.resolve_rpc_url());
+    let solana_rpc = cfg.as_ref().and_then(|c| c.solana.resolve_rpc_url());
     match solana_rpc {
         Some(rpc_url) => {
             use crate::blockchain::solana::SolanaRpcClient;
