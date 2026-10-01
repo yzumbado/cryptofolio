@@ -33,3 +33,8 @@ import_cold_storage.csv
 .claude/*
 # Skills are part of the codebase — shared with the repo
 !.claude/skills
+
+# KiroCrew local state — member briefings and settings may hold secrets/tokens.
+# Keep the whole dir out of git; steering docs are duplicated in .claude/skills
+# and CLAUDE.md, so nothing shareable is lost.
+.kiro/
