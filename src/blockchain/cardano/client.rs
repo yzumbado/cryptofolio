@@ -306,17 +306,24 @@ impl BlockfrostClient {
             .await
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
+        // Prefer the token-registry ticker/name, then on-chain metadata name,
+        // then the hex-decoded asset_name. (NIGHT's name lives in the registry.)
         let display_name = data
-            .onchain_metadata
+            .metadata
             .as_ref()
-            .and_then(|m| m.name.clone())
-            .or(data.asset_name)
+            .and_then(|m| m.ticker.clone().or_else(|| m.name.clone()))
+            .or_else(|| data.onchain_metadata.as_ref().and_then(|m| m.name.clone()))
+            .or_else(|| data.asset_name.as_deref().map(decode_asset_name))
             .unwrap_or_default();
 
+        // Decimals: registry first (where fungible-token decimals usually live),
+        // then on-chain metadata, else 0. Reading only on-chain metadata stored
+        // NIGHT (6 decimals, registry-only) unscaled — a 100.6-billion phantom.
         let decimals = data
-            .onchain_metadata
+            .metadata
             .as_ref()
             .and_then(|m| m.decimals)
+            .or_else(|| data.onchain_metadata.as_ref().and_then(|m| m.decimals))
             .unwrap_or(0);
 
         Ok((display_name, decimals))
@@ -528,11 +535,23 @@ struct AmountItem {
 struct BlockfrostAssetResponse {
     asset_name: Option<String>,
     onchain_metadata: Option<OnchainMetadata>,
+    /// Off-chain CIP-26 token-registry metadata. For many fungible tokens
+    /// (e.g. NIGHT) `decimals` and `name`/`ticker` live HERE, not in
+    /// `onchain_metadata` (which is null). Must be consulted or the raw base
+    /// units are stored unscaled — a phantom balance millions of times too big.
+    metadata: Option<RegistryMetadata>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OnchainMetadata {
     name: Option<String>,
+    decimals: Option<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryMetadata {
+    name: Option<String>,
+    ticker: Option<String>,
     decimals: Option<u8>,
 }
 
@@ -720,6 +739,24 @@ impl BlockchainClient for BlockfrostClient {
     }
 }
 
+/// Decode a Cardano `asset_name` into a readable ticker.
+///
+/// Blockfrost returns `asset_name` **hex-encoded** (e.g. NIGHT's asset_name is
+/// `4e49474854`). When no on-chain metadata `name` is present we fall back to
+/// this field — but it must be hex-decoded to UTF-8 first, or the holding is
+/// stored under a junk symbol like `4e49474854` instead of `NIGHT`. If the
+/// value is not valid hex, or decodes to non-text/empty bytes, we return the
+/// original string unchanged (some names are already plain text).
+fn decode_asset_name(hex_name: &str) -> String {
+    match hex::decode(hex_name) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(s) if !s.is_empty() && s.chars().all(|c| !c.is_control()) => s,
+            _ => hex_name.to_string(),
+        },
+        Err(_) => hex_name.to_string(),
+    }
+}
+
 /// Compute a CIP-14 asset fingerprint.
 ///
 /// Algorithm:
@@ -747,6 +784,26 @@ fn cip14_fingerprint(policy_id_hex: &str, asset_name_hex: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_decode_asset_name_hex_to_ticker() {
+        // NIGHT's Cardano asset_name is hex "4e49474854" -> "NIGHT".
+        assert_eq!(decode_asset_name("4e49474854"), "NIGHT");
+    }
+
+    #[test]
+    fn test_decode_asset_name_passthrough_non_hex() {
+        // Already-plain names and odd/invalid hex pass through unchanged.
+        assert_eq!(decode_asset_name("NIGHT"), "NIGHT");
+        assert_eq!(decode_asset_name("xyz"), "xyz");
+    }
+
+    #[test]
+    fn test_decode_asset_name_rejects_binary() {
+        // Hex that decodes to control/binary bytes is NOT a readable ticker;
+        // keep the original hex rather than emit garbage.
+        assert_eq!(decode_asset_name("0001"), "0001");
+    }
 
     #[test]
     fn test_cip14_fingerprint_known_vector() {

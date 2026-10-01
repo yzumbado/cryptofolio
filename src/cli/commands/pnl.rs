@@ -9,7 +9,9 @@ use crate::cli::output::{
 use crate::cli::{GlobalOptions, PnlCommands};
 use crate::config::AppConfig;
 use crate::core::pnl::{CostBasisMethod, PnLCalculator};
-use crate::db::{HoldingRepository, RealizedPnLRepository, TransactionRepository};
+use crate::db::{
+    AccountRepository, HoldingRepository, RealizedPnLRepository, TransactionRepository,
+};
 use crate::error::Result;
 use crate::exchange::{BinanceClient, Exchange};
 
@@ -432,17 +434,36 @@ async fn handle_backfill(
     let tx_repo = TransactionRepository::new(pool);
     let pnl_calc = PnLCalculator::new(pool);
 
-    // Get all transactions in chronological order
+    // Get all transactions in chronological (oldest-first) order. Backfill MUST
+    // see the full history and replay buys before sells; the paged `list`/
+    // `list_by_account` cap at 50 rows and order DESC, which silently drops
+    // history and mis-orders lots.
     let transactions = if let Some(ref acc) = account {
-        tx_repo.list_by_account(acc, None).await?
+        let mut all = tx_repo.list_all_chronological().await?;
+        all.retain(|t| {
+            t.from_account_id.as_deref() == Some(acc.as_str())
+                || t.to_account_id.as_deref() == Some(acc.as_str())
+        });
+        all
     } else {
-        tx_repo.list(None).await?
+        tx_repo.list_all_chronological().await?
     };
 
     if transactions.is_empty() {
         info("No transactions found to backfill.");
         return Ok(());
     }
+
+    // Set of the user's own account ids — a transfer whose counterparty is in
+    // this set is an INTERNAL move (basis travels with the coins); a counterparty
+    // outside it means the coins left/entered the tracked set.
+    let account_repo = AccountRepository::new(pool);
+    let internal_accounts: std::collections::HashSet<String> = account_repo
+        .list_all_ids()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
 
     if !opts.quiet {
         info(&format!(
@@ -451,16 +472,21 @@ async fn handle_backfill(
         ));
     }
 
-    // Clear existing P&L data
-    sqlx::query("DELETE FROM tax_lots").execute(pool).await?;
+    // Clear existing P&L data. Order matters: realized_pnl.tax_lot_id has a
+    // FOREIGN KEY onto tax_lots(id), so the child table MUST be cleared before
+    // the parent. Deleting tax_lots first aborts with FK error 787 on any
+    // re-run (when realized_pnl already holds rows from a prior backfill).
     sqlx::query("DELETE FROM realized_pnl")
         .execute(pool)
         .await?;
+    sqlx::query("DELETE FROM tax_lots").execute(pool).await?;
 
     let method = CostBasisMethod::Fifo; // Default
     let mut buy_count = 0;
     let mut sell_count = 0;
     let mut swap_count = 0;
+    let mut transfer_count = 0;
+    let mut correction_count = 0;
 
     // Replay transactions
     for tx in transactions {
@@ -539,13 +565,118 @@ async fn handle_backfill(
                     }
                 }
             }
-            _ => {} // Skip transfer and other transaction types
+            "transfer_internal" => {
+                // A move between the user's own accounts: basis travels with the
+                // coins, no realized P&L, no new lot minted.
+                if let (Some(asset), Some(qty), Some(from_acc), Some(to_acc)) = (
+                    tx.from_asset.as_ref().or(tx.to_asset.as_ref()),
+                    tx.from_quantity.or(tx.to_quantity),
+                    tx.from_account_id.as_ref(),
+                    tx.to_account_id.as_ref(),
+                ) {
+                    let _ = pnl_calc
+                        .transfer_lots(from_acc, to_acc, asset, qty, method)
+                        .await;
+                    transfer_count += 1;
+                }
+            }
+            "transfer_out" => {
+                // If the destination is one of the user's own accounts, move the
+                // lots there (basis travels). Otherwise the coins leave the tracked
+                // set: drop the lots, recognize NO gain/loss (a transfer is not a
+                // sale). Either way, never mint basis.
+                if let (Some(asset), Some(qty), Some(from_acc)) = (
+                    tx.from_asset.as_ref(),
+                    tx.from_quantity,
+                    tx.from_account_id.as_ref(),
+                ) {
+                    match tx.to_account_id.as_ref() {
+                        Some(to_acc) if internal_accounts.contains(to_acc) => {
+                            let _ = pnl_calc
+                                .transfer_lots(from_acc, to_acc, asset, qty, method)
+                                .await;
+                        }
+                        _ => {
+                            // Leaves the tracked set — remove lots, no realized P&L.
+                            let _ = pnl_calc.remove_lots(from_acc, asset, qty, method).await;
+                        }
+                    }
+                    transfer_count += 1;
+                }
+            }
+            "transfer_in" => {
+                // If the source is one of the user's own accounts, the paired
+                // transfer_out already moved the lots — do nothing to avoid double
+                // counting.
+                //
+                // If the source is external, this is a deposit. Only mint a lot
+                // when the row carries a REAL stated acquisition price (price_usd
+                // > 0): that represents coins genuinely entering the tracked set
+                // with a known basis. A PRICELESS external deposit is almost
+                // always a self-custody -> exchange move of coins already owned
+                // (their basis lives at the origin, recorded via a WACB `buy` or
+                // supplied by a `correction`). Minting a $0-cost lot for it is
+                // wrong: FIFO then disposes that phantom lot first and reports a
+                // near-100% "gain". So we skip it.
+                let external = tx
+                    .from_account_id
+                    .as_ref()
+                    .map(|a| !internal_accounts.contains(a))
+                    .unwrap_or(true);
+                if external {
+                    if let (Some(asset), Some(qty), Some(to_acc), Some(price)) = (
+                        tx.to_asset.as_ref(),
+                        tx.to_quantity,
+                        tx.to_account_id.as_ref(),
+                        tx.price_usd.filter(|p| *p > Decimal::ZERO),
+                    ) {
+                        let _ = pnl_calc
+                            .process_acquisition(
+                                tx.id,
+                                to_acc,
+                                asset,
+                                qty,
+                                price,
+                                tx.timestamp,
+                                method,
+                            )
+                            .await;
+                        transfer_count += 1;
+                    }
+                }
+            }
+            "correction" => {
+                // Append-only corrections adjust the rebuilt lots:
+                //   from_asset+from_quantity  -> REMOVE that qty of lots (unwind an
+                //                                 over-recorded acquisition), no P&L.
+                //   to_asset+to_quantity+price -> ADD a lot (supply missing basis).
+                if let (Some(asset), Some(qty), Some(from_acc)) = (
+                    tx.from_asset.as_ref(),
+                    tx.from_quantity,
+                    tx.from_account_id.as_ref(),
+                ) {
+                    let _ = pnl_calc.remove_lots(from_acc, asset, qty, method).await;
+                    correction_count += 1;
+                }
+                if let (Some(asset), Some(qty), Some(to_acc)) = (
+                    tx.to_asset.as_ref(),
+                    tx.to_quantity,
+                    tx.to_account_id.as_ref(),
+                ) {
+                    let price = tx.price_usd.unwrap_or(Decimal::ZERO);
+                    let _ = pnl_calc
+                        .process_acquisition(tx.id, to_acc, asset, qty, price, tx.timestamp, method)
+                        .await;
+                    correction_count += 1;
+                }
+            }
+            _ => {} // stake/unstake/earn/airdrop/fee handled elsewhere or not lot-affecting
         }
     }
 
     success(&format!(
-        "Backfill complete! Processed {} buys, {} sells, {} swaps",
-        buy_count, sell_count, swap_count
+        "Backfill complete! Processed {buy_count} buys, {sell_count} sells, \
+         {swap_count} swaps, {transfer_count} transfers, {correction_count} corrections"
     ));
 
     Ok(())
@@ -582,27 +713,19 @@ async fn calculate_total_unrealized(
         return Ok(Decimal::ZERO);
     }
 
-    // Fetch current prices
-    let unique_assets: Vec<String> = filtered_holdings
-        .iter()
-        .map(|h| h.asset.clone())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-
-    let client = BinanceClient::new(use_testnet, None, None);
-
-    let mut prices = std::collections::HashMap::new();
-    for asset in &unique_assets {
-        if let Ok(price_data) = client.get_price(asset).await {
-            prices.insert(asset.clone(), price_data.price);
-        }
-    }
+    // Fetch current prices through the SHARED valuation pipeline (classify DeFi
+    // receipts and price their underlying, Binance + Alpha, stablecoin peg, LST
+    // on-chain rate). Using the same path as `portfolio` is what keeps the two
+    // commands in agreement; the old per-raw-symbol `get_price` loop here priced
+    // receipt tokens by their own symbol and produced phantom multi-billion
+    // unrealized figures.
+    let price_map =
+        crate::core::pricing::build_price_map(&filtered_holdings, &config, use_testnet).await;
 
     let mut total_unrealized = Decimal::ZERO;
 
     for holding in &filtered_holdings {
-        if let Some(&current_price) = prices.get(&holding.asset) {
+        if let Some(current_price) = crate::core::pricing::price_for_holding(holding, &price_map) {
             let unrealized_pnl = pnl_calc
                 .calculate_unrealized_pnl(&holding.account_id, &holding.asset, current_price)
                 .await

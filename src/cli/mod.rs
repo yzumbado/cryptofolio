@@ -264,6 +264,23 @@ pub enum Commands {
         format: String,
     },
 
+    /// Import full transaction history from a Binance CSV or ZIP export
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio import-binance history.csv --account Binance\n    cryptofolio import-binance history.zip --account Binance\n    cryptofolio import-binance history.csv --account Binance --dry-run\n\nSUPPORTED FORMATS:\n    Transaction History, Withdraw History, Deposit History,\n    Spot Trade History, Spot Order History, Alpha Order History"
+    )]
+    ImportBinance {
+        /// Path to a Binance .csv or .zip export file
+        file: String,
+
+        /// Account to import into (must exist — create with `account add` first)
+        #[arg(long, required = true)]
+        account: String,
+
+        /// Preview what would be imported without writing anything
+        #[arg(long)]
+        dry_run: bool,
+    },
+
     /// Manage configuration settings
     #[command(
         after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet"

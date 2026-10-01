@@ -87,6 +87,24 @@ describe("cryptofolio_list_accounts", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.data.accounts).toHaveLength(0);
   });
+
+  it("invokes CLI with account list command and returns error envelope on CliError", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "database locked", "account list")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_list_accounts");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(["account", "list"]);
+  });
 });
 
 describe("cryptofolio_manage_account", () => {
@@ -164,7 +182,7 @@ describe("cryptofolio_manage_account", () => {
     expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
   });
 
-  it("removes an account with --yes flag", async () => {
+  it("archives an account with --yes flag", async () => {
     vi.mocked(runCliRaw).mockResolvedValueOnce("");
 
     const server = makeServer();
@@ -177,7 +195,8 @@ describe("cryptofolio_manage_account", () => {
     };
 
     expect(parsed.success).toBe(true);
-    expect(parsed.message).toContain("removed");
+    // Removal is a soft-delete: the account is archived, transactions retained.
+    expect(parsed.message).toContain("archived");
     expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
       expect.arrayContaining(["account", "remove", "OldAccount", "--yes"])
     );

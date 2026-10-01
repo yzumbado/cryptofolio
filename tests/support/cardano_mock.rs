@@ -58,13 +58,16 @@ impl CardanoMock {
                 "quantity": quantity
             }));
 
-            // Mock token metadata endpoint
+            // Mock token metadata endpoint. Real fungible tokens carry
+            // decimals + name in the off-chain registry `metadata` field, which
+            // is what the client prefers; mirror that here.
             Mock::given(method("GET"))
                 .and(path(format!("/api/v0/assets/{}", unit)))
                 .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-                    "asset_name": symbol,
-                    "onchain_metadata": {
+                    "asset_name": asset_name_hex,
+                    "metadata": {
                         "name": symbol,
+                        "ticker": symbol,
                         "decimals": _decimals
                     }
                 })))
@@ -72,12 +75,24 @@ impl CardanoMock {
                 .await;
         }
 
-        // Mock the /addresses/{address}/total endpoint
+        // The client reads native tokens from the `amount` array on
+        // GET /addresses/{address} (NOT /total, which it uses only for
+        // tx_count). Serve the token-bearing amount list there.
+        Mock::given(method("GET"))
+            .and(path(format!("/api/v0/addresses/{}", address)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "address": address,
+                "amount": amount_list,
+                "tx_count": 10
+            })))
+            .mount(&self.server)
+            .await;
+
+        // /total still serves tx_count.
         Mock::given(method("GET"))
             .and(path(format!("/api/v0/addresses/{}/total", address)))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "address": address,
-                "amount": amount_list,
                 "tx_count": 10
             })))
             .mount(&self.server)
@@ -257,7 +272,6 @@ impl CardanoMock {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_cardano_mock_creation() {

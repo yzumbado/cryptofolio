@@ -383,6 +383,28 @@ pub async fn handle_tx_command(
             tx.notes = notes;
             tx_repo.insert(&tx).await?;
 
+            // Move FIFO tax lots from source to destination so cost basis is preserved.
+            // This is a non-taxable event (asset stays within the portfolio) but the lots
+            // must move to keep unrealized P&L calculations correct for each account.
+            let pnl_calc = PnLCalculator::new(pool);
+            if let Err(e) = pnl_calc
+                .transfer_lots(
+                    &from_acc.id,
+                    &to_acc.id,
+                    &asset,
+                    transfer_qty, // qty minus fee — what actually arrives
+                    CostBasisMethod::Fifo,
+                )
+                .await
+            {
+                if !opts.quiet {
+                    warning(&format!(
+                        "Tax lot transfer skipped (run 'pnl backfill' to fix): {}",
+                        e
+                    ));
+                }
+            }
+
             success(&format!(
                 "Recorded transfer: {} {} from '{}' to '{}'",
                 format_quantity(qty),
@@ -791,9 +813,22 @@ fn transaction_to_csv_record(tx: &Transaction) -> CsvExportRecord {
                     .unwrap_or_default(),
             )
         }
-        TransactionType::Swap => (
+        TransactionType::Swap | TransactionType::Unstake => (
             tx.from_asset.clone().unwrap_or_default(),
             tx.from_quantity.map(|q| q.to_string()).unwrap_or_default(),
+        ),
+        TransactionType::Stake
+        | TransactionType::Earn
+        | TransactionType::Airdrop
+        | TransactionType::Correction => (
+            tx.to_asset
+                .clone()
+                .or_else(|| tx.from_asset.clone())
+                .unwrap_or_default(),
+            tx.to_quantity
+                .or(tx.from_quantity)
+                .map(|q| q.to_string())
+                .unwrap_or_default(),
         ),
     };
 

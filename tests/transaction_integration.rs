@@ -253,6 +253,9 @@ async fn test_swap_handles_both_sides() -> Result<()> {
         notes: None,
         timestamp: Utc::now(),
         created_at: Utc::now(),
+        tx_hash: None,
+        source: "manual".to_string(),
+        trust_level: "unverified".to_string(),
     };
     let swap_tx_id = tx_repo.insert(&swap_tx).await?;
 
@@ -379,6 +382,9 @@ async fn test_transfer_preserves_holdings() -> Result<()> {
         notes: None,
         timestamp: Utc::now(),
         created_at: Utc::now(),
+        tx_hash: None,
+        source: "manual".to_string(),
+        trust_level: "unverified".to_string(),
     };
     tx_repo.insert(&transfer_tx).await?;
 

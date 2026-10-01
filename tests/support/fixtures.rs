@@ -1,5 +1,4 @@
 /// Test fixture data for BDD scenarios
-
 pub struct TestFixtures;
 
 impl TestFixtures {

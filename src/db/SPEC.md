@@ -1,78 +1,64 @@
 # Database Specification
 
-Engine: **SQLite** via `sqlx` with async runtime.
+Engine: **SQLite** via `sqlx` with async runtime, WAL journal mode.
 
-Location: `~/.config/cryptofolio/database.sqlite` (production)
+Location: `~/.config/cryptofolio/database.sqlite` (production)  
 Test: `sqlite::memory:` (in-memory, created fresh per test)
 
-## Migration Convention
+## Schema management
 
-File: `src/db/migrations.rs`
+Schema is defined in `src/db/schema.rs`. Call `schema::create(&pool)` once on startup — every statement is `CREATE TABLE IF NOT EXISTS`, so it is safe to call on an existing database.
 
-- Each migration is a `const MIGRATION_NNN: &str` SQL string
-- The `_migrations` table tracks applied migration IDs
-- Migrations are additive only — no DROP TABLE, no ALTER COLUMN (until v1.0)
-- New tables, indexes, and columns are always `CREATE/ADD ... IF NOT EXISTS`
-- No data migration scripts until first public release (dev mode: schema-only)
+**To reset the schema during development:** delete the database file and restart.  
+Versioned migrations will be introduced at v1.0.
 
-## Table Overview
+## Tables
 
 | Table | Purpose |
-|-------|---------|
-| `categories` | Account groupings (trading, cold-storage, hot-wallets) |
-| `accounts` | Exchanges, wallets, and other portfolio sources |
+|---|---|
+| `categories` | Account groupings (trading, cold-storage, hot-wallets, on-ramp, banking) |
+| `accounts` | Exchanges, wallets, DeFi positions, external sources |
 | `wallet_addresses` | Blockchain addresses per account |
-| `holdings` | Current asset quantities per account |
-| `transactions` | Full transaction ledger (buy/sell/transfer/swap) |
-| `tax_lots` | FIFO cost basis lots for P&L |
-| `realized_pnl` | Computed disposal events |
-| `currencies` | Fiat and crypto currency definitions |
-| `exchange_rates` | Point-in-time exchange rates |
-| `binance_sync_state` | Incremental sync watermarks for Binance |
-| `blockchain_nodes` | Custom node configurations |
-| `blockchain_sync_state` | Legacy sync state (superseded by wallet_sync_state) |
+| `currencies` | Fiat and crypto asset definitions |
+| `exchange_rates` | Point-in-time prices (immutable — needed for cost basis replay) |
+| `transactions` | Immutable event ledger (buy/sell/transfer/swap/stake/earn/fee/airdrop/correction) |
+| `transfer_links` | Links the two sides of a cross-wallet transfer for verification |
+| `holdings` | Current balances per account/asset (maintained by sync engine) |
+| `tax_lots` | FIFO/LIFO cost basis lots per acquisition event |
+| `realized_pnl` | Computed disposal events with gain/loss |
+| `portfolio_snapshots` | Daily balance snapshots per account/asset (powers Timeline chart) |
+| `address_registry` | Every address ever seen, classified as mine/exchange/defi/external/unknown |
+| `discovery_queue` | Addresses found during sync, pending classification and wallet sync |
+| `reconciliation_log` | Per-wallet balance proof: computed vs live on-chain balance |
+| `keychain_keys` | Secret storage metadata (actual secrets live in macOS Keychain) |
+| `binance_sync_state` | Incremental sync watermarks per Binance account |
 | `wallet_sync_state` | Block-height watermarks per wallet address |
+| `blockchain_nodes` | Custom node configs (stores a Keychain key reference, never the key itself) |
 | `sync_audit_log` | Tamper-evident record of every sync operation |
 
-## Key Patterns
+## Key patterns
 
-### External IDs
+### Deduplication
 
-All synced records use `external_id` (e.g. `blockstream-{txid}`, `etherscan-{hash}`)
-for idempotent upserts. Duplicate syncs skip existing records.
+Transactions have two dedup keys enforced at the database level:
 
-### Decimal Storage
+- `tx_hash TEXT UNIQUE` — canonical identifier for on-chain events (same hash regardless of which API returned it)
+- `external_id TEXT UNIQUE` — identifier for exchange-only events (Binance order ID, etc.)
 
-All monetary values stored as `TEXT` using `rust_decimal::Decimal` string form.
-Never use `REAL` for financial data.
+Both constraints are schema-level `UNIQUE` — a duplicate insert is rejected by SQLite itself, not by application logic.
+
+### Immutable ledger
+
+`transactions` rows are never updated or deleted. Corrections are new rows with `tx_type = 'correction'`. The `source` column records which system produced each row; `trust_level` records how it was verified.
+
+### Decimal storage
+
+All monetary values stored as `TEXT` using `rust_decimal::Decimal` string form. Never use `REAL` for financial data.
 
 ### Timestamps
 
-All timestamps stored as ISO 8601 UTC strings (`DATETIME` column type in SQLite).
-`chrono::DateTime<Utc>` on the Rust side.
+All timestamps stored as ISO 8601 UTC strings. `chrono::DateTime<Utc>` on the Rust side.
 
-### LIMIT Parameterization
+### API key security
 
-sqlx does not support binding `LIMIT` as a query parameter. Where dynamic limits
-are needed, they are formatted as integers (type-safe — never user strings).
-
-## sync_audit_log Schema
-
-Every wallet sync operation writes two rows: `sync_start` and `sync_complete`.
-Errors write a `sync_complete` row with the `error` column populated.
-
-```sql
-CREATE TABLE sync_audit_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    account_id  TEXT NOT NULL REFERENCES accounts(id),
-    address     TEXT NOT NULL,
-    chain       TEXT NOT NULL,
-    provider    TEXT NOT NULL,
-    action      TEXT NOT NULL,   -- "sync_start" | "sync_complete"
-    records_in  INTEGER,         -- rows returned by provider
-    records_new INTEGER,         -- new rows inserted
-    error       TEXT,            -- NULL on success
-    duration_ms INTEGER
-);
-```
+`blockchain_nodes.api_key_ref` stores the **name** of a Keychain entry, not the key itself. Retrieve the actual key via `config::keychain` at runtime.

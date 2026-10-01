@@ -107,15 +107,27 @@ async fn handle_wallet_add(
         blockchain::bitcoin::validate_xpub(xpub_val)?;
     }
 
-    // Create or get the account for this wallet
-    let account_id = name.to_lowercase().replace(" ", "-");
-
-    // Check if account already exists
-    if account_repo.get_account(&name).await?.is_some() {
-        return Err(CryptofolioError::Other(format!(
-            "Wallet '{}' already exists",
-            name
-        )));
+    // Use existing account if present, otherwise create one automatically.
+    // This allows `wallet add` to work whether the user ran `account add` first or not.
+    let account_id;
+    if let Some(existing) = account_repo.get_account(&name).await? {
+        account_id = existing.id.clone();
+    } else {
+        account_id = name.to_lowercase().replace(" ", "-");
+        let account = Account {
+            id: account_id.clone(),
+            name: name.clone(),
+            category_id: "hot-wallets".to_string(),
+            account_type: if xpub.is_some() {
+                AccountType::HardwareWallet
+            } else {
+                AccountType::SoftwareWallet
+            },
+            config: AccountConfig::default(),
+            sync_enabled: false,
+            created_at: Utc::now(),
+        };
+        account_repo.create_account(&account).await?;
     }
 
     // Check for duplicate address
@@ -134,23 +146,6 @@ async fn handle_wallet_add(
             }
         }
     }
-
-    // Create the account
-    let account = Account {
-        id: account_id.clone(),
-        name: name.clone(),
-        category_id: "hot-wallets".to_string(),
-        account_type: if xpub.is_some() {
-            AccountType::HardwareWallet
-        } else {
-            AccountType::SoftwareWallet
-        },
-        config: AccountConfig::default(),
-        sync_enabled: false,
-        created_at: Utc::now(),
-    };
-
-    account_repo.create_account(&account).await?;
 
     // Detect network (mainnet or testnet)
     let network = if blockchain.eq_ignore_ascii_case("bitcoin") {
@@ -607,6 +602,9 @@ async fn handle_wallet_sync(
     // even when the user has explicitly configured API keys for them.
     let mut registry = ProviderRegistry::new(PrivacyMode::Convenience);
 
+    // Load config once; API keys/RPC resolve env-first, then from here.
+    let cfg = crate::config::AppConfig::load().ok();
+
     // Bitcoin — Blockstream (keyless public API)
     {
         use crate::blockchain::bitcoin::BlockstreamClient;
@@ -617,10 +615,12 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Ethereum — Etherscan (API key from env or config)
+    // Ethereum — Etherscan (API key from env var OR [etherscan] config).
     {
         use crate::blockchain::ethereum::EtherscanClient;
-        let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
+        let api_key = std::env::var("ETHERSCAN_API_KEY")
+            .ok()
+            .or_else(|| cfg.as_ref().and_then(|c| c.etherscan.resolve_api_key()));
         let level = if api_key.is_some() {
             PrivacyLevel::Custom
         } else {
@@ -633,10 +633,13 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Cardano — Blockfrost (API key from env or config)
+    // Cardano — Blockfrost (API key from env var OR [blockfrost] config).
     {
         use crate::blockchain::cardano::BlockfrostClient;
-        let api_key = std::env::var("BLOCKFROST_API_KEY").ok();
+        let api_key = std::env::var("BLOCKFROST_API_KEY").ok().or_else(|| {
+            cfg.as_ref()
+                .and_then(|c| c.blockfrost.mainnet_api_key.clone())
+        });
         let level = if api_key.is_some() {
             PrivacyLevel::Custom
         } else {
@@ -649,14 +652,27 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Solana — user-configured RPC (skipped if not set)
-    if let Ok(rpc_url) = std::env::var("SOLANA_RPC_URL") {
-        use crate::blockchain::solana::SolanaRpcClient;
-        registry.register(
-            &Chain::Solana,
-            Arc::new(SolanaRpcClient::new(rpc_url)),
-            PrivacyLevel::Custom,
-        );
+    // Solana — RPC from SOLANA_RPC_URL env var or [solana] rpc_url in config.
+    // Warn (not silently skip) when absent, so a dark Solana sync is visible.
+    let solana_rpc = cfg.as_ref().and_then(|c| c.solana.resolve_rpc_url());
+    match solana_rpc {
+        Some(rpc_url) => {
+            use crate::blockchain::solana::SolanaRpcClient;
+            registry.register(
+                &Chain::Solana,
+                Arc::new(SolanaRpcClient::new(rpc_url)),
+                PrivacyLevel::Custom,
+            );
+        }
+        None => {
+            if !opts.quiet {
+                println!(
+                    "  ⚠️  Solana skipped: no RPC URL. Set one with \
+                     `cryptofolio config set solana.rpc_url <url>` or the \
+                     SOLANA_RPC_URL env var."
+                );
+            }
+        }
     }
 
     let engine = SyncEngine::new(Arc::new(registry), pool.clone());
@@ -835,7 +851,10 @@ async fn sync_bitcoin_wallet(
                                 exchange_rate_pair: None,
                                 fee: tx.fee,
                                 fee_asset: tx.fee.map(|_| "BTC".to_string()),
+                                tx_hash: Some(tx.txid.clone()),
                                 external_id: Some(external_id),
+                                source: "blockstream".to_string(),
+                                trust_level: "chain_verified".to_string(),
                                 notes: None,
                                 timestamp,
                                 created_at: Utc::now(),
@@ -998,7 +1017,10 @@ async fn sync_ethereum_wallet(
                                 exchange_rate_pair: None,
                                 fee: Some(fee_eth),
                                 fee_asset: Some("ETH".to_string()),
+                                tx_hash: Some(external_id.clone()),
                                 external_id: Some(external_id),
+                                source: "etherscan".to_string(),
+                                trust_level: "chain_verified".to_string(),
                                 notes: None,
                                 timestamp,
                                 created_at: Utc::now(),
@@ -1144,9 +1166,13 @@ async fn handle_wallet_remove(
         return Err(CryptofolioError::AccountNotFound(name));
     }
 
-    // Confirm deletion
+    // Confirm archival
     if !yes && !opts.quiet {
-        println!("Are you sure you want to remove wallet '{}'? (y/N): ", name);
+        println!(
+            "Are you sure you want to archive wallet '{}'? Its transactions and sync history \
+             are retained — the ledger is immutable. (y/N): ",
+            name
+        );
         use std::io::{self, BufRead};
         let stdin = io::stdin();
         let mut line = String::new();
@@ -1157,23 +1183,17 @@ async fn handle_wallet_remove(
         }
     }
 
-    // Delete sync_audit_log rows explicitly (FK has no CASCADE)
-    let account = account_repo
-        .get_account(&name)
-        .await?
-        .ok_or_else(|| CryptofolioError::AccountNotFound(name.clone()))?;
-    sqlx::query("DELETE FROM sync_audit_log WHERE account_id = ?")
-        .bind(&account.id)
-        .execute(pool)
-        .await?;
-
-    // Delete the account (cascades to wallet_addresses, holdings, blockchain_sync_state, etc.)
-    account_repo.delete_account(&name).await?;
+    // Archive (soft-delete) the account. Transactions, holdings, wallet addresses,
+    // and sync_audit_log are all retained; the account is hidden from the active set.
+    account_repo.archive_account(&name).await?;
 
     if opts.json {
-        println!(r#"{{"success": true, "removed": "{}"}}"#, name);
+        println!(r#"{{"success": true, "archived": "{}"}}"#, name);
     } else {
-        success(&format!("✓ Removed wallet '{}'", name));
+        success(&format!(
+            "✓ Archived wallet '{}' (transactions retained; reactivate to restore)",
+            name
+        ));
     }
 
     Ok(())

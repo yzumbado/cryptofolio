@@ -56,7 +56,7 @@ impl BlockstreamMock {
         &self,
         address: &str,
         incoming: i64,
-        outgoing: i64,
+        _outgoing: i64,
         count: usize,
     ) {
         let mut txs = Vec::new();
@@ -106,7 +106,6 @@ impl BlockstreamMock {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_mock_server_creation() {

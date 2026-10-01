@@ -86,6 +86,23 @@ describe("cryptofolio_get_prices", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.message).toContain("SOL: $150.00");
   });
+
+  it("returns error envelope when CLI fails for unknown asset", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "asset 'UNKNOWN' not found", "price")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_prices");
+
+    const result = await tool!.handler({ assets: ["UNKNOWN"] });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe("cryptofolio_get_market_data", () => {
@@ -140,5 +157,25 @@ describe("cryptofolio_get_market_data", () => {
     expect(parsed.success).toBe(true);
     expect(parsed.message).toContain("ADA: $0.45");
     expect(parsed.message).not.toContain("24h change");
+  });
+
+  it("returns error envelope when CLI fails for market data", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCli).mockRejectedValueOnce(
+      new CliError(1, "rate limit exceeded", "market")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_market_data");
+
+    const result = await tool!.handler({ asset: "BTC" });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["market", "BTC", "--24h"])
+    );
   });
 });

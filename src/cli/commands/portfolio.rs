@@ -1,5 +1,4 @@
 use colored::Colorize;
-use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -11,7 +10,6 @@ use crate::core::holdings::HoldingWithPrice;
 use crate::core::portfolio::{Portfolio, PortfolioEntry};
 use crate::db::{AccountRepository, HoldingRepository};
 use crate::error::Result;
-use crate::exchange::{BinanceAlphaClient, BinanceClient, Exchange};
 
 #[derive(Serialize)]
 struct PortfolioOutput {
@@ -38,6 +36,8 @@ struct HoldingOutput {
     cost_basis: Option<String>,
     unrealized_pnl: Option<String>,
     unrealized_pnl_percent: Option<String>,
+    /// "plain" | "supply" | "debt" — debt positions carry a negative value.
+    defi_kind: String,
 }
 
 pub async fn handle_portfolio_command(
@@ -68,45 +68,16 @@ pub async fn handle_portfolio_command(
         .map(|c| (c.id.clone(), c.name.clone()))
         .collect();
 
-    // Collect all unique assets
+    // All holdings — the shared pricer derives the symbols it needs (including
+    // the underlying of every DeFi/Earn receipt) from this set.
     let all_holdings = holding_repo.list_all().await?;
-    let unique_assets: Vec<String> = all_holdings
-        .iter()
-        .map(|h| h.asset.clone())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
 
-    // Fetch prices
-    let client = BinanceClient::new(
-        use_testnet,
-        config.binance.api_key.clone(),
-        config.binance.api_secret.clone(),
-    );
-
-    let asset_refs: Vec<&str> = unique_assets.iter().map(|s| s.as_str()).collect();
-    let prices = client.get_prices(&asset_refs).await.unwrap_or_default();
-
-    let mut price_map: HashMap<String, Decimal> = prices
-        .into_iter()
-        .map(|p| (p.symbol.to_uppercase(), p.price))
-        .collect();
-
-    // Find assets without prices and try Binance Alpha API
-    let missing_assets: Vec<&str> = unique_assets
-        .iter()
-        .filter(|a| !price_map.contains_key(&a.to_uppercase()))
-        .map(|s| s.as_str())
-        .collect();
-
-    if !missing_assets.is_empty() {
-        let alpha_client = BinanceAlphaClient::new();
-        if let Ok(alpha_prices) = alpha_client.get_prices(&missing_assets).await {
-            for (symbol, price) in alpha_prices {
-                price_map.insert(symbol, price);
-            }
-        }
-    }
+    // Build the price map through the SHARED valuation pipeline (classify DeFi
+    // receipts -> price underlying, Binance + Alpha, stablecoin peg, LST on-chain
+    // rate). `pnl summary` uses the exact same path, so the two commands never
+    // disagree on a holding's USD value.
+    let price_map =
+        crate::core::pricing::build_price_map(&all_holdings, &config, use_testnet).await;
 
     // Build portfolio entries
     let mut entries: Vec<PortfolioEntry> = Vec::new();
@@ -133,8 +104,11 @@ pub async fn handle_portfolio_command(
         let holdings_with_price: Vec<HoldingWithPrice> = holdings
             .into_iter()
             .map(|h| {
-                let price = price_map.get(&h.asset.to_uppercase()).copied();
-                HoldingWithPrice::from_holding(h, price)
+                let classified = crate::core::defi::classify(&h.asset);
+                let price = price_map
+                    .get(&classified.underlying.to_uppercase())
+                    .copied();
+                HoldingWithPrice::from_holding_defi(h, &classified, price)
             })
             .collect();
 
@@ -183,6 +157,12 @@ pub async fn handle_portfolio_command(
                             cost_basis: h.holding.avg_cost_basis.map(|c| c.to_string()),
                             unrealized_pnl: h.unrealized_pnl.map(|p| p.to_string()),
                             unrealized_pnl_percent: h.unrealized_pnl_percent.map(|p| p.to_string()),
+                            defi_kind: match h.defi_kind {
+                                crate::core::defi::DefiKind::Plain => "plain",
+                                crate::core::defi::DefiKind::Supply => "supply",
+                                crate::core::defi::DefiKind::Debt => "debt",
+                            }
+                            .to_string(),
                         })
                         .collect(),
                 })

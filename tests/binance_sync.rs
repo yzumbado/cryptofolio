@@ -909,15 +909,16 @@ fn test_sync_report_default_is_all_zero() {
 
 #[test]
 fn test_sync_report_totals() {
-    let mut r = SyncReport::default();
-    r.trades_created = 10;
-    r.deposits_created = 3;
-    r.withdrawals_created = 1;
-    r.fiat_orders_created = 2;
-    r.transfers_created = 4;
-
-    r.trades_skipped = 5;
-    r.deposits_skipped = 1;
+    let r = SyncReport {
+        trades_created: 10,
+        deposits_created: 3,
+        withdrawals_created: 1,
+        fiat_orders_created: 2,
+        transfers_created: 4,
+        trades_skipped: 5,
+        deposits_skipped: 1,
+        ..Default::default()
+    };
 
     assert_eq!(r.total_created(), 20);
     assert_eq!(r.total_skipped(), 6);

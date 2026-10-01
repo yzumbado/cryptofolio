@@ -92,6 +92,80 @@ impl EtherscanClient {
         })
     }
 
+    /// GET a URL and return the raw body, retrying on Etherscan's per-second
+    /// rate-limit response. The free tier caps at ~3–5 calls/sec and returns
+    /// `{"status":"0","message":"NOTOK","result":"Max calls per sec rate limit
+    /// reached (N/sec)"}` when exceeded — a transient, retryable condition, not
+    /// a real error. Backs off (350ms → 2.8s) up to 4 retries.
+    async fn fetch_text_with_retry(&self, url: &str) -> Result<String> {
+        let mut delay_ms = 350u64;
+        let mut last_err = String::new();
+        for attempt in 0..5 {
+            if attempt > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                delay_ms = (delay_ms * 2).min(2800);
+            }
+            let resp = reqwest::get(url)
+                .await
+                .map_err(|e| CryptofolioError::Network(format!("Request failed: {}", e)))?;
+            if !resp.status().is_success() {
+                last_err = format!("HTTP {}", resp.status());
+                continue;
+            }
+            let body = resp
+                .text()
+                .await
+                .map_err(|e| CryptofolioError::Network(format!("Read body failed: {}", e)))?;
+            // Retry only on the rate-limit signal; every other body is returned as-is.
+            if body.contains("rate limit reached") || body.contains("Max calls per sec") {
+                last_err = "Etherscan rate limit".to_string();
+                continue;
+            }
+            return Ok(body);
+        }
+        Err(CryptofolioError::Network(format!(
+            "Etherscan API error after retries: {}",
+            last_err
+        )))
+    }
+
+    /// Read a liquid-staking token's ETH exchange rate via `eth_call`.
+    ///
+    /// `contract` is the LST token contract; `selector` is the 4-byte method
+    /// selector for its rate getter (rETH `getExchangeRate()` = `0xe6aa216c`,
+    /// wstETH `stEthPerToken()` = `0x035faf82`). Both return a `uint256`
+    /// 18-decimal fixed-point value = how many ETH (stETH≈ETH) one LST token is
+    /// worth. Returns that ratio as a Decimal (e.g. ~1.17 for rETH). Fetched
+    /// LIVE because LST:ETH ratios drift upward as staking rewards accrue.
+    pub async fn get_lst_eth_rate(&self, contract: &str, selector: &str) -> Result<Decimal> {
+        let mut url = format!(
+            "{}?chainid={}&module=proxy&action=eth_call&to={}&data={}&tag=latest",
+            self.base_url, self.chain_id, contract, selector
+        );
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let body = self.fetch_text_with_retry(&url).await?;
+
+        #[derive(serde::Deserialize)]
+        struct EthCallResponse {
+            result: Option<String>,
+        }
+        let data: EthCallResponse = serde_json::from_str(&body)
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse eth_call: {}", e)))?;
+
+        let hex = data
+            .result
+            .ok_or_else(|| CryptofolioError::Network("eth_call returned no result".into()))?;
+        let hex = hex.trim_start_matches("0x");
+        // uint256 fits in u128 for any realistic exchange rate (< 2^128 wei-scaled).
+        let raw = u128::from_str_radix(hex, 16)
+            .map_err(|e| CryptofolioError::Other(format!("Invalid eth_call rate: {}", e)))?;
+        let rate = Decimal::from(raw) / Decimal::from(1_000_000_000_000_000_000u64);
+        Ok(rate)
+    }
+
     /// Get ETH balance for an address
     async fn get_eth_balance(&self, address: &str) -> Result<Decimal> {
         let mut url = format!(
@@ -103,20 +177,8 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch balance: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(CryptofolioError::Network(format!(
-                "Etherscan API error: {}",
-                response.status()
-            )));
-        }
-
-        let data: EtherscanResponse = response
-            .json()
-            .await
+        let body = self.fetch_text_with_retry(&url).await?;
+        let data: EtherscanResponse = serde_json::from_str(&body)
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
         if data.status != "1" {
@@ -145,20 +207,8 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url)
-            .await
-            .map_err(|e| CryptofolioError::Network(format!("Failed to fetch tokens: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(CryptofolioError::Network(format!(
-                "Etherscan API error: {}",
-                response.status()
-            )));
-        }
-
-        let data: EtherscanTokenResponse = response
-            .json()
-            .await
+        let body = self.fetch_text_with_retry(&url).await?;
+        let data: EtherscanTokenResponse = serde_json::from_str(&body)
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
         if data.status != "1" {
@@ -237,20 +287,8 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url).await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch transactions: {}", e))
-        })?;
-
-        if !response.status().is_success() {
-            return Err(CryptofolioError::Network(format!(
-                "Etherscan API error: {}",
-                response.status()
-            )));
-        }
-
-        let data: EtherscanTxResponse = response
-            .json()
-            .await
+        let body = self.fetch_text_with_retry(&url).await?;
+        let data: EtherscanTxResponse = serde_json::from_str(&body)
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
         if data.status != "1" {
@@ -301,17 +339,12 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url).await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch internal transactions: {}", e))
-        })?;
-
-        if !response.status().is_success() {
-            return Ok(Vec::new()); // Non-fatal: internal txs may not exist
-        }
-
-        let data: EtherscanTxResponse = match response.json().await {
-            Ok(d) => d,
-            Err(_) => return Ok(Vec::new()),
+        let data: EtherscanTxResponse = match self.fetch_text_with_retry(&url).await {
+            Ok(body) => match serde_json::from_str(&body) {
+                Ok(d) => d,
+                Err(_) => return Ok(Vec::new()),
+            },
+            Err(_) => return Ok(Vec::new()), // Non-fatal: internal txs may not exist
         };
 
         if data.status != "1" {
@@ -351,20 +384,8 @@ impl EtherscanClient {
             url.push_str(&format!("&apikey={}", key));
         }
 
-        let response = reqwest::get(&url).await.map_err(|e| {
-            CryptofolioError::Network(format!("Failed to fetch transactions: {}", e))
-        })?;
-
-        if !response.status().is_success() {
-            return Err(CryptofolioError::Network(format!(
-                "Etherscan API error: {}",
-                response.status()
-            )));
-        }
-
-        let data: EtherscanTxResponse = response
-            .json()
-            .await
+        let body = self.fetch_text_with_retry(&url).await?;
+        let data: EtherscanTxResponse = serde_json::from_str(&body)
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
         if data.status != "1" {
@@ -486,11 +507,16 @@ impl BlockchainClient for EtherscanClient {
     ) -> Result<Vec<WalletTransaction>> {
         let start_block = since_block.unwrap_or(0);
 
-        // Fetch normal and internal transactions in parallel
-        let (normal_result, internal_result) = tokio::join!(
-            self.fetch_transactions_since(address, start_block),
-            self.fetch_internal_transactions_since(address, start_block),
-        );
+        // Fetch normal then internal transactions SEQUENTIALLY. The Etherscan
+        // free tier caps at ~3–5 calls/sec; firing both in parallel (tokio::join)
+        // reliably trips "Max calls per sec rate limit reached", whose string
+        // `result` body would otherwise be dropped as an empty list — silently
+        // losing internal txs. A short spacer keeps us under the limit.
+        let normal_result = self.fetch_transactions_since(address, start_block).await;
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let internal_result = self
+            .fetch_internal_transactions_since(address, start_block)
+            .await;
 
         let mut raw = normal_result?;
         // Internal txs are best-effort; ignore errors (e.g. no API key)
@@ -557,10 +583,27 @@ struct EtherscanResponse {
     result: String,
 }
 
+/// Deserialize an Etherscan `result` that is normally an array but becomes a
+/// bare string on error (e.g. `"Max calls per sec rate limit reached (3/sec)"`
+/// or `"No transactions found"`). Yields an empty Vec for the non-array case so
+/// a rate-limit/error body never fails JSON decoding; callers gate on `status`.
+fn de_result_array_or_empty<'de, D, T>(deserializer: D) -> std::result::Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let v = serde_json::Value::deserialize(deserializer)?;
+    match v {
+        serde_json::Value::Array(_) => serde_json::from_value(v).map_err(serde::de::Error::custom),
+        _ => Ok(Vec::new()),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct EtherscanTokenResponse {
     status: String,
     message: String,
+    #[serde(deserialize_with = "de_result_array_or_empty")]
     result: Vec<TokenTransaction>,
 }
 
@@ -580,6 +623,7 @@ struct TokenTransaction {
 struct EtherscanTxResponse {
     status: String,
     message: String,
+    #[serde(deserialize_with = "de_result_array_or_empty")]
     result: Vec<EthTransaction>,
 }
 
@@ -588,13 +632,20 @@ struct EtherscanTxResponse {
 struct EthTransaction {
     hash: String,
     from: String,
+    // Absent on contract-creation internal txs.
+    #[serde(default)]
     to: String,
     value: String,
     #[allow(dead_code)] // Received from API but not used
+    #[serde(default)]
     gas: String,
+    // Etherscan V2 `txlistinternal` omits gasPrice (internal txs have no own gas price).
+    #[serde(default)]
     gas_price: String,
+    #[serde(default)]
     gas_used: String,
     time_stamp: String,
+    #[serde(default)]
     is_error: String,
     block_number: String,
 }
@@ -619,5 +670,39 @@ mod tests {
     fn test_client_with_api_key() {
         let client = EtherscanClient::new(false, Some("test_key".to_string()));
         assert_eq!(client.api_key, Some("test_key".to_string()));
+    }
+
+    // Regression: Etherscan's per-second rate-limit response returns `result`
+    // as a bare STRING, not an array. The tolerant deserializer must yield an
+    // empty Vec (callers gate on `status`) instead of failing JSON decode and
+    // aborting the whole address sync.
+    #[test]
+    fn test_ratelimit_string_result_decodes_to_empty() {
+        let body = r#"{"status":"0","message":"NOTOK","result":"Max calls per sec rate limit reached (3/sec)"}"#;
+        let data: EtherscanTxResponse =
+            serde_json::from_str(body).expect("rate-limit body must not fail decode");
+        assert_eq!(data.status, "0");
+        assert!(data.result.is_empty());
+
+        let tok: EtherscanTokenResponse =
+            serde_json::from_str(body).expect("rate-limit body must not fail token decode");
+        assert!(tok.result.is_empty());
+    }
+
+    // Regression: V2 `txlistinternal` rows omit gasPrice (and some omit `to`);
+    // the shared EthTransaction struct must tolerate their absence.
+    #[test]
+    fn test_internal_tx_without_gasprice_decodes() {
+        let body = r#"{"status":"1","message":"OK","result":[
+            {"blockNumber":"123","timeStamp":"1700000000","hash":"0xabc",
+             "from":"0xfrom","to":"0xto","value":"1000","contractAddress":"",
+             "input":"","type":"call","gas":"21000","gasUsed":"21000",
+             "traceId":"0","isError":"0","errCode":""}
+        ]}"#;
+        let data: EtherscanTxResponse =
+            serde_json::from_str(body).expect("internal tx (no gasPrice) must decode");
+        assert_eq!(data.result.len(), 1);
+        assert_eq!(data.result[0].gas_price, ""); // defaulted
+        assert_eq!(data.result[0].hash, "0xabc");
     }
 }

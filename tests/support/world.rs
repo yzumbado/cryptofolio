@@ -109,18 +109,18 @@ impl CryptofolioWorld {
         self.cardano_mock.as_ref().map(|m| m.url())
     }
 
-    /// Setup test database with all migrations
+    /// Setup test database with the full schema
     pub async fn setup_db(&mut self) -> Result<()> {
-        use cryptofolio::db::migrations;
+        use cryptofolio::db::schema;
 
         let pool = SqlitePool::connect("sqlite::memory:")
             .await
             .context("Failed to create test database")?;
 
-        // Apply all migrations
-        migrations::run(&pool)
+        // Create the full schema
+        schema::create(&pool)
             .await
-            .context("Failed to run migrations")?;
+            .context("Failed to create schema")?;
 
         self.pool = Some(pool);
         Ok(())

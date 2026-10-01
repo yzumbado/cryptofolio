@@ -1,6 +1,6 @@
 [package]
 name = "cryptofolio"
-version = "0.4.0"
+version = "0.6.0"
 edition = "2021"
 description = "A CLI tool for managing crypto portfolios across exchanges and wallets"
 license = "MIT"
@@ -86,6 +86,9 @@ shell-words = "1"
 
 # Regex for pattern matching
 regex = "1"
+
+# ZIP archive reading (Binance exports are zipped CSVs)
+zip = "2"
 
 # macOS Keychain integration (conditional)
 [target.'cfg(target_os = "macos")'.dependencies]

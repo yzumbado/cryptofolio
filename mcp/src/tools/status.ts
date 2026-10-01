@@ -10,7 +10,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { runCli } from "../cli.js";
 import {
   buildSuccess,
-  buildError,
   toContent,
   handleCliError,
 } from "../formatters/response.js";

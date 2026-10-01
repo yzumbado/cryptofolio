@@ -162,6 +162,120 @@ impl<'a> PnLCalculator<'a> {
         Ok(matches)
     }
 
+    /// Transfer FIFO tax lots from one account to another (internal portfolio transfer).
+    ///
+    /// Preserves original acquisition dates and prices — no P&L is recognised because
+    /// the asset stays within the portfolio. The source lots are reduced / closed and
+    /// new lots are opened in the destination account with the same cost basis.
+    ///
+    /// Returns the number of lots touched.
+    pub async fn transfer_lots(
+        &self,
+        from_account_id: &str,
+        to_account_id: &str,
+        asset: &str,
+        quantity: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<usize> {
+        let lots = self
+            .tax_lot_repo
+            .get_available_lots(from_account_id, asset, method)
+            .await?;
+
+        let total_available: Decimal = lots.iter().map(|lot| lot.remaining_quantity).sum();
+        if quantity > total_available {
+            // Not enough lots — this can happen if the account was synced but
+            // cost-basis entries haven't been recorded yet.  Return an error so
+            // callers can decide whether to warn or abort.
+            return Err(CryptofolioError::InsufficientTaxLots {
+                asset: asset.to_string(),
+                required: quantity,
+                available: total_available,
+            });
+        }
+
+        let mut remaining = quantity;
+        let mut touched = 0;
+
+        for lot in &lots {
+            if remaining <= Decimal::ZERO {
+                break;
+            }
+
+            let move_qty = remaining.min(lot.remaining_quantity);
+
+            // Reduce / close source lot
+            let new_src_remaining = lot.remaining_quantity - move_qty;
+            self.tax_lot_repo
+                .update_remaining(lot.id, new_src_remaining)
+                .await?;
+            if new_src_remaining == Decimal::ZERO {
+                self.tax_lot_repo.mark_disposed(lot.id).await?;
+            }
+
+            // Open matching lot in destination account
+            let dest_lot = TaxLot {
+                id: 0,
+                account_id: to_account_id.to_string(),
+                asset: asset.to_uppercase(),
+                quantity: move_qty,
+                remaining_quantity: move_qty,
+                acquisition_price: lot.acquisition_price,
+                acquisition_date: lot.acquisition_date,
+                acquisition_tx_id: lot.acquisition_tx_id, // link back to original buy
+                cost_basis_method: method,
+                fully_disposed: false,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            };
+            self.tax_lot_repo.create(&dest_lot).await?;
+
+            remaining -= move_qty;
+            touched += 1;
+        }
+
+        Ok(touched)
+    }
+
+    /// Remove up to `quantity` of an asset's lots from an account WITHOUT
+    /// recording realized P&L. Used when coins leave the tracked set (a transfer
+    /// to an external wallet — not a sale) and to unwind an over-recorded
+    /// acquisition via a `correction` row. Consumes lots in `method` order and
+    /// clamps to what is available (a partial/absent lot set is not an error
+    /// here — corrections and transfers can precede a full backfill). Returns
+    /// the number of lots touched.
+    pub async fn remove_lots(
+        &self,
+        account_id: &str,
+        asset: &str,
+        quantity: Decimal,
+        method: CostBasisMethod,
+    ) -> Result<usize> {
+        let lots = self
+            .tax_lot_repo
+            .get_available_lots(account_id, asset, method)
+            .await?;
+
+        let mut remaining = quantity;
+        let mut touched = 0;
+        for lot in &lots {
+            if remaining <= Decimal::ZERO {
+                break;
+            }
+            let take = remaining.min(lot.remaining_quantity);
+            let new_remaining = lot.remaining_quantity - take;
+            self.tax_lot_repo
+                .update_remaining(lot.id, new_remaining)
+                .await?;
+            if new_remaining == Decimal::ZERO {
+                self.tax_lot_repo.mark_disposed(lot.id).await?;
+            }
+            remaining -= take;
+            touched += 1;
+        }
+        Ok(touched)
+    }
+
     /// Get total available quantity for an asset (sum of all tax lot remaining quantities)
     pub async fn get_available_quantity(&self, account_id: &str, asset: &str) -> Result<Decimal> {
         let lots = self
@@ -884,5 +998,95 @@ mod tests {
             pnls_a[0].realized_gain, pnls_b[0].realized_gain,
             "Different accounts should have different gains"
         );
+    }
+
+    #[tokio::test]
+    async fn test_transfer_lots_moves_basis_without_pnl() {
+        // Buy in A, transfer to B: B holds the lot at the ORIGINAL basis, A is
+        // empty, and no realized P&L is produced (a transfer is not a sale).
+        let pool = init_memory_pool().await.unwrap();
+        create_test_account(&pool, "acc_a").await;
+        create_test_account(&pool, "acc_b").await;
+        let calc = PnLCalculator::new(&pool);
+
+        create_test_transaction(&pool, 1, "acc_a", "TAO").await;
+        calc.process_acquisition(
+            1,
+            "acc_a",
+            "TAO",
+            dec("10"),
+            dec("260"),
+            Utc::now(),
+            CostBasisMethod::Fifo,
+        )
+        .await
+        .unwrap();
+
+        let touched = calc
+            .transfer_lots("acc_a", "acc_b", "TAO", dec("10"), CostBasisMethod::Fifo)
+            .await
+            .unwrap();
+        assert!(touched >= 1);
+
+        assert_eq!(
+            calc.get_available_quantity("acc_a", "TAO").await.unwrap(),
+            dec("0")
+        );
+        assert_eq!(
+            calc.get_available_quantity("acc_b", "TAO").await.unwrap(),
+            dec("10")
+        );
+        // No realized P&L rows were created by the transfer.
+        let realized = RealizedPnLRepository::new(&pool)
+            .list_by_asset("TAO")
+            .await
+            .unwrap();
+        assert!(realized.is_empty(), "transfer must not realize P&L");
+    }
+
+    #[tokio::test]
+    async fn test_remove_lots_drops_basis_without_pnl() {
+        // remove_lots (transfer-out-external / correction unwind) reduces lots,
+        // clamps to available, and records no realized P&L.
+        let pool = init_memory_pool().await.unwrap();
+        create_test_account(&pool, "acc_a").await;
+        let calc = PnLCalculator::new(&pool);
+
+        create_test_transaction(&pool, 1, "acc_a", "TAO").await;
+        calc.process_acquisition(
+            1,
+            "acc_a",
+            "TAO",
+            dec("10"),
+            dec("260"),
+            Utc::now(),
+            CostBasisMethod::Fifo,
+        )
+        .await
+        .unwrap();
+
+        // Remove 4 (e.g. a correction unwinding an over-recorded 4 TAO).
+        calc.remove_lots("acc_a", "TAO", dec("4"), CostBasisMethod::Fifo)
+            .await
+            .unwrap();
+        assert_eq!(
+            calc.get_available_quantity("acc_a", "TAO").await.unwrap(),
+            dec("6")
+        );
+
+        // Over-removal clamps instead of erroring.
+        calc.remove_lots("acc_a", "TAO", dec("999"), CostBasisMethod::Fifo)
+            .await
+            .unwrap();
+        assert_eq!(
+            calc.get_available_quantity("acc_a", "TAO").await.unwrap(),
+            dec("0")
+        );
+
+        let realized = RealizedPnLRepository::new(&pool)
+            .list_by_asset("TAO")
+            .await
+            .unwrap();
+        assert!(realized.is_empty(), "remove_lots must not realize P&L");
     }
 }

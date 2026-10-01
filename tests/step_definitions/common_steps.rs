@@ -66,7 +66,7 @@ async fn run_command(world: &mut CryptofolioWorld, command: String) {
     // Capture output
     let mut output = Vec::new();
 
-    let result = match parts.get(0).map(|s| s.as_str()) {
+    let result = match parts.first().map(|s| s.as_str()) {
         Some("wallet") => {
             let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
             handle_wallet_command_test(world, &args, &mut output).await
@@ -213,7 +213,7 @@ async fn handle_wallet_command_test(
             // Get the wallet
             use cryptofolio::db::accounts::AccountRepository;
             let repo = AccountRepository::new(&pool);
-            let account = match repo.get_account(&name).await {
+            let account = match repo.get_account(name).await {
                 Ok(Some(acc)) => acc,
                 Ok(None) => {
                     writeln!(output, "[ERROR] Wallet not found: {}", name)?;
@@ -261,9 +261,12 @@ async fn handle_wallet_command_test(
             if !world.accumulated_cardano_tokens.is_empty() {
                 if let Some(mock) = &world.cardano_mock {
                     let address = "addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x";
-                    // Mock ADA balance
-                    mock.mock_balance(address, 100.0).await;
-                    // Mock all accumulated tokens
+                    // NOTE: do NOT call mock_balance here. mock_tokens registers
+                    // GET /addresses/{address} with an amount list that already
+                    // includes 100 ADA (lovelace) alongside the native tokens.
+                    // A prior mock_balance would mount a lovelace-only response on
+                    // the same path and, by wiremock mount order, win — hiding the
+                    // tokens ("No tokens found").
                     let tokens_ref: Vec<(&str, &str, u8)> = world
                         .accumulated_cardano_tokens
                         .iter()
@@ -784,7 +787,7 @@ async fn handle_sync_history_command_test(
         no_fiat,
         no_transfers,
         dry_run,
-        &pool,
+        pool,
         &opts,
     )
     .await;

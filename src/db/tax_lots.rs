@@ -314,12 +314,12 @@ impl<'a> TaxLotRepository<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::migrations;
+    use crate::db::schema;
     use std::str::FromStr;
 
     async fn setup_test_db() -> Result<SqlitePool> {
         let pool = SqlitePool::connect(":memory:").await?;
-        migrations::run(&pool).await?;
+        schema::create(&pool).await?;
         Ok(pool)
     }
 
@@ -654,8 +654,8 @@ mod tests {
 
         // Verify it's marked as disposed
         let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
-        assert_eq!(
-            lots[0].fully_disposed, true,
+        assert!(
+            lots[0].fully_disposed,
             "Lot should be marked as fully disposed"
         );
 

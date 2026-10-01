@@ -24,6 +24,9 @@ pub struct AppConfig {
     pub blockfrost: BlockfrostConfig,
 
     #[serde(default)]
+    pub solana: SolanaConfig,
+
+    #[serde(default)]
     pub display: DisplayConfig,
 
     #[serde(default)]
@@ -37,6 +40,7 @@ impl Default for AppConfig {
             binance: BinanceConfig::default(),
             etherscan: EtherscanConfig::default(),
             blockfrost: BlockfrostConfig::default(),
+            solana: SolanaConfig::default(),
             display: DisplayConfig::default(),
             ai: Some(AiConfig::default()),
         }
@@ -155,6 +159,27 @@ pub struct BlockfrostConfig {
     /// Blockfrost API key for Cardano Preview testnet
     #[serde(default)]
     pub preview_api_key: Option<String>,
+}
+
+/// Solana RPC endpoint. The public `api.mainnet-beta.solana.com` is heavily
+/// rate-limited; a dedicated endpoint (Helius/QuickNode/Alchemy) is recommended
+/// for reliable syncs. Resolved env-first so `SOLANA_RPC_URL` still overrides.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SolanaConfig {
+    /// Solana JSON-RPC URL, e.g. "https://mainnet.helius-rpc.com/?api-key=<key>".
+    /// Can also be set via the SOLANA_RPC_URL environment variable.
+    #[serde(default)]
+    pub rpc_url: Option<String>,
+}
+
+impl SolanaConfig {
+    /// Resolve the RPC URL from the env var first, then config file.
+    pub fn resolve_rpc_url(&self) -> Option<String> {
+        std::env::var("SOLANA_RPC_URL")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| self.rpc_url.clone())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,6 +303,9 @@ impl AppConfig {
             }
             "blockfrost.preview_api_key" => {
                 self.blockfrost.preview_api_key = Some(value.to_string());
+            }
+            "solana.rpc_url" => {
+                self.solana.rpc_url = Some(value.to_string());
             }
             "display.color" => {
                 self.display.color = value

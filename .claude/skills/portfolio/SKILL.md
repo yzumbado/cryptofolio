@@ -55,11 +55,51 @@ Don't set a fixed staleness threshold. Use judgment: 4 days for a volatile asset
 
 After `cryptofolio_sync_wallet`, `cryptofolio_record_transaction`, or any `cryptofolio_manage_*` call, re-fetch the affected account data before reporting results. Never report pre-mutation numbers as current.
 
+**Always use `cost_basis_only: true` when recording buys on synced accounts.**
+
+If an account's balance comes from `cryptofolio_sync_exchange` or `cryptofolio_sync_wallet`, the holdings quantity is already set by the sync. Recording a buy without `cost_basis_only: true` will add to the quantity again, doubling the holding.
+
+Rule: any `record_transaction` with `type: "buy"` on a synced account **must** include `cost_basis_only: true`.
+
+- Wrong: `{ type: "buy", asset: "BTC", quantity: "0.1", account: "Binance", price_usd: "95000" }`
+- Right: `{ type: "buy", asset: "BTC", quantity: "0.1", account: "Binance", price_usd: "95000", cost_basis_only: true }`
+
+Synced accounts are: any exchange account (type `exchange`) and any blockchain wallet that has been synced via `cryptofolio_sync_wallet`. When in doubt, use `cost_basis_only: true`.
+
+**Always use `cryptofolio_get_prices` for price lookups before going anywhere else.**
+
+`cryptofolio_get_prices` fetches from Binance and Binance Alpha. Only fall back to external sources (CoinGecko, etc.) if the tool returns "Not found" for a specific asset (e.g. DeFi tokens like rETH that aren't listed on Binance).
+
 **Surface realized P&L on every sale.**
 
 When recording a sale, call `cryptofolio_get_realized_pnl` after and surface the tax event explicitly:
 
 > "That sale locked in a $1,200 gain. You now have $3,600 in realized gains this year."
+
+**On tool errors and rate-limit failures:**
+
+If a tool returns an error or a sync times out, say so plainly and show whatever partial data is available. Suggest a retry.
+
+- Wrong: "Your ETH balance is approximately $12,400" (fabricated to fill the gap)
+- Right: "The sync timed out — I can't confirm your ETH balance right now. Partial data: 3 of 5 accounts loaded. Try again in a moment."
+
+Never estimate, interpolate, or invent a balance or price to cover a failed call. If a tool repeatedly errors, tell the user and stop trying until they decide to retry.
+
+**On large transaction histories (pagination):**
+
+For accounts with many transactions, query `cryptofolio_list_transactions` in pages using `limit` and `offset` rather than fetching everything at once. Summarize what you fetched and tell the user there may be more.
+
+> "Showing the 50 most recent transactions. There may be earlier records — say 'show more' to page back."
+
+Default page size: 50. Increase only if the user explicitly asks for a larger batch.
+
+**On data staleness:**
+
+Before quoting any balance, value, or P&L figure, check the `last_synced` timestamp on each account. If data is more than ~24 hours old, say so and offer to refresh before proceeding.
+
+> "ETH wallet — last synced 36 hours ago. Numbers may be outdated. Sync now before I report?"
+
+This supplements the freshness judgment rule above: ~24h is a floor, not a ceiling — use shorter windows for volatile positions or active trading accounts.
 
 **When adding a wallet:**
 
@@ -97,7 +137,7 @@ All `cryptofolio_*` MCP tools are at your disposal. Core set:
 | `cryptofolio_sync_wallet` | On demand or when data is stale |
 | `cryptofolio_manage_wallet` | Add / remove wallets |
 | `cryptofolio_manage_account` | Add / remove accounts |
-| `cryptofolio_record_transaction` | Manual trade entry |
+| `cryptofolio_record_transaction` | Manual trade entry — use `cost_basis_only: true` on synced accounts |
 | `cryptofolio_list_transactions` | Transaction history queries |
 | `cryptofolio_export_transactions` | Tax export, reporting |
 | `cryptofolio_analyze_asset` | Deep dive on a single asset |

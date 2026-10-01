@@ -233,7 +233,10 @@ impl<'a> TransactionImporter<'a> {
             exchange_rate_pair: None,
             fee: None,
             fee_asset: None,
+            tx_hash: deposit.tx_id.clone(),
             external_id: Some(external_id),
+            source: "binance_api".to_string(),
+            trust_level: "exchange_verified".to_string(),
             notes: Some(format!(
                 "Binance deposit #{} via {} network{}",
                 deposit.id,
@@ -320,7 +323,10 @@ impl<'a> TransactionImporter<'a> {
             exchange_rate_pair: None,
             fee: Some(withdrawal.transaction_fee),
             fee_asset: Some(withdrawal.coin.to_uppercase()),
+            tx_hash: withdrawal.tx_id.clone(),
             external_id: Some(external_id),
+            source: "binance_api".to_string(),
+            trust_level: "exchange_verified".to_string(),
             notes: Some(format!(
                 "Binance withdrawal #{} via {} to {}{}",
                 withdrawal.id,
@@ -338,33 +344,14 @@ impl<'a> TransactionImporter<'a> {
 
         let tx_id = self.tx_repo.insert(&tx).await?;
 
-        // Consume FIFO tax lots for the disposal.
-        // Use avg cost basis as the disposal price so no phantom gain/loss is
-        // recorded (a transfer out to an external wallet is a disposal event in
-        // terms of lot tracking, but P&L recognition depends on jurisdiction).
-        let disposal_price = self
-            .holding_repo
-            .get(account_id, &withdrawal.coin.to_uppercase())
-            .await
-            .ok()
-            .flatten()
-            .and_then(|h| h.avg_cost_basis)
-            .unwrap_or(Decimal::ZERO);
-
-        let _ = self
-            .pnl_calc
-            .process_disposal(
-                tx_id,
-                account_id,
-                &withdrawal.coin.to_uppercase(),
-                total_sent,
-                disposal_price,
-                timestamp,
-                CostBasisMethod::Fifo,
-            )
-            .await;
-
-        // Update holdings (silently ignore if not enough balance)
+        // A withdrawal is a TRANSFER of your own coins off the exchange, NOT a
+        // sale — so it must not recognize realized gain/loss. (The prior code
+        // called process_disposal using avg_cost_basis as the price to net to
+        // zero, but when a balance-only sync left avg_cost_basis unset it fell
+        // back to price 0, booking a phantom realized LOSS equal to the whole
+        // cost basis.) We intentionally do NOT dispose lots here; cost basis
+        // travels with the coins and is realized on the eventual real sale.
+        // Only adjust the on-exchange balance.
         let _ = self
             .holding_repo
             .remove_quantity(account_id, &withdrawal.coin.to_uppercase(), total_sent)
@@ -711,13 +698,13 @@ mod tests {
 
     // ---- Integration-style tests using in-memory DB ----
 
-    use crate::db::migrations;
+    use crate::db::schema;
     use rust_decimal::Decimal;
     use std::str::FromStr;
 
     async fn setup_db() -> sqlx::SqlitePool {
         let pool = sqlx::SqlitePool::connect(":memory:").await.unwrap();
-        migrations::run(&pool).await.unwrap();
+        schema::create(&pool).await.unwrap();
         sqlx::query("INSERT INTO categories (id, name) VALUES ('cat', 'Test')")
             .execute(&pool)
             .await
