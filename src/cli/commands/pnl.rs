@@ -713,27 +713,19 @@ async fn calculate_total_unrealized(
         return Ok(Decimal::ZERO);
     }
 
-    // Fetch current prices
-    let unique_assets: Vec<String> = filtered_holdings
-        .iter()
-        .map(|h| h.asset.clone())
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-
-    let client = BinanceClient::new(use_testnet, None, None);
-
-    let mut prices = std::collections::HashMap::new();
-    for asset in &unique_assets {
-        if let Ok(price_data) = client.get_price(asset).await {
-            prices.insert(asset.clone(), price_data.price);
-        }
-    }
+    // Fetch current prices through the SHARED valuation pipeline (classify DeFi
+    // receipts and price their underlying, Binance + Alpha, stablecoin peg, LST
+    // on-chain rate). Using the same path as `portfolio` is what keeps the two
+    // commands in agreement; the old per-raw-symbol `get_price` loop here priced
+    // receipt tokens by their own symbol and produced phantom multi-billion
+    // unrealized figures.
+    let price_map =
+        crate::core::pricing::build_price_map(&filtered_holdings, &config, use_testnet).await;
 
     let mut total_unrealized = Decimal::ZERO;
 
     for holding in &filtered_holdings {
-        if let Some(&current_price) = prices.get(&holding.asset) {
+        if let Some(current_price) = crate::core::pricing::price_for_holding(holding, &price_map) {
             let unrealized_pnl = pnl_calc
                 .calculate_unrealized_pnl(&holding.account_id, &holding.asset, current_price)
                 .await
