@@ -432,6 +432,7 @@ async fn handle_wallet_list(
                     "ethereum" => "Ξ",
                     "solana" => "◎",
                     "cardano" => "₳",
+                    "bittensor" => "τ",
                     _ => "•",
                 };
 
@@ -520,6 +521,7 @@ async fn handle_wallet_show(name: String, pool: &SqlitePool, opts: &GlobalOption
                     "ethereum" => "Ξ",
                     "solana" => "◎",
                     "cardano" => "₳",
+                    "bittensor" => "τ",
                     _ => "•",
                 };
                 let network_tag = if addr.network.as_deref() == Some("testnet") {
@@ -1238,11 +1240,41 @@ fn validate_address_for_blockchain(address: &str, blockchain: &str) -> Result<()
         }
         "solana" => validate_solana_address(address),
         "cardano" => blockchain::cardano::validate_address(address),
+        "bittensor" => validate_bittensor_address(address),
         _ => Err(CryptofolioError::Other(format!(
-            "Unsupported blockchain: {}. Supported: bitcoin, ethereum, solana, cardano",
+            "Unsupported blockchain: {}. Supported: bitcoin, ethereum, solana, cardano, bittensor",
             blockchain
         ))),
     }
+}
+
+/// Validate a Bittensor (Substrate SS58) address.
+///
+/// Bittensor coldkeys/hotkeys are SS58-encoded (base58check over a 32-byte
+/// public key with a network prefix). Mainnet addresses render in the 47–48
+/// char range and start with `5` (the generic Substrate prefix 42). This is a
+/// lightweight shape check — base58 charset + length — not a full checksum
+/// verify, matching the style of the Solana validator above. Watch-only: the
+/// address is only ever used to query Taostats.
+fn validate_bittensor_address(address: &str) -> Result<()> {
+    if address.is_empty() {
+        return Err(CryptofolioError::Other(
+            "Empty Bittensor address".to_string(),
+        ));
+    }
+    if address.len() < 46 || address.len() > 50 {
+        return Err(CryptofolioError::Other(
+            "Invalid Bittensor address: SS58 addresses are ~47-48 characters".to_string(),
+        ));
+    }
+    // Base58 alphabet (no 0, O, I, l).
+    const B58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    if !address.chars().all(|c| B58.contains(c)) {
+        return Err(CryptofolioError::Other(
+            "Invalid Bittensor address: contains non-base58 characters".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Validate a Solana address.
