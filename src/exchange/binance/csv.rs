@@ -711,30 +711,40 @@ fn classify_tx_history_row(
 fn map_operation(op: &str) -> Option<TransactionType> {
     use TransactionType::*;
     Some(match op {
-        "Transaction Buy" | "Buy Crypto With Fiat" => Buy,
+        "Transaction Buy" | "Buy Crypto With Fiat" | "Buy" | "Instant Order Settlement" => Buy,
         "Transaction Sold" => Sell,
-        "Transaction Spend" => TransferOut,
+        "Transaction Spend" | "Merchant Acquiring" => TransferOut,
         "Transaction Revenue" => TransferIn,
         "Transaction Fee" | "Fee" | "Alpha Token - Payment" => Fee,
         "Withdraw" | "Send" => TransferOut,
         "Deposit" => TransferIn,
         "Simple Earn Flexible Subscription"
         | "Simple Earn Locked Subscription"
-        | "Alpha 2.0 - Asset Freeze" => Stake,
+        | "Alpha 2.0 - Asset Freeze"
+        | "Asset Freeze" => Stake,
         "Simple Earn Flexible Redemption"
         | "Simple Earn Locked Redemption"
-        | "Alpha 2.0 - Refund" => Unstake,
+        | "Alpha 2.0 - Refund"
+        | "Alpha Token - Refund" => Unstake,
         "Simple Earn Flexible Interest"
         | "Simple Earn Locked Rewards"
         | "Strategy Trading Fee Rebate"
+        | "Futures Referral Rebate"
         | "Cash Voucher" => Earn,
-        "HODLer Airdrops Distribution" | "Earn - Airdrop Distribution" => Airdrop,
+        "HODLer Airdrops Distribution"
+        | "Earn - Airdrop Distribution"
+        | "Launchpool Airdrop - System Distribution"
+        | "Crypto Box" => Airdrop,
         "Binance Convert" => Swap,
         "Transfer Between Spot and Strategy Account"
+        | "Transfer Between Spot and Strategy"
         | "Transfer Funds to Spot"
         | "Transfer Funds to Funding Wallet"
         | "Transfer Between Alpha And Spot"
+        | "Transfer Between Alpha and Spot"
+        | "Vega - Funds Transfer"
         | "Funds Transfer Request - Vega"
+        | "Transfer"
         | "Transfer Funds to Spot Account" => TransferInternal,
         "Realized Profit and Loss" => Correction,
         _ => return None,
@@ -747,9 +757,19 @@ fn map_operation(op: &str) -> Option<TransactionType> {
 
 /// Parse Binance 2-digit-year timestamp: "25-11-28 13:29:41"
 fn parse_binance_time(s: &str) -> Result<DateTime<Utc>> {
-    NaiveDateTime::parse_from_str(s, "%y-%m-%d %H:%M:%S")
+    // Binance Transaction History emits a four-digit year, e.g.
+    // "2025-11-28 13:29:41". (%y expects two digits and rejected everything.)
+    // Accept a date-only form too, defaulting to midnight.
+    let parsed = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S")
+        .ok()
+        .or_else(|| {
+            chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .ok()
+                .and_then(|d| d.and_hms_opt(0, 0, 0))
+        });
+    parsed
         .map(|dt| Utc.from_utc_datetime(&dt))
-        .map_err(|_| CryptofolioError::Config(format!("Cannot parse Binance timestamp: '{}'", s)))
+        .ok_or_else(|| CryptofolioError::Config(format!("Cannot parse Binance timestamp: '{}'", s)))
 }
 
 /// Strip commas and parse a Decimal.
@@ -860,7 +880,8 @@ mod tests {
 
     #[test]
     fn test_parse_binance_time() {
-        let dt = parse_binance_time("25-11-28 13:29:41").unwrap();
+        // Real Binance exports use a four-digit year.
+        let dt = parse_binance_time("2025-11-28 13:29:41").unwrap();
         assert_eq!(dt.year(), 2025);
         assert_eq!(dt.month(), 11);
         assert_eq!(dt.day(), 28);
@@ -902,8 +923,8 @@ mod tests {
     #[test]
     fn test_parse_tx_history_csv() {
         let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
-                   1234567,25-11-28 13:29:41,Spot,Deposit,USD,2000.72,\n\
-                   1234567,25-11-28 13:37:32,Spot,Simple Earn Flexible Interest,USDC,1.23,\n";
+                   1234567,2025-11-28 13:29:41,Spot,Deposit,USD,2000.72,\n\
+                   1234567,2025-11-28 13:37:32,Spot,Simple Earn Flexible Interest,USDC,1.23,\n";
 
         let rows = parse_bytes(csv.as_bytes()).unwrap().rows;
         assert_eq!(rows.len(), 2);
@@ -949,8 +970,8 @@ mod tests {
     fn test_external_id_uniqueness() {
         // Two rows with same time but different coin must have different external_ids
         let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
-                   1,25-11-28 13:29:41,Spot,Deposit,USD,100.00,\n\
-                   1,25-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n";
+                   1,2025-11-28 13:29:41,Spot,Deposit,USD,100.00,\n\
+                   1,2025-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n";
         let rows = parse_bytes(csv.as_bytes()).unwrap().rows;
         assert_ne!(rows[0].external_id, rows[1].external_id);
     }
@@ -960,8 +981,8 @@ mod tests {
         // Two legitimately distinct rows sharing (time, coin, change) must BOTH
         // survive — the dedup key disambiguates them instead of collapsing one.
         let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
-                   1,25-11-28 13:29:41,Spot,Simple Earn Flexible Interest,USDC,1.23,\n\
-                   1,25-11-28 13:29:41,Spot,Simple Earn Flexible Interest,USDC,1.23,\n";
+                   1,2025-11-28 13:29:41,Spot,Simple Earn Flexible Interest,USDC,1.23,\n\
+                   1,2025-11-28 13:29:41,Spot,Simple Earn Flexible Interest,USDC,1.23,\n";
         let rows = parse_bytes(csv.as_bytes()).unwrap().rows;
         assert_eq!(rows.len(), 2);
         assert_ne!(rows[0].external_id, rows[1].external_id);
@@ -976,8 +997,8 @@ mod tests {
     fn test_unknown_operation_fails_closed_not_earn() {
         // An unrecognised operation must NOT be silently imported as income.
         let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
-                   1,25-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n\
-                   1,25-11-28 13:30:00,Spot,Some Brand New Op,XYZ,5.00,\n";
+                   1,2025-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n\
+                   1,2025-11-28 13:30:00,Spot,Some Brand New Op,XYZ,5.00,\n";
         let report = parse_bytes(csv.as_bytes()).unwrap();
 
         // The known deposit imports; the unknown op is skipped, not invented as Earn.
@@ -996,13 +1017,26 @@ mod tests {
     fn test_malformed_row_is_reported_not_dropped() {
         // A row with an unparseable amount is surfaced as skipped, not silently lost.
         let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
-                   1,25-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n\
-                   1,25-11-28 13:30:00,Spot,Deposit,USDT,not_a_number,\n";
+                   1,2025-11-28 13:29:41,Spot,Deposit,USDT,100.00,\n\
+                   1,2025-11-28 13:30:00,Spot,Deposit,USDT,not_a_number,\n";
         let report = parse_bytes(csv.as_bytes()).unwrap();
 
         assert_eq!(report.rows.len(), 1);
         assert_eq!(report.skipped.len(), 1);
         // Line number points at the offending record (header is line 1).
         assert_eq!(report.skipped[0].line, 3);
+    }
+
+    #[test]
+    fn test_parse_binance_time_four_digit_year() {
+        // Regression: real Binance exports use a four-digit year. The parser
+        // previously used %y (two digits) and rejected every row.
+        let t = parse_binance_time("2025-11-28 13:29:41").expect("4-digit year parses");
+        assert_eq!(t.to_rfc3339(), "2025-11-28T13:29:41+00:00");
+        // Date-only form defaults to midnight.
+        let d = parse_binance_time("2026-04-09").expect("date-only parses");
+        assert_eq!(d.to_rfc3339(), "2026-04-09T00:00:00+00:00");
+        // Genuinely bad input still errors.
+        assert!(parse_binance_time("not-a-date").is_err());
     }
 }
