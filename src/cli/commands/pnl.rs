@@ -472,11 +472,14 @@ async fn handle_backfill(
         ));
     }
 
-    // Clear existing P&L data
-    sqlx::query("DELETE FROM tax_lots").execute(pool).await?;
+    // Clear existing P&L data. Order matters: realized_pnl.tax_lot_id has a
+    // FOREIGN KEY onto tax_lots(id), so the child table MUST be cleared before
+    // the parent. Deleting tax_lots first aborts with FK error 787 on any
+    // re-run (when realized_pnl already holds rows from a prior backfill).
     sqlx::query("DELETE FROM realized_pnl")
         .execute(pool)
         .await?;
+    sqlx::query("DELETE FROM tax_lots").execute(pool).await?;
 
     let method = CostBasisMethod::Fifo; // Default
     let mut buy_count = 0;
