@@ -27,6 +27,9 @@ pub struct AppConfig {
     pub solana: SolanaConfig,
 
     #[serde(default)]
+    pub bittensor: BittensorConfig,
+
+    #[serde(default)]
     pub display: DisplayConfig,
 
     #[serde(default)]
@@ -41,6 +44,7 @@ impl Default for AppConfig {
             etherscan: EtherscanConfig::default(),
             blockfrost: BlockfrostConfig::default(),
             solana: SolanaConfig::default(),
+            bittensor: BittensorConfig::default(),
             display: DisplayConfig::default(),
             ai: Some(AiConfig::default()),
         }
@@ -182,6 +186,25 @@ impl SolanaConfig {
     }
 }
 
+/// Bittensor (TAO) via the Taostats API. Watch-only: a coldkey address in,
+/// free + staked TAO balances out. Needs a Taostats API key (free tier exists).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BittensorConfig {
+    /// Taostats API key. Can also be set via the TAOSTATS_API_KEY env var.
+    #[serde(default)]
+    pub api_key: Option<String>,
+}
+
+impl BittensorConfig {
+    /// Resolve the API key from the env var first, then config file.
+    pub fn resolve_api_key(&self) -> Option<String> {
+        std::env::var("TAOSTATS_API_KEY")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| self.api_key.clone())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {
     /// Enable colored output
@@ -306,6 +329,9 @@ impl AppConfig {
             }
             "solana.rpc_url" => {
                 self.solana.rpc_url = Some(value.to_string());
+            }
+            "bittensor.api_key" => {
+                self.bittensor.api_key = Some(value.to_string());
             }
             "display.color" => {
                 self.display.color = value

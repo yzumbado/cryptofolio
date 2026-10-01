@@ -1,4 +1,5 @@
 pub mod bitcoin;
+pub mod bittensor;
 pub mod cardano;
 pub mod ethereum;
 pub mod provider;

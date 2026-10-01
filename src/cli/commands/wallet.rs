@@ -675,6 +675,31 @@ async fn handle_wallet_sync(
         }
     }
 
+    // Bittensor — Taostats API (key from TAOSTATS_API_KEY env or [bittensor]
+    // config). Warn (not silently skip) when absent.
+    let taostats_key = std::env::var("TAOSTATS_API_KEY")
+        .ok()
+        .or_else(|| cfg.as_ref().and_then(|c| c.bittensor.resolve_api_key()));
+    match taostats_key {
+        Some(key) => {
+            use crate::blockchain::bittensor::TaostatsClient;
+            registry.register(
+                &Chain::Bittensor,
+                Arc::new(TaostatsClient::new(Some(key))),
+                PrivacyLevel::Custom,
+            );
+        }
+        None => {
+            if !opts.quiet {
+                println!(
+                    "  ⚠️  Bittensor skipped: no Taostats API key. Set one with \
+                     `cryptofolio config set bittensor.api_key <key>` or the \
+                     TAOSTATS_API_KEY env var."
+                );
+            }
+        }
+    }
+
     let engine = SyncEngine::new(Arc::new(registry), pool.clone());
 
     // Collect all (address, chain) pairs across all wallets
@@ -697,6 +722,7 @@ async fn handle_wallet_sync(
                 "ethereum" => Chain::Ethereum,
                 "cardano" => Chain::Cardano,
                 "solana" => Chain::Solana,
+                "bittensor" => Chain::Bittensor,
                 other => {
                     if !opts.quiet {
                         println!("  ⚠️  Blockchain {} not yet supported for sync", other);
