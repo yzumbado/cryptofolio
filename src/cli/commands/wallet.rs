@@ -644,14 +644,29 @@ async fn handle_wallet_sync(
         );
     }
 
-    // Solana — user-configured RPC (skipped if not set)
-    if let Ok(rpc_url) = std::env::var("SOLANA_RPC_URL") {
-        use crate::blockchain::solana::SolanaRpcClient;
-        registry.register(
-            &Chain::Solana,
-            Arc::new(SolanaRpcClient::new(rpc_url)),
-            PrivacyLevel::Custom,
-        );
+    // Solana — RPC from SOLANA_RPC_URL env var or [solana] rpc_url in config.
+    // Warn (not silently skip) when absent, so a dark Solana sync is visible.
+    let solana_rpc = crate::config::AppConfig::load()
+        .ok()
+        .and_then(|c| c.solana.resolve_rpc_url());
+    match solana_rpc {
+        Some(rpc_url) => {
+            use crate::blockchain::solana::SolanaRpcClient;
+            registry.register(
+                &Chain::Solana,
+                Arc::new(SolanaRpcClient::new(rpc_url)),
+                PrivacyLevel::Custom,
+            );
+        }
+        None => {
+            if !opts.quiet {
+                println!(
+                    "  ⚠️  Solana skipped: no RPC URL. Set one with \
+                     `cryptofolio config set solana.rpc_url <url>` or the \
+                     SOLANA_RPC_URL env var."
+                );
+            }
+        }
     }
 
     let engine = SyncEngine::new(Arc::new(registry), pool.clone());
