@@ -70,6 +70,15 @@ const DEBT_PREFIXES: &[&str] = &[
 /// is matched last and only when the remainder looks like a real symbol.
 const SUPPLY_PREFIXES: &[&str] = &["aeth", "aarb", "aopt", "abas", "apol", "aava"];
 
+/// Binance **Simple Earn** wrapper prefix. Binance reports a Flexible/Locked
+/// Earn position for asset `X` under the symbol `LDX` (e.g. `LDUSDT`, `LDNEAR`,
+/// `LDRPL`). The `LD` wrapper has no price feed of its own and tracks the
+/// underlying 1:1, so — exactly like an Aave aToken — it must be priced by the
+/// underlying's USD price and counts positively toward net worth. Treating it
+/// as a plain `LDX` symbol leaves it unpriced (the feed has no `LDNEAR`),
+/// silently dropping a real balance from the portfolio total.
+const EARN_PREFIX: &str = "ld";
+
 /// Classify a raw holding symbol into its DeFi kind and underlying asset.
 ///
 /// Matching is case-insensitive on the prefix; the returned `underlying`
@@ -95,6 +104,17 @@ pub fn classify(symbol: &str) -> DefiAsset {
                 underlying: symbol[p.len()..].to_string(),
             };
         }
+    }
+
+    // Binance Simple Earn: `LDX` wraps underlying `X`. Require a remainder of
+    // at least 2 chars so we don't mis-split a genuine 2-3 letter token that
+    // merely starts with "LD" (none are known today, but the guard is cheap).
+    // Priced like a Supply position (positive, by the underlying's price).
+    if lower.starts_with(EARN_PREFIX) && lower.len() > EARN_PREFIX.len() + 1 {
+        return DefiAsset {
+            kind: DefiKind::Supply,
+            underlying: symbol[EARN_PREFIX.len()..].to_string(),
+        };
     }
 
     DefiAsset {
@@ -178,6 +198,29 @@ mod tests {
         // Ensure "variableDebtEth..." is not mis-read as an "a..."/supply token.
         assert_eq!(classify("stableDebtEthDAI").kind, DefiKind::Debt);
         assert_eq!(classify("stableDebtEthDAI").underlying, "DAI");
+    }
+
+    #[test]
+    fn binance_earn_wrappers_map_to_underlying() {
+        // LDX -> Supply/X, priced by the underlying, positive sign.
+        let n = classify("LDNEAR");
+        assert_eq!(n.kind, DefiKind::Supply);
+        assert_eq!(n.underlying, "NEAR");
+        assert_eq!(n.sign(), 1);
+
+        assert_eq!(classify("LDUSDT").underlying, "USDT");
+        assert_eq!(classify("LDRPL").underlying, "RPL");
+        assert_eq!(classify("ldhome").underlying, "home"); // case-insensitive prefix
+    }
+
+    #[test]
+    fn short_symbols_starting_with_ld_are_not_split() {
+        // A 2-char remainder guard: a hypothetical real token must not be
+        // mis-read as an Earn wrapper. "LDO" (Lido DAO) has a 1-char remainder
+        // after "LD", so it stays Plain.
+        let ldo = classify("LDO");
+        assert_eq!(ldo.kind, DefiKind::Plain);
+        assert_eq!(ldo.underlying, "LDO");
     }
 
     #[test]
