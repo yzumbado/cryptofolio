@@ -306,17 +306,24 @@ impl BlockfrostClient {
             .await
             .map_err(|e| CryptofolioError::Network(format!("Failed to parse response: {}", e)))?;
 
+        // Prefer the token-registry ticker/name, then on-chain metadata name,
+        // then the hex-decoded asset_name. (NIGHT's name lives in the registry.)
         let display_name = data
-            .onchain_metadata
+            .metadata
             .as_ref()
-            .and_then(|m| m.name.clone())
+            .and_then(|m| m.ticker.clone().or_else(|| m.name.clone()))
+            .or_else(|| data.onchain_metadata.as_ref().and_then(|m| m.name.clone()))
             .or_else(|| data.asset_name.as_deref().map(decode_asset_name))
             .unwrap_or_default();
 
+        // Decimals: registry first (where fungible-token decimals usually live),
+        // then on-chain metadata, else 0. Reading only on-chain metadata stored
+        // NIGHT (6 decimals, registry-only) unscaled — a 100.6-billion phantom.
         let decimals = data
-            .onchain_metadata
+            .metadata
             .as_ref()
             .and_then(|m| m.decimals)
+            .or_else(|| data.onchain_metadata.as_ref().and_then(|m| m.decimals))
             .unwrap_or(0);
 
         Ok((display_name, decimals))
@@ -528,11 +535,23 @@ struct AmountItem {
 struct BlockfrostAssetResponse {
     asset_name: Option<String>,
     onchain_metadata: Option<OnchainMetadata>,
+    /// Off-chain CIP-26 token-registry metadata. For many fungible tokens
+    /// (e.g. NIGHT) `decimals` and `name`/`ticker` live HERE, not in
+    /// `onchain_metadata` (which is null). Must be consulted or the raw base
+    /// units are stored unscaled — a phantom balance millions of times too big.
+    metadata: Option<RegistryMetadata>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OnchainMetadata {
     name: Option<String>,
+    decimals: Option<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistryMetadata {
+    name: Option<String>,
+    ticker: Option<String>,
     decimals: Option<u8>,
 }
 
