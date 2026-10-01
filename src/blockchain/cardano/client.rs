@@ -310,7 +310,7 @@ impl BlockfrostClient {
             .onchain_metadata
             .as_ref()
             .and_then(|m| m.name.clone())
-            .or(data.asset_name)
+            .or_else(|| data.asset_name.as_deref().map(decode_asset_name))
             .unwrap_or_default();
 
         let decimals = data
@@ -720,6 +720,24 @@ impl BlockchainClient for BlockfrostClient {
     }
 }
 
+/// Decode a Cardano `asset_name` into a readable ticker.
+///
+/// Blockfrost returns `asset_name` **hex-encoded** (e.g. NIGHT's asset_name is
+/// `4e49474854`). When no on-chain metadata `name` is present we fall back to
+/// this field — but it must be hex-decoded to UTF-8 first, or the holding is
+/// stored under a junk symbol like `4e49474854` instead of `NIGHT`. If the
+/// value is not valid hex, or decodes to non-text/empty bytes, we return the
+/// original string unchanged (some names are already plain text).
+fn decode_asset_name(hex_name: &str) -> String {
+    match hex::decode(hex_name) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(s) if !s.is_empty() && s.chars().all(|c| !c.is_control()) => s,
+            _ => hex_name.to_string(),
+        },
+        Err(_) => hex_name.to_string(),
+    }
+}
+
 /// Compute a CIP-14 asset fingerprint.
 ///
 /// Algorithm:
@@ -747,6 +765,26 @@ fn cip14_fingerprint(policy_id_hex: &str, asset_name_hex: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_decode_asset_name_hex_to_ticker() {
+        // NIGHT's Cardano asset_name is hex "4e49474854" -> "NIGHT".
+        assert_eq!(decode_asset_name("4e49474854"), "NIGHT");
+    }
+
+    #[test]
+    fn test_decode_asset_name_passthrough_non_hex() {
+        // Already-plain names and odd/invalid hex pass through unchanged.
+        assert_eq!(decode_asset_name("NIGHT"), "NIGHT");
+        assert_eq!(decode_asset_name("xyz"), "xyz");
+    }
+
+    #[test]
+    fn test_decode_asset_name_rejects_binary() {
+        // Hex that decodes to control/binary bytes is NOT a readable ticker;
+        // keep the original hex rather than emit garbage.
+        assert_eq!(decode_asset_name("0001"), "0001");
+    }
 
     #[test]
     fn test_cip14_fingerprint_known_vector() {
