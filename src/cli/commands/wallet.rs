@@ -432,6 +432,7 @@ async fn handle_wallet_list(
                     "ethereum" => "Ξ",
                     "solana" => "◎",
                     "cardano" => "₳",
+                    "bittensor" => "τ",
                     _ => "•",
                 };
 
@@ -520,6 +521,7 @@ async fn handle_wallet_show(name: String, pool: &SqlitePool, opts: &GlobalOption
                     "ethereum" => "Ξ",
                     "solana" => "◎",
                     "cardano" => "₳",
+                    "bittensor" => "τ",
                     _ => "•",
                 };
                 let network_tag = if addr.network.as_deref() == Some("testnet") {
@@ -675,6 +677,31 @@ async fn handle_wallet_sync(
         }
     }
 
+    // Bittensor — Taostats API (key from TAOSTATS_API_KEY env or [bittensor]
+    // config). Warn (not silently skip) when absent.
+    let taostats_key = std::env::var("TAOSTATS_API_KEY")
+        .ok()
+        .or_else(|| cfg.as_ref().and_then(|c| c.bittensor.resolve_api_key()));
+    match taostats_key {
+        Some(key) => {
+            use crate::blockchain::bittensor::TaostatsClient;
+            registry.register(
+                &Chain::Bittensor,
+                Arc::new(TaostatsClient::new(Some(key))),
+                PrivacyLevel::Custom,
+            );
+        }
+        None => {
+            if !opts.quiet {
+                println!(
+                    "  ⚠️  Bittensor skipped: no Taostats API key. Set one with \
+                     `cryptofolio config set bittensor.api_key <key>` or the \
+                     TAOSTATS_API_KEY env var."
+                );
+            }
+        }
+    }
+
     let engine = SyncEngine::new(Arc::new(registry), pool.clone());
 
     // Collect all (address, chain) pairs across all wallets
@@ -697,6 +724,7 @@ async fn handle_wallet_sync(
                 "ethereum" => Chain::Ethereum,
                 "cardano" => Chain::Cardano,
                 "solana" => Chain::Solana,
+                "bittensor" => Chain::Bittensor,
                 other => {
                     if !opts.quiet {
                         println!("  ⚠️  Blockchain {} not yet supported for sync", other);
@@ -1212,11 +1240,41 @@ fn validate_address_for_blockchain(address: &str, blockchain: &str) -> Result<()
         }
         "solana" => validate_solana_address(address),
         "cardano" => blockchain::cardano::validate_address(address),
+        "bittensor" => validate_bittensor_address(address),
         _ => Err(CryptofolioError::Other(format!(
-            "Unsupported blockchain: {}. Supported: bitcoin, ethereum, solana, cardano",
+            "Unsupported blockchain: {}. Supported: bitcoin, ethereum, solana, cardano, bittensor",
             blockchain
         ))),
     }
+}
+
+/// Validate a Bittensor (Substrate SS58) address.
+///
+/// Bittensor coldkeys/hotkeys are SS58-encoded (base58check over a 32-byte
+/// public key with a network prefix). Mainnet addresses render in the 47–48
+/// char range and start with `5` (the generic Substrate prefix 42). This is a
+/// lightweight shape check — base58 charset + length — not a full checksum
+/// verify, matching the style of the Solana validator above. Watch-only: the
+/// address is only ever used to query Taostats.
+fn validate_bittensor_address(address: &str) -> Result<()> {
+    if address.is_empty() {
+        return Err(CryptofolioError::Other(
+            "Empty Bittensor address".to_string(),
+        ));
+    }
+    if address.len() < 46 || address.len() > 50 {
+        return Err(CryptofolioError::Other(
+            "Invalid Bittensor address: SS58 addresses are ~47-48 characters".to_string(),
+        ));
+    }
+    // Base58 alphabet (no 0, O, I, l).
+    const B58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    if !address.chars().all(|c| B58.contains(c)) {
+        return Err(CryptofolioError::Other(
+            "Invalid Bittensor address: contains non-base58 characters".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Validate a Solana address.

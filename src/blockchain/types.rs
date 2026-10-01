@@ -9,6 +9,7 @@ pub enum Chain {
     Ethereum,
     Cardano,
     Solana,
+    Bittensor,
 }
 
 impl Chain {
@@ -19,6 +20,7 @@ impl Chain {
             Chain::Ethereum => "ETH",
             Chain::Cardano => "ADA",
             Chain::Solana => "SOL",
+            Chain::Bittensor => "TAO",
         }
     }
 
@@ -29,6 +31,7 @@ impl Chain {
             Chain::Ethereum => 18,
             Chain::Cardano => 6,
             Chain::Solana => 9,
+            Chain::Bittensor => 9,
         }
     }
 
@@ -39,6 +42,7 @@ impl Chain {
             Chain::Ethereum => "ethereum",
             Chain::Cardano => "cardano",
             Chain::Solana => "solana",
+            Chain::Bittensor => "bittensor",
         }
     }
 }
@@ -58,6 +62,7 @@ impl std::str::FromStr for Chain {
             "ethereum" | "eth" => Ok(Chain::Ethereum),
             "cardano" | "ada" => Ok(Chain::Cardano),
             "solana" | "sol" => Ok(Chain::Solana),
+            "bittensor" | "tao" => Ok(Chain::Bittensor),
             other => Err(format!("Unknown chain: {other}")),
         }
     }
@@ -148,6 +153,12 @@ pub enum ChainExtras {
     },
     Solana {
         stake_accounts: Vec<SolanaStakeAccount>,
+    },
+    Bittensor {
+        /// Free (liquid) TAO balance.
+        free: Decimal,
+        /// Total staked TAO (root + alpha-as-tao), valued in TAO.
+        staked: Decimal,
     },
     Bitcoin {},
     Ethereum {},
