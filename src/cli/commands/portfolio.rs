@@ -1,5 +1,4 @@
 use colored::Colorize;
-use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -11,7 +10,6 @@ use crate::core::holdings::HoldingWithPrice;
 use crate::core::portfolio::{Portfolio, PortfolioEntry};
 use crate::db::{AccountRepository, HoldingRepository};
 use crate::error::Result;
-use crate::exchange::{BinanceAlphaClient, BinanceClient, Exchange};
 
 #[derive(Serialize)]
 struct PortfolioOutput {
@@ -70,91 +68,16 @@ pub async fn handle_portfolio_command(
         .map(|c| (c.id.clone(), c.name.clone()))
         .collect();
 
-    // Collect all unique assets — including the UNDERLYING of any DeFi receipt
-    // token (aToken / debt token), which is the symbol we actually price.
+    // All holdings — the shared pricer derives the symbols it needs (including
+    // the underlying of every DeFi/Earn receipt) from this set.
     let all_holdings = holding_repo.list_all().await?;
-    let unique_assets: Vec<String> = all_holdings
-        .iter()
-        .flat_map(|h| {
-            let classified = crate::core::defi::classify(&h.asset);
-            // Price the underlying for DeFi tokens; the raw symbol otherwise.
-            vec![h.asset.clone(), classified.underlying]
-        })
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
 
-    // Fetch prices
-    let client = BinanceClient::new(
-        use_testnet,
-        config.binance.api_key.clone(),
-        config.binance.api_secret.clone(),
-    );
-
-    let asset_refs: Vec<&str> = unique_assets.iter().map(|s| s.as_str()).collect();
-    let prices = client.get_prices(&asset_refs).await.unwrap_or_default();
-
-    let mut price_map: HashMap<String, Decimal> = prices
-        .into_iter()
-        .map(|p| (p.symbol.to_uppercase(), p.price))
-        .collect();
-
-    // Find assets without prices and try Binance Alpha API
-    let missing_assets: Vec<&str> = unique_assets
-        .iter()
-        .filter(|a| !price_map.contains_key(&a.to_uppercase()))
-        .map(|s| s.as_str())
-        .collect();
-
-    if !missing_assets.is_empty() {
-        let alpha_client = BinanceAlphaClient::new();
-        if let Ok(alpha_prices) = alpha_client.get_prices(&missing_assets).await {
-            for (symbol, price) in alpha_prices {
-                price_map.insert(symbol, price);
-            }
-        }
-    }
-
-    // Final fallback: peg known USD stablecoins to $1.00 when no feed priced
-    // them (e.g. USDT has no USDTUSDT pair; GHO is not on Binance). This is what
-    // lets Aave USDT collateral and borrowed-GHO debt value correctly.
-    for asset in &unique_assets {
-        let up = asset.to_uppercase();
-        if let std::collections::hash_map::Entry::Vacant(e) = price_map.entry(up) {
-            if let Some(peg) = crate::core::defi::stablecoin_peg(e.key()) {
-                e.insert(peg);
-            }
-        }
-    }
-
-    // Price liquid-staking tokens (rETH, wstETH) from their LIVE on-chain ETH
-    // exchange rate × the ETH price. LST:ETH ratios drift upward as staking
-    // rewards accrue, so the rate must be read live rather than assumed. Needs
-    // an Etherscan key (env or config); skipped silently if unavailable so the
-    // rest of the portfolio still renders.
-    if let Some(eth_price) = price_map.get("ETH").copied() {
-        let etherscan_key = std::env::var("ETHERSCAN_API_KEY")
-            .ok()
-            .or_else(|| config.get_etherscan_api_key());
-        if etherscan_key.is_some() {
-            use crate::blockchain::ethereum::EtherscanClient;
-            let client = EtherscanClient::new(use_testnet, etherscan_key);
-            for asset in &unique_assets {
-                let up = asset.to_uppercase();
-                if price_map.contains_key(&up) {
-                    continue;
-                }
-                if let Some(lst) = crate::core::defi::lst_info(&up) {
-                    if let Ok(rate) = client
-                        .get_lst_eth_rate(lst.contract, lst.rate_selector)
-                        .await
-                    {
-                        price_map.insert(up, rate * eth_price);
-                    }
-                }
-            }
-        }
-    }
+    // Build the price map through the SHARED valuation pipeline (classify DeFi
+    // receipts -> price underlying, Binance + Alpha, stablecoin peg, LST on-chain
+    // rate). `pnl summary` uses the exact same path, so the two commands never
+    // disagree on a holding's USD value.
+    let price_map =
+        crate::core::pricing::build_price_map(&all_holdings, &config, use_testnet).await;
 
     // Build portfolio entries
     let mut entries: Vec<PortfolioEntry> = Vec::new();
