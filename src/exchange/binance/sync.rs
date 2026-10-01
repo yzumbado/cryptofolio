@@ -533,15 +533,16 @@ mod tests {
 
     #[test]
     fn test_sync_report_totals() {
-        let mut report = SyncReport::default();
-        report.trades_created = 5;
-        report.deposits_created = 2;
-        report.withdrawals_created = 1;
-        report.fiat_orders_created = 3;
-        report.transfers_created = 4;
-
-        report.trades_skipped = 10;
-        report.deposits_skipped = 1;
+        let report = SyncReport {
+            trades_created: 5,
+            deposits_created: 2,
+            withdrawals_created: 1,
+            fiat_orders_created: 3,
+            transfers_created: 4,
+            trades_skipped: 10,
+            deposits_skipped: 1,
+            ..Default::default()
+        };
 
         assert_eq!(report.total_created(), 15);
         assert_eq!(report.total_skipped(), 11);

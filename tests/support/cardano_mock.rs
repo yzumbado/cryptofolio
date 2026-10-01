@@ -257,7 +257,6 @@ impl CardanoMock {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_cardano_mock_creation() {

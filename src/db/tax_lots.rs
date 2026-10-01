@@ -654,8 +654,8 @@ mod tests {
 
         // Verify it's marked as disposed
         let lots = repo.list_by_account_asset("test_acct", "BTC").await?;
-        assert_eq!(
-            lots[0].fully_disposed, true,
+        assert!(
+            lots[0].fully_disposed,
             "Lot should be marked as fully disposed"
         );
 

@@ -426,6 +426,9 @@ async fn test_import_handles_multiple_transaction_types() -> Result<()> {
                     notes: None,
                     timestamp: Utc::now(),
                     created_at: Utc::now(),
+                    tx_hash: None,
+                    source: "manual".to_string(),
+                    trust_level: "unverified".to_string(),
                 };
                 tx_repo.insert(&tx).await?;
                 holding_repo

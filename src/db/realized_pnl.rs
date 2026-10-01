@@ -786,7 +786,7 @@ mod tests {
                 realized_gain: Decimal::from_str("10000").unwrap(),
                 holding_period_days: None,
                 tax_lot_id: None,
-                cost_basis_method: method.clone(),
+                cost_basis_method: method,
                 created_at: Utc::now(),
             };
             repo.create(&pnl).await?;
@@ -797,10 +797,7 @@ mod tests {
         assert_eq!(results.len(), 3);
 
         // Check that we can retrieve all three methods
-        let methods: Vec<CostBasisMethod> = results
-            .iter()
-            .map(|r| r.cost_basis_method.clone())
-            .collect();
+        let methods: Vec<CostBasisMethod> = results.iter().map(|r| r.cost_basis_method).collect();
         assert!(methods.contains(&CostBasisMethod::Fifo));
         assert!(methods.contains(&CostBasisMethod::Lifo));
         assert!(methods.contains(&CostBasisMethod::AverageCost));

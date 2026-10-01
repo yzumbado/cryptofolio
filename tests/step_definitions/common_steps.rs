@@ -66,7 +66,7 @@ async fn run_command(world: &mut CryptofolioWorld, command: String) {
     // Capture output
     let mut output = Vec::new();
 
-    let result = match parts.get(0).map(|s| s.as_str()) {
+    let result = match parts.first().map(|s| s.as_str()) {
         Some("wallet") => {
             let args: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).collect();
             handle_wallet_command_test(world, &args, &mut output).await
@@ -213,7 +213,7 @@ async fn handle_wallet_command_test(
             // Get the wallet
             use cryptofolio::db::accounts::AccountRepository;
             let repo = AccountRepository::new(&pool);
-            let account = match repo.get_account(&name).await {
+            let account = match repo.get_account(name).await {
                 Ok(Some(acc)) => acc,
                 Ok(None) => {
                     writeln!(output, "[ERROR] Wallet not found: {}", name)?;
@@ -784,7 +784,7 @@ async fn handle_sync_history_command_test(
         no_fiat,
         no_transfers,
         dry_run,
-        &pool,
+        pool,
         &opts,
     )
     .await;

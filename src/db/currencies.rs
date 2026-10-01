@@ -468,7 +468,7 @@ mod tests {
         // Verify update
         let updated = get_currency(&pool, "BTC").await?.unwrap();
         assert_eq!(updated.name, "Bitcoin Updated");
-        assert_eq!(updated.enabled, false);
+        assert!(!updated.enabled);
 
         Ok(())
     }
