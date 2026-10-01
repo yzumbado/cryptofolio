@@ -607,20 +607,29 @@ async fn handle_backfill(
             "transfer_in" => {
                 // If the source is one of the user's own accounts, the paired
                 // transfer_out already moved the lots — do nothing to avoid double
-                // counting. Otherwise it's an external deposit carrying a stated
-                // basis: record it as an acquisition (price 0 when unknown).
+                // counting.
+                //
+                // If the source is external, this is a deposit. Only mint a lot
+                // when the row carries a REAL stated acquisition price (price_usd
+                // > 0): that represents coins genuinely entering the tracked set
+                // with a known basis. A PRICELESS external deposit is almost
+                // always a self-custody -> exchange move of coins already owned
+                // (their basis lives at the origin, recorded via a WACB `buy` or
+                // supplied by a `correction`). Minting a $0-cost lot for it is
+                // wrong: FIFO then disposes that phantom lot first and reports a
+                // near-100% "gain". So we skip it.
                 let external = tx
                     .from_account_id
                     .as_ref()
                     .map(|a| !internal_accounts.contains(a))
                     .unwrap_or(true);
                 if external {
-                    if let (Some(asset), Some(qty), Some(to_acc)) = (
+                    if let (Some(asset), Some(qty), Some(to_acc), Some(price)) = (
                         tx.to_asset.as_ref(),
                         tx.to_quantity,
                         tx.to_account_id.as_ref(),
+                        tx.price_usd.filter(|p| *p > Decimal::ZERO),
                     ) {
-                        let price = tx.price_usd.unwrap_or(Decimal::ZERO);
                         let _ = pnl_calc
                             .process_acquisition(
                                 tx.id,
