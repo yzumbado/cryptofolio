@@ -45,6 +45,20 @@ struct TokenInfo {
     // decimals omitted: SPL balances arrive as uiAmount (already scaled by the RPC)
 }
 
+/// Resolve a known DePIN reward-token mint to (symbol, name).
+///
+/// These tokens are not in Jupiter's *strict* token list, so the sync would
+/// otherwise label them with a truncated mint. Mapped by canonical mint:
+///   - GEOD   (Geodnet)  — GPS/RTK DePIN miner rewards
+///   - WINGS  (Wingbits) — ADS-B flight-data DePIN, a Token-2022 mint
+fn known_depin_token(mint: &str) -> Option<(&'static str, &'static str)> {
+    match mint {
+        "7JA5eZdCzztSfQbJvS8aVVxMFfd81Rs9VvwnocV1mKHu" => Some(("GEOD", "Geodnet Token")),
+        "WingsAYbfs4qnEgcw8jpSvetqp8XHM3GkKvow54WLcd" => Some(("WINGS", "Wingbits")),
+        _ => None,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // SolanaRpcClient
 // ---------------------------------------------------------------------------
@@ -192,49 +206,67 @@ impl SolanaRpcClient {
     }
 
     async fn get_spl_balances(&self, address: &str) -> Result<Vec<WalletBalance>> {
-        let result = self
-            .post_rpc(
-                "getTokenAccountsByOwner",
-                json!([
-                    address,
-                    {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
-                    {"encoding": "jsonParsed"}
-                ]),
-            )
-            .await?;
+        // Query BOTH token programs: the legacy SPL Token program and Token-2022
+        // (Token Extensions). DePIN reward tokens such as Wingbits (WINGS) are
+        // minted under Token-2022, so querying only the legacy program silently
+        // misses them. Program ids:
+        //   legacy  : TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
+        //   2022    : TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
+        const TOKEN_PROGRAMS: [&str; 2] = [
+            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        ];
 
         let _ = self.ensure_token_list().await;
         let token_list = self.token_list.read().await;
 
         let mut balances = Vec::new();
 
-        if let Some(accounts) = result["value"].as_array() {
-            for account in accounts {
-                let info = &account["account"]["data"]["parsed"]["info"];
-                let mint = info["mint"].as_str().unwrap_or("").to_string();
-                let ui_amount = info["tokenAmount"]["uiAmount"].as_f64().unwrap_or(0.0);
-                let decimals = info["tokenAmount"]["decimals"].as_u64().unwrap_or(0) as u8;
+        for program_id in TOKEN_PROGRAMS {
+            let result = self
+                .post_rpc(
+                    "getTokenAccountsByOwner",
+                    json!([
+                        address,
+                        {"programId": program_id},
+                        {"encoding": "jsonParsed"}
+                    ]),
+                )
+                .await?;
 
-                if ui_amount == 0.0 {
-                    continue;
+            if let Some(accounts) = result["value"].as_array() {
+                for account in accounts {
+                    let info = &account["account"]["data"]["parsed"]["info"];
+                    let mint = info["mint"].as_str().unwrap_or("").to_string();
+                    let ui_amount = info["tokenAmount"]["uiAmount"].as_f64().unwrap_or(0.0);
+                    let decimals = info["tokenAmount"]["decimals"].as_u64().unwrap_or(0) as u8;
+
+                    if ui_amount == 0.0 {
+                        continue;
+                    }
+
+                    let (symbol, _name) = if let Some(info) = token_list.get(&mint) {
+                        (info.symbol.clone(), info.name.clone())
+                    } else if let Some((sym, name)) = known_depin_token(&mint) {
+                        // DePIN reward tokens are absent from Jupiter's strict
+                        // list; resolve the ones we know by mint so they label
+                        // correctly instead of showing a truncated mint.
+                        (sym.to_string(), name.to_string())
+                    } else {
+                        // Unknown token — use truncated mint as symbol
+                        let short = if mint.len() > 8 { &mint[..8] } else { &mint };
+                        (short.to_string(), mint.clone())
+                    };
+
+                    let quantity = Decimal::try_from(ui_amount).unwrap_or(Decimal::ZERO);
+
+                    balances.push(WalletBalance {
+                        asset: symbol,
+                        asset_id: Some(mint),
+                        quantity,
+                        decimals,
+                    });
                 }
-
-                let (symbol, _name) = if let Some(info) = token_list.get(&mint) {
-                    (info.symbol.clone(), info.name.clone())
-                } else {
-                    // Unknown token — use truncated mint as symbol
-                    let short = if mint.len() > 8 { &mint[..8] } else { &mint };
-                    (short.to_string(), mint.clone())
-                };
-
-                let quantity = Decimal::try_from(ui_amount).unwrap_or(Decimal::ZERO);
-
-                balances.push(WalletBalance {
-                    asset: symbol,
-                    asset_id: Some(mint),
-                    quantity,
-                    decimals,
-                });
             }
         }
 
