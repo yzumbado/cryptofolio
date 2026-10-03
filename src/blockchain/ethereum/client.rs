@@ -483,8 +483,19 @@ impl BlockchainClient for EtherscanClient {
         }];
 
         for token in &info.tokens {
+            // Skip tokens flagged as scams (Unicode-lookalike symbols, empty
+            // symbol, known scam contracts) — they are airdropped to poison the
+            // ledger and have no real value. They are not persisted as holdings.
+            if is_likely_scam_token(&token.symbol, &token.contract_address) {
+                continue;
+            }
+            // A token must never masquerade as the native asset. A scam ERC-20
+            // reporting symbol "ETH" would otherwise OVERWRITE the real native
+            // ETH balance (holdings are keyed by symbol). Qualify any collision
+            // with its contract address so native "ETH" is always genuine.
+            let asset = native_safe_asset_key(&token.symbol, &token.contract_address);
             balances.push(WalletBalance {
-                asset: token.symbol.clone(),
+                asset,
                 asset_id: Some(token.contract_address.clone()),
                 quantity: token.balance,
                 decimals: token.decimals,
@@ -650,9 +661,114 @@ struct EthTransaction {
     block_number: String,
 }
 
+/// Build the holdings `asset` key for an ERC-20, guarding the native asset.
+///
+/// Holdings are keyed by symbol, so a scam ERC-20 that reports its symbol as
+/// "ETH" (or an upper/lower-case variant) would overwrite the real native ETH
+/// balance. Any such collision is disambiguated by qualifying it with the
+/// token's contract address; every other token keeps its symbol.
+fn native_safe_asset_key(symbol: &str, contract_address: &str) -> String {
+    if symbol.eq_ignore_ascii_case("ETH") {
+        format!("ETH:{contract_address}")
+    } else {
+        symbol.to_string()
+    }
+}
+
+/// Heuristic scam-token detector for ERC-20 holdings.
+///
+/// Address-poisoning and fake-airdrop scams send worthless tokens to a watched
+/// address so they pollute the portfolio. They are identified by:
+///   1. a non-ASCII symbol — Unicode look-alikes impersonating a real ticker
+///      (e.g. "U5DТ", "ÚЅDТ", "Тoken" using Cyrillic/other scripts);
+///   2. an empty symbol;
+///   3. a control/zero-width character anywhere in the symbol;
+///   4. an ASCII symbol that impersonates a major ticker (USDT/USDC/WETH/DAI)
+///      from a contract that is NOT that token's canonical address.
+///
+/// Legit tokens use plain-ASCII tickers from their canonical contract, so this
+/// is conservative — it flags look-alike impostors, not real holdings. The
+/// native "ETH" collision is handled separately by `native_safe_asset_key`.
+fn is_likely_scam_token(symbol: &str, contract_address: &str) -> bool {
+    let s = symbol.trim();
+    if s.is_empty() {
+        return true;
+    }
+    // (1-3) Any non-ASCII or control character => look-alike / poisoned symbol.
+    if s.chars()
+        .any(|c| !c.is_ascii() || c.is_control() || c == '\u{200b}')
+    {
+        return true;
+    }
+    // (4) ASCII impersonation of a major stablecoin/ticker from a non-canonical
+    // contract. "eth" has NO canonical ERC-20 (it is the native asset), so ANY
+    // token calling itself ETH is an impostor and is dropped here.
+    let sym = s.to_ascii_lowercase();
+    if sym == "eth" {
+        return true;
+    }
+    let canonical: &[(&str, &str)] = &[
+        ("usdt", "0xdac17f958d2ee523a2206206994597c13d831ec7"),
+        ("usdc", "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+        ("weth", "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+        ("dai", "0x6b175474e89094c44da98b954eedeac495271d0f"),
+    ];
+    for (ticker, addr) in canonical {
+        if sym == *ticker && !contract_address.eq_ignore_ascii_case(addr) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_native_eth_symbol_collision_is_disambiguated() {
+        // A scam token reporting symbol "ETH" must NOT keep the bare "ETH" key
+        // (which would clobber the native balance in the symbol-keyed upsert).
+        let scam = native_safe_asset_key("ETH", "0x2fc618b4e3a29bed734e6b2364e3497eb7370302");
+        assert_eq!(scam, "ETH:0x2fc618b4e3a29bed734e6b2364e3497eb7370302");
+        // Case-insensitive: "eth" collides too.
+        assert_eq!(native_safe_asset_key("eth", "0xabc"), "ETH:0xabc");
+        // A normal token is untouched.
+        assert_eq!(native_safe_asset_key("RPL", "0xd33"), "RPL");
+    }
+
+    #[test]
+    fn test_scam_token_detection() {
+        // Unicode look-alikes impersonating USDT / token (seen in the wild).
+        assert!(is_likely_scam_token("U5DТ", "0xd9a3")); // Cyrillic Т
+        assert!(is_likely_scam_token("ÚЅDТ", "0xb802"));
+        assert!(is_likely_scam_token("Тoken", "0xd017"));
+        assert!(is_likely_scam_token("꒤5DT", "0xc0d6"));
+        // Empty symbol is a scam signal.
+        assert!(is_likely_scam_token("", "0xf839"));
+        // ASCII "USDT" from a NON-canonical contract is an impostor.
+        assert!(is_likely_scam_token(
+            "USDT",
+            "0x91fb15708f32603dfd6d22e04a27b034e56836f7"
+        ));
+        // Any token calling itself ETH is an impostor (ETH is native, no ERC-20).
+        assert!(is_likely_scam_token(
+            "ETH",
+            "0x2fc618b4e3a29bed734e6b2364e3497eb7370302"
+        ));
+        // Real USDT from its canonical contract is NOT flagged.
+        assert!(!is_likely_scam_token(
+            "USDT",
+            "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ));
+        // Legit ASCII tickers are NEVER flagged.
+        for good in ["RPL", "rETH", "wstETH", "GHO", "aEthUSDT", "HEX"] {
+            assert!(
+                !is_likely_scam_token(good, "0x0"),
+                "{good} must not be scam"
+            );
+        }
+    }
 
     #[test]
     fn test_etherscan_client_creation() {

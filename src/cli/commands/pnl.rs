@@ -487,6 +487,10 @@ async fn handle_backfill(
     let mut swap_count = 0;
     let mut transfer_count = 0;
     let mut correction_count = 0;
+    // Disposals (sells) that could not be matched to tax lots. Previously these
+    // were swallowed silently, hiding the realized gain. We now collect them so
+    // backfill surfaces exactly which sales lack basis.
+    let mut unmatched_disposals: Vec<String> = Vec::new();
 
     // Replay transactions
     for tx in transactions {
@@ -513,18 +517,33 @@ async fn handle_backfill(
                 if let (Some(asset), Some(qty), Some(price)) =
                     (&tx.from_asset, tx.from_quantity, tx.price_usd)
                 {
-                    let _ = pnl_calc
+                    match pnl_calc
                         .process_disposal(
                             tx.id,
-                            &tx.from_account_id.unwrap_or_default(),
+                            &tx.from_account_id.clone().unwrap_or_default(),
                             asset,
                             qty,
                             price,
                             tx.timestamp,
                             method,
                         )
-                        .await;
-                    sell_count += 1;
+                        .await
+                    {
+                        Ok(_) => sell_count += 1,
+                        // A disposal that cannot be matched to lots used to be
+                        // silently discarded (`let _ = ...`), so the realized gain
+                        // for that sale vanished with no trace. Surface it instead:
+                        // record the shortfall so backfill reports it and the
+                        // operator can supply the missing basis (correction/buy).
+                        Err(e) => unmatched_disposals.push(format!(
+                            "sell {} {} @ {} on {}: {}",
+                            qty,
+                            asset,
+                            price,
+                            tx.timestamp.date_naive(),
+                            e
+                        )),
+                    }
                 }
             }
             "swap" => {
@@ -574,32 +593,47 @@ async fn handle_backfill(
                     tx.from_account_id.as_ref(),
                     tx.to_account_id.as_ref(),
                 ) {
-                    let _ = pnl_calc
-                        .transfer_lots(from_acc, to_acc, asset, qty, method)
-                        .await;
-                    transfer_count += 1;
+                    // Guard: a same-account transfer (from == to) moves nothing
+                    // between tracked accounts — e.g. Binance "Transfer Between
+                    // Spot and Strategy", which the importer records as two
+                    // half-rows on the ONE Binance account. Calling transfer_lots
+                    // here mints a duplicate destination lot (phantom basis), so
+                    // skip it entirely.
+                    if from_acc != to_acc {
+                        let _ = pnl_calc
+                            .transfer_lots(from_acc, to_acc, asset, qty, method)
+                            .await;
+                        transfer_count += 1;
+                    }
                 }
             }
             "transfer_out" => {
                 // If the destination is one of the user's own accounts, move the
-                // lots there (basis travels). Otherwise the coins leave the tracked
-                // set: drop the lots, recognize NO gain/loss (a transfer is not a
-                // sale). Either way, never mint basis.
+                // lots there (basis travels).
+                //
+                // If the destination is EXTERNAL, the coins leave this account —
+                // but in a watch-only tracker an "external" withdrawal is almost
+                // always a move to the user's own self-custody wallet, and the
+                // same coins frequently round-trip back (deposit) and are later
+                // sold. Dropping the lots here strands that later sale with no
+                // basis (FIFO then raises InsufficientTaxLots and the realized
+                // gain is lost). A withdrawal is NOT a sale, so we must not
+                // recognize P&L either way. We therefore PRESERVE the lots on an
+                // external withdrawal: basis is only consumed by an actual
+                // disposal (sell/swap), never by a transfer. This keeps a
+                // withdraw -> deposit -> sell round-trip correctly matched.
                 if let (Some(asset), Some(qty), Some(from_acc)) = (
                     tx.from_asset.as_ref(),
                     tx.from_quantity,
                     tx.from_account_id.as_ref(),
                 ) {
-                    match tx.to_account_id.as_ref() {
-                        Some(to_acc) if internal_accounts.contains(to_acc) => {
+                    if let Some(to_acc) = tx.to_account_id.as_ref() {
+                        if internal_accounts.contains(to_acc) {
                             let _ = pnl_calc
                                 .transfer_lots(from_acc, to_acc, asset, qty, method)
                                 .await;
                         }
-                        _ => {
-                            // Leaves the tracked set — remove lots, no realized P&L.
-                            let _ = pnl_calc.remove_lots(from_acc, asset, qty, method).await;
-                        }
+                        // else: external withdrawal — preserve lots (see above).
                     }
                     transfer_count += 1;
                 }
@@ -678,6 +712,18 @@ async fn handle_backfill(
         "Backfill complete! Processed {buy_count} buys, {sell_count} sells, \
          {swap_count} swaps, {transfer_count} transfers, {correction_count} corrections"
     ));
+
+    if !unmatched_disposals.is_empty() {
+        warning(&format!(
+            "{} disposal(s) could NOT be matched to tax lots — their realized P&L \
+             is MISSING. Supply the missing basis (a priced `buy`/`correction` lot \
+             dated before the sale) and re-run:",
+            unmatched_disposals.len()
+        ));
+        for d in &unmatched_disposals {
+            warning(&format!("  • {d}"));
+        }
+    }
 
     Ok(())
 }

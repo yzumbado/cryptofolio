@@ -110,6 +110,18 @@ pub async fn build_price_map(
         }
     }
 
+    // DexScreener fallback for long-tail / DePIN tokens (GEOD, WINGS, …) that no
+    // prior source priced. Pinned by mint, deepest-liquidity pair, read-only.
+    for asset in &unique_assets {
+        let up = asset.to_uppercase();
+        if price_map.contains_key(&up) {
+            continue;
+        }
+        if let Some(price) = crate::core::dexscreener::price_for_symbol(&up).await {
+            price_map.insert(up, price);
+        }
+    }
+
     price_map
 }
 
