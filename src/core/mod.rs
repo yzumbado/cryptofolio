@@ -3,6 +3,7 @@ pub mod currency;
 pub mod defi;
 pub mod dexscreener;
 pub mod holdings;
+pub mod mining;
 pub mod pnl;
 pub mod portfolio;
 pub mod pricing;

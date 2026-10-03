@@ -190,6 +190,13 @@ pub enum Commands {
         command: TxCommands,
     },
 
+    /// DePIN mining P&L: token revenue, hardware depreciation, capital recovery
+    #[command(
+        name = "mining-pnl",
+        after_help = "EXAMPLES:\n    # Show the DePIN mining P&L statement\n    cryptofolio mining-pnl\n\n    # JSON output for automation\n    cryptofolio mining-pnl --json\n\nMODEL: earned tokens (GEOD/WINGS) are revenue at $0 cost basis; the MINER-*\nhardware is a depreciating capital asset. See docs/MINING_ASSET_ACCOUNTING.md."
+    )]
+    MiningPnl {},
+
     /// Sync holdings from exchange accounts
     #[command(
         after_help = "EXAMPLES:\n    cryptofolio sync\n    cryptofolio sync --account \"Binance\""

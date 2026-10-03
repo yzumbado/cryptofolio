@@ -242,6 +242,9 @@ impl Shell {
             Commands::Tx { command } => {
                 handle_tx_command(command, &self.pool, &opts).await?;
             }
+            Commands::MiningPnl {} => {
+                handle_mining_pnl_command(&self.pool, &opts).await?;
+            }
             Commands::Sync { account } => {
                 handle_sync_command(account, &self.pool, &opts).await?;
             }
