@@ -1,6 +1,7 @@
 pub mod account;
 pub mod currency;
 pub mod defi;
+pub mod dexscreener;
 pub mod holdings;
 pub mod pnl;
 pub mod portfolio;
