@@ -206,6 +206,9 @@ fn parse_bytes(bytes: &[u8]) -> Result<ParseReport> {
         }
     }
 
+    if matches!(format, BinanceExportFormat::TransactionHistory) {
+        pair_tx_history_trades(&mut report.rows);
+    }
     disambiguate_external_ids(&mut report.rows);
     Ok(report)
 }
@@ -225,6 +228,131 @@ fn disambiguate_external_ids(rows: &mut [BinanceCsvRow]) {
             row.external_id = format!("{}#{}", row.external_id, count);
         }
         *count += 1;
+    }
+}
+
+/// Pair Transaction-History trade legs into single priced buy/sell rows.
+///
+/// The Transaction History export records a spot trade as TWO rows at the same
+/// timestamp: the asset leg (`Transaction Buy` +COIN / `Transaction Sold` −COIN)
+/// and the quote leg (`Transaction Spend` −USDT / `Transaction Revenue` +USDT).
+/// Parsed row-by-row, the asset leg has NO price (cost basis unknown) and the
+/// quote leg is a stray transfer. This post-pass matches them by timestamp and
+/// rewrites each trade into one row carrying the real execution price
+/// (quote_amount / coin_qty), dropping the now-redundant quote leg.
+///
+/// Without this, importing Transaction History gives priceless buys (zero cost
+/// basis) and orphaned sells (no proceeds) — FIFO then produces garbage.
+fn pair_tx_history_trades(rows: &mut Vec<BinanceCsvRow>) {
+    use std::collections::HashMap;
+    const STABLES: [&str; 5] = ["USDT", "USDC", "USD", "BUSD", "FDUSD"];
+    let is_stable = |a: &str| STABLES.contains(&a);
+
+    // Group row indices by exact timestamp.
+    let mut by_ts: HashMap<DateTime<Utc>, Vec<usize>> = HashMap::new();
+    for (i, r) in rows.iter().enumerate() {
+        by_ts.entry(r.timestamp).or_default().push(i);
+    }
+
+    let mut drop_idx: Vec<usize> = Vec::new();
+
+    for (_ts, idxs) in by_ts.iter() {
+        // Within this timestamp, sum the quote legs and collect the coin legs.
+        // A coin BUY leg: tx_type==Buy, to_asset is a non-stable coin, price None.
+        // Its quote: tx_type==TransferOut (Transaction Spend), from_asset stable.
+        // A coin SELL leg: tx_type==Sell, from_asset non-stable; quote TransferIn.
+        let mut quote_spend = Decimal::ZERO; // stable leaving (funds a buy)
+        let mut quote_revenue = Decimal::ZERO; // stable arriving (from a sell)
+        let mut quote_asset: Option<String> = None;
+        let mut spend_idx: Vec<usize> = Vec::new();
+        let mut revenue_idx: Vec<usize> = Vec::new();
+        let mut buy_legs: Vec<usize> = Vec::new();
+        let mut sell_legs: Vec<usize> = Vec::new();
+
+        for &i in idxs {
+            let r = &rows[i];
+            let note = r.notes.as_deref().unwrap_or("");
+            match r.tx_type {
+                TransactionType::Buy
+                    if r.price.is_none()
+                        && r.to_asset
+                            .as_deref()
+                            .map(|a| !is_stable(a))
+                            .unwrap_or(false)
+                        && note.starts_with("Transaction Buy") =>
+                {
+                    buy_legs.push(i);
+                }
+                TransactionType::Sell
+                    if r.price.is_none()
+                        && r.from_asset
+                            .as_deref()
+                            .map(|a| !is_stable(a))
+                            .unwrap_or(false) =>
+                {
+                    sell_legs.push(i);
+                }
+                TransactionType::TransferOut
+                    if r.from_asset.as_deref().map(is_stable).unwrap_or(false)
+                        && note.starts_with("Transaction Spend") =>
+                {
+                    quote_spend += r.from_quantity.unwrap_or(Decimal::ZERO);
+                    quote_asset = r.from_asset.clone();
+                    spend_idx.push(i);
+                }
+                TransactionType::TransferIn
+                    if r.to_asset.as_deref().map(is_stable).unwrap_or(false)
+                        && note.starts_with("Transaction Revenue") =>
+                {
+                    quote_revenue += r.to_quantity.unwrap_or(Decimal::ZERO);
+                    quote_asset = r.to_asset.clone();
+                    revenue_idx.push(i);
+                }
+                _ => {}
+            }
+        }
+
+        // Price BUY legs from the spend total (distributed by qty share).
+        let buy_qty: Decimal = buy_legs.iter().filter_map(|&i| rows[i].to_quantity).sum();
+        if !buy_legs.is_empty() && quote_spend > Decimal::ZERO && buy_qty > Decimal::ZERO {
+            for &i in &buy_legs {
+                let q = rows[i].to_quantity.unwrap_or(Decimal::ZERO);
+                if q > Decimal::ZERO {
+                    let cost = quote_spend * (q / buy_qty);
+                    rows[i].price = Some(cost / q);
+                    rows[i].price_asset = quote_asset.clone();
+                    rows[i].from_asset = quote_asset.clone();
+                    rows[i].from_quantity = Some(cost);
+                }
+            }
+            drop_idx.extend(&spend_idx); // quote leg folded into the buy
+        }
+
+        // Price SELL legs from the revenue total.
+        let sell_qty: Decimal = sell_legs
+            .iter()
+            .filter_map(|&i| rows[i].from_quantity)
+            .sum();
+        if !sell_legs.is_empty() && quote_revenue > Decimal::ZERO && sell_qty > Decimal::ZERO {
+            for &i in &sell_legs {
+                let q = rows[i].from_quantity.unwrap_or(Decimal::ZERO);
+                if q > Decimal::ZERO {
+                    let proceeds = quote_revenue * (q / sell_qty);
+                    rows[i].price = Some(proceeds / q);
+                    rows[i].price_asset = quote_asset.clone();
+                    rows[i].to_asset = quote_asset.clone();
+                    rows[i].to_quantity = Some(proceeds);
+                }
+            }
+            drop_idx.extend(&revenue_idx); // quote leg folded into the sell
+        }
+    }
+
+    // Drop the folded quote legs (highest index first to keep indices valid).
+    drop_idx.sort_unstable();
+    drop_idx.dedup();
+    for &i in drop_idx.iter().rev() {
+        rows.remove(i);
     }
 }
 
@@ -804,6 +932,52 @@ fn field(r: &csv::StringRecord, idx: usize) -> Result<&str> {
 mod tests {
     use super::*;
     use chrono::Datelike;
+
+    #[test]
+    fn test_tx_history_trade_pairing_prices_buy_and_sell() {
+        // A buy and a sell, each as a Transaction History coin leg + quote leg at
+        // the same timestamp. After pairing, the coin rows must carry the real
+        // execution price and the quote legs must be dropped.
+        //   BUY : +0.01 BTC spent 650 USDT -> price 65000
+        //   SELL: -0.01 BTC revenue 690 USDT -> price 69000
+        let csv = "\u{feff}User ID,Time,Account,Operation,Coin,Change,Remark\n\
+            1,2026-02-01 10:00:00,Spot,Transaction Buy,BTC,0.01,\n\
+            1,2026-02-01 10:00:00,Spot,Transaction Spend,USDT,-650,\n\
+            1,2026-03-01 12:00:00,Spot,Transaction Sold,BTC,-0.01,\n\
+            1,2026-03-01 12:00:00,Spot,Transaction Revenue,USDT,690,\n";
+        let report = parse_bytes(csv.as_bytes()).expect("parse");
+        // Quote legs folded away: only the 2 priced trade rows remain.
+        let trades: Vec<_> = report
+            .rows
+            .iter()
+            .filter(|r| matches!(r.tx_type, TransactionType::Buy | TransactionType::Sell))
+            .collect();
+        assert_eq!(trades.len(), 2, "expected one buy + one sell");
+        let buy = trades
+            .iter()
+            .find(|r| matches!(r.tx_type, TransactionType::Buy))
+            .unwrap();
+        assert_eq!(buy.to_asset.as_deref(), Some("BTC"));
+        assert_eq!(buy.price, Some(Decimal::from(65000)));
+        let sell = trades
+            .iter()
+            .find(|r| matches!(r.tx_type, TransactionType::Sell))
+            .unwrap();
+        assert_eq!(sell.from_asset.as_deref(), Some("BTC"));
+        assert_eq!(sell.price, Some(Decimal::from(69000)));
+        // No stray stable-quote transfer rows left behind.
+        let stray = report.rows.iter().any(|r| {
+            matches!(
+                r.tx_type,
+                TransactionType::TransferOut | TransactionType::TransferIn
+            ) && r
+                .notes
+                .as_deref()
+                .map(|n| n.contains("Transaction"))
+                .unwrap_or(false)
+        });
+        assert!(!stray, "quote legs should have been folded into the trades");
+    }
 
     #[test]
     fn test_detect_format_tx_history() {
