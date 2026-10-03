@@ -278,7 +278,11 @@ impl SolanaRpcClient {
             .post_rpc(
                 "getProgramAccounts",
                 json!([
-                    "Stake11111111111111111111111111111111111111111",
+                    // Canonical Solana Stake program id. (A previous value had
+                    // extra trailing 1s and was rejected with INVALID_PARAMS, so
+                    // stake accounts were silently never fetched — staked SOL was
+                    // invisible to the balance.)
+                    "Stake11111111111111111111111111111111111111",
                     {
                         "filters": [{"memcmp": {"offset": 44, "bytes": address}}],
                         "encoding": "jsonParsed"
@@ -368,10 +372,17 @@ impl BlockchainClient for SolanaRpcClient {
         let spl_balances = self.get_spl_balances(address).await?;
         let stake_accounts = self.get_stake_accounts(address).await.unwrap_or_default();
 
+        // Staked SOL lives in separate stake accounts, not the wallet's liquid
+        // balance. Include it in the SOL holding so the balance reflects total
+        // SOL owned (liquid + staked); the per-account detail stays in extras.
+        let staked_lamports: u64 = stake_accounts.iter().map(|s| s.lamports).sum();
+        let staked_sol = Decimal::from(staked_lamports) / Decimal::from(1_000_000_000u64);
+        let total_sol = sol_balance + staked_sol;
+
         let mut balances = vec![WalletBalance {
             asset: "SOL".to_string(),
             asset_id: None,
-            quantity: sol_balance,
+            quantity: total_sol,
             decimals: 9,
         }];
         balances.extend(spl_balances);
