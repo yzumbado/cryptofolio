@@ -346,6 +346,84 @@ fn pair_tx_history_trades(rows: &mut Vec<BinanceCsvRow>) {
             }
             drop_idx.extend(&revenue_idx); // quote leg folded into the sell
         }
+
+        // --- Binance Convert pairing ---
+        // A Convert is two Swap legs at the same timestamp: a coin leg and a
+        // stable leg. coin-IN + stable-OUT = a BUY of coin with stable; coin-OUT
+        // + stable-IN = a SELL. Rewrite the coin leg into a priced buy/sell and
+        // drop the stable leg, so converts contribute cost basis / proceeds just
+        // like spot trades (previously they were untyped Swaps with no price).
+        let mut conv_stable_out = Decimal::ZERO; // stable leaving -> funds a buy
+        let mut conv_stable_in = Decimal::ZERO; // stable arriving -> from a sell
+        let mut conv_stable_asset: Option<String> = None;
+        let mut conv_stable_idx: Vec<usize> = Vec::new();
+        let mut conv_coin_buy: Vec<usize> = Vec::new(); // Swap, to_asset = coin
+        let mut conv_coin_sell: Vec<usize> = Vec::new(); // Swap, from_asset = coin
+        for &i in idxs {
+            let r = &rows[i];
+            if !matches!(r.tx_type, TransactionType::Swap) {
+                continue;
+            }
+            let note = r.notes.as_deref().unwrap_or("");
+            if !note.starts_with("Binance Convert") {
+                continue;
+            }
+            if let Some(a) = r.to_asset.as_deref() {
+                if is_stable(a) {
+                    conv_stable_in += r.to_quantity.unwrap_or(Decimal::ZERO);
+                    conv_stable_asset = r.to_asset.clone();
+                    conv_stable_idx.push(i);
+                } else {
+                    conv_coin_buy.push(i);
+                }
+            } else if let Some(a) = r.from_asset.as_deref() {
+                if is_stable(a) {
+                    conv_stable_out += r.from_quantity.unwrap_or(Decimal::ZERO);
+                    conv_stable_asset = r.from_asset.clone();
+                    conv_stable_idx.push(i);
+                } else {
+                    conv_coin_sell.push(i);
+                }
+            }
+        }
+        // Convert BUY: coin in, stable out -> priced buy.
+        let cbq: Decimal = conv_coin_buy
+            .iter()
+            .filter_map(|&i| rows[i].to_quantity)
+            .sum();
+        if !conv_coin_buy.is_empty() && conv_stable_out > Decimal::ZERO && cbq > Decimal::ZERO {
+            for &i in &conv_coin_buy {
+                let q = rows[i].to_quantity.unwrap_or(Decimal::ZERO);
+                if q > Decimal::ZERO {
+                    let cost = conv_stable_out * (q / cbq);
+                    rows[i].tx_type = TransactionType::Buy;
+                    rows[i].price = Some(cost / q);
+                    rows[i].price_asset = conv_stable_asset.clone();
+                    rows[i].from_asset = conv_stable_asset.clone();
+                    rows[i].from_quantity = Some(cost);
+                }
+            }
+            drop_idx.extend(&conv_stable_idx);
+        }
+        // Convert SELL: coin out, stable in -> priced sell.
+        let csq: Decimal = conv_coin_sell
+            .iter()
+            .filter_map(|&i| rows[i].from_quantity)
+            .sum();
+        if !conv_coin_sell.is_empty() && conv_stable_in > Decimal::ZERO && csq > Decimal::ZERO {
+            for &i in &conv_coin_sell {
+                let q = rows[i].from_quantity.unwrap_or(Decimal::ZERO);
+                if q > Decimal::ZERO {
+                    let proceeds = conv_stable_in * (q / csq);
+                    rows[i].tx_type = TransactionType::Sell;
+                    rows[i].price = Some(proceeds / q);
+                    rows[i].price_asset = conv_stable_asset.clone();
+                    rows[i].to_asset = conv_stable_asset.clone();
+                    rows[i].to_quantity = Some(proceeds);
+                }
+            }
+            drop_idx.extend(&conv_stable_idx);
+        }
     }
 
     // Drop the folded quote legs (highest index first to keep indices valid).
@@ -977,6 +1055,51 @@ mod tests {
                 .unwrap_or(false)
         });
         assert!(!stray, "quote legs should have been folded into the trades");
+    }
+
+    #[test]
+    fn test_binance_convert_pairing_prices_buy_and_sell() {
+        // Convert = two Swap legs at one timestamp. coin-in + stable-out => BUY;
+        // coin-out + stable-in => SELL. Both must become priced trades.
+        let csv = "\u{feff}User ID,Time,Account,Operation,Coin,Change,Remark\n\
+            1,2025-11-28 13:54:14,Spot,Binance Convert,BTC,0.0109949,\n\
+            1,2025-11-28 13:54:14,Spot,Binance Convert,USDC,-1008,\n\
+            1,2025-12-14 06:08:11,Spot,Binance Convert,BTC,-0.0045259,\n\
+            1,2025-12-14 06:08:11,Spot,Binance Convert,USDT,401.25,\n";
+        let report = parse_bytes(csv.as_bytes()).expect("parse");
+        let buy = report
+            .rows
+            .iter()
+            .find(|r| {
+                matches!(r.tx_type, TransactionType::Buy) && r.to_asset.as_deref() == Some("BTC")
+            })
+            .expect("convert buy");
+        // 1008 / 0.0109949 ~ 91678.87
+        assert!(
+            buy.price.unwrap() > Decimal::from(91000) && buy.price.unwrap() < Decimal::from(92000)
+        );
+        let sell = report
+            .rows
+            .iter()
+            .find(|r| {
+                matches!(r.tx_type, TransactionType::Sell) && r.from_asset.as_deref() == Some("BTC")
+            })
+            .expect("convert sell");
+        // 401.25 / 0.0045259 ~ 88667
+        assert!(
+            sell.price.unwrap() > Decimal::from(88000)
+                && sell.price.unwrap() < Decimal::from(89000)
+        );
+        // No leftover Swap rows for the paired converts.
+        let swaps = report
+            .rows
+            .iter()
+            .filter(|r| matches!(r.tx_type, TransactionType::Swap))
+            .count();
+        assert_eq!(
+            swaps, 0,
+            "convert legs should be rewritten, not left as Swap"
+        );
     }
 
     #[test]
