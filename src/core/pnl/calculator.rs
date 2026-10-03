@@ -1089,4 +1089,73 @@ mod tests {
             .unwrap();
         assert!(realized.is_empty(), "remove_lots must not realize P&L");
     }
+
+    #[tokio::test]
+    async fn test_withdraw_redeposit_sell_roundtrip_preserves_basis() {
+        // Regression for the backfill round-trip bug: coins bought on an
+        // exchange, withdrawn to a self-custody wallet, re-deposited, then sold
+        // must still match their original cost basis.
+        //
+        // Backfill models an EXTERNAL withdrawal (transfer_out whose counterparty
+        // is not a tracked account) by PRESERVING lots — it no longer calls
+        // remove_lots — because a withdrawal is not a disposal and the coins
+        // routinely round-trip back and are sold later. Only an actual sell
+        // consumes basis. This test asserts the invariant the fix depends on:
+        // after acquisition, with NO lot removal on the withdrawal leg, a later
+        // full-quantity disposal realizes P&L correctly instead of raising
+        // InsufficientTaxLots.
+        let pool = init_memory_pool().await.unwrap();
+        create_test_account(&pool, "exchange").await;
+        let calc = PnLCalculator::new(&pool);
+
+        // Buy 100 RPL @ $1.70 on the exchange.
+        create_test_transaction(&pool, 1, "exchange", "RPL").await;
+        calc.process_acquisition(
+            1,
+            "exchange",
+            "RPL",
+            dec("100"),
+            dec("1.70"),
+            Utc::now(),
+            CostBasisMethod::Fifo,
+        )
+        .await
+        .unwrap();
+
+        // Withdraw 100 RPL to a self-custody wallet (external): backfill does
+        // NOTHING here — lots are preserved. (We assert the quantity is intact.)
+        assert_eq!(
+            calc.get_available_quantity("exchange", "RPL")
+                .await
+                .unwrap(),
+            dec("100"),
+            "external withdrawal must preserve basis (not drop lots)"
+        );
+
+        // Re-deposit is priceless/external -> backfill mints no lot (would be a
+        // phantom $0 lot). The original lot is still there, so the sell matches.
+
+        // Sell all 100 RPL @ $1.90.
+        create_test_transaction(&pool, 2, "exchange", "RPL").await;
+        let realized = calc
+            .process_disposal(
+                2,
+                "exchange",
+                "RPL",
+                dec("100"),
+                dec("1.90"),
+                Utc::now(),
+                CostBasisMethod::Fifo,
+            )
+            .await
+            .expect("round-tripped coins must still match their basis");
+
+        let total_gain: Decimal = realized.iter().map(|r| r.realized_gain).sum();
+        // 100 * (1.90 - 1.70) = 20.00
+        assert_eq!(
+            total_gain,
+            dec("20"),
+            "realized gain must use original basis"
+        );
+    }
 }

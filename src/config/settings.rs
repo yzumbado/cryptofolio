@@ -264,8 +264,17 @@ impl AppConfig {
         Ok(Self::config_dir()?.join("config.toml"))
     }
 
-    /// Get the database file path
+    /// Get the database file path.
+    ///
+    /// `CRYPTOFOLIO_DB` overrides the default location. This exists so a clean
+    /// data rebuild (or a test) can run against a throwaway database without
+    /// touching the live one; unset, it resolves to `<config_dir>/database.sqlite`.
     pub fn database_path() -> Result<PathBuf> {
+        if let Ok(path) = std::env::var("CRYPTOFOLIO_DB") {
+            if !path.is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
         Ok(Self::config_dir()?.join("database.sqlite"))
     }
 
