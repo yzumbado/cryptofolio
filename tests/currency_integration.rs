@@ -13,15 +13,23 @@ async fn test_currency_list_returns_seeded_currencies() -> Result<()> {
 
     let currencies = currencies::list_currencies(&pool).await?;
 
-    // Should have 9 seeded currencies from migration
-    assert_eq!(currencies.len(), 9);
+    // All currencies seeded in schema.rs (USD, CRC, EUR, BTC, ETH, SOL, ADA,
+    // BNB, TAO, USDT, USDC). Assert the key ones are present rather than a
+    // brittle exact count that breaks whenever a currency is added to the seed.
+    assert!(
+        currencies.len() >= 11,
+        "expected at least the 11 seeded currencies, got {}",
+        currencies.len()
+    );
 
     // Check for specific currencies
     let currency_codes: Vec<&str> = currencies.iter().map(|c| c.code.as_str()).collect();
-    assert!(currency_codes.contains(&"USD"));
-    assert!(currency_codes.contains(&"CRC"));
-    assert!(currency_codes.contains(&"BTC"));
-    assert!(currency_codes.contains(&"USDT"));
+    for code in ["USD", "CRC", "EUR", "BTC", "ETH", "SOL", "ADA", "BNB", "TAO", "USDT", "USDC"] {
+        assert!(
+            currency_codes.contains(&code),
+            "seeded currency {code} missing from list"
+        );
+    }
 
     Ok(())
 }
