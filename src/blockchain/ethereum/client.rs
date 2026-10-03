@@ -483,8 +483,16 @@ impl BlockchainClient for EtherscanClient {
         }];
 
         for token in &info.tokens {
+            // A token must never masquerade as the native asset. Scam ERC-20s
+            // airdrop themselves under the symbol "ETH" (and Unicode look-alikes
+            // of USDT etc.); because holdings are keyed by `asset` symbol, such a
+            // token's balance would OVERWRITE the real native ETH balance in the
+            // upsert. Disambiguate any token whose symbol collides with the
+            // native asset by qualifying it with its contract address, so the
+            // native "ETH" row is always the genuine on-chain balance.
+            let asset = native_safe_asset_key(&token.symbol, &token.contract_address);
             balances.push(WalletBalance {
-                asset: token.symbol.clone(),
+                asset,
                 asset_id: Some(token.contract_address.clone()),
                 quantity: token.balance,
                 decimals: token.decimals,
@@ -650,9 +658,35 @@ struct EthTransaction {
     block_number: String,
 }
 
+/// Build the holdings `asset` key for an ERC-20, guarding the native asset.
+///
+/// Holdings are keyed by symbol, so a scam ERC-20 that reports its symbol as
+/// "ETH" (or an upper/lower-case variant) would overwrite the real native ETH
+/// balance. Any such collision is disambiguated by qualifying it with the
+/// token's contract address; every other token keeps its symbol.
+fn native_safe_asset_key(symbol: &str, contract_address: &str) -> String {
+    if symbol.eq_ignore_ascii_case("ETH") {
+        format!("ETH:{contract_address}")
+    } else {
+        symbol.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_native_eth_symbol_collision_is_disambiguated() {
+        // A scam token reporting symbol "ETH" must NOT keep the bare "ETH" key
+        // (which would clobber the native balance in the symbol-keyed upsert).
+        let scam = native_safe_asset_key("ETH", "0x2fc618b4e3a29bed734e6b2364e3497eb7370302");
+        assert_eq!(scam, "ETH:0x2fc618b4e3a29bed734e6b2364e3497eb7370302");
+        // Case-insensitive: "eth" collides too.
+        assert_eq!(native_safe_asset_key("eth", "0xabc"), "ETH:0xabc");
+        // A normal token is untouched.
+        assert_eq!(native_safe_asset_key("RPL", "0xd33"), "RPL");
+    }
 
     #[test]
     fn test_etherscan_client_creation() {
