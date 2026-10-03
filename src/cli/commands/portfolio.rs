@@ -275,8 +275,8 @@ pub async fn handle_portfolio_command(
                 };
 
                 println!(
-                    "  {:8}  {:>12}  {:>12}  {:>12}  {:>15}",
-                    h.holding.asset,
+                    "  {:16}  {:>12}  {:>12}  {:>12}  {:>15}",
+                    crate::core::defi::display_label(&h.holding.asset),
                     format_quantity(h.holding.quantity),
                     price_str,
                     value_str,
@@ -300,7 +300,7 @@ pub async fn handle_portfolio_command(
             }
             print!(
                 "{}: {} ({})",
-                total.asset,
+                crate::core::defi::display_label(&total.asset),
                 format_quantity(total.quantity),
                 format_usd(total.value)
             );

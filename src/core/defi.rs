@@ -123,6 +123,36 @@ pub fn classify(symbol: &str) -> DefiAsset {
     }
 }
 
+/// A human-readable holdings label for a raw symbol. A plain asset is shown as
+/// itself; a DeFi receipt token is shown as its UNDERLYING with a source tag,
+/// so an Aave aToken reads as the asset it represents rather than its opaque
+/// wrapper symbol:
+///
+/// * `aEthwstETH`         -> `wstETH (Aave)`
+/// * `aEthrETH`           -> `rETH (Aave)`
+/// * `aEthUSDT`           -> `USDT (Aave)`
+/// * `variableDebtEthGHO` -> `GHO (Aave debt)`
+/// * `LDNEAR`             -> `NEAR (Earn)`
+/// * `BTC`                -> `BTC`
+///
+/// Display-only: valuation still uses [`classify`] + the underlying price, so
+/// this changes labels, never numbers.
+pub fn display_label(symbol: &str) -> String {
+    let d = classify(symbol);
+    if !d.is_defi() {
+        return symbol.to_string();
+    }
+    let lower = symbol.to_lowercase();
+    let source = if lower.starts_with("ld") {
+        "Earn"
+    } else if d.kind == DefiKind::Debt {
+        "Aave debt"
+    } else {
+        "Aave"
+    };
+    format!("{} ({})", d.underlying, source)
+}
+
 /// USD-pegged stablecoins that price feeds often omit (e.g. Binance has no
 /// `USDTUSDT` pair, and GHO — Aave's stablecoin — is not on Binance spot).
 /// Used as a $1.00 fallback ONLY when a live feed returns no price.
@@ -182,6 +212,21 @@ mod tests {
 
         assert_eq!(classify("aEthwstETH").underlying, "wstETH");
         assert_eq!(classify("aEthrETH").underlying, "rETH");
+    }
+
+    #[test]
+    fn display_label_resolves_defi_receipts_to_underlying() {
+        // Aave aTokens -> underlying with source tag.
+        assert_eq!(display_label("aEthwstETH"), "wstETH (Aave)");
+        assert_eq!(display_label("aEthrETH"), "rETH (Aave)");
+        assert_eq!(display_label("aEthUSDT"), "USDT (Aave)");
+        // Debt token -> underlying tagged as debt.
+        assert_eq!(display_label("variableDebtEthGHO"), "GHO (Aave debt)");
+        // Binance Earn wrapper -> underlying tagged Earn.
+        assert_eq!(display_label("LDNEAR"), "NEAR (Earn)");
+        // Plain assets are shown verbatim.
+        assert_eq!(display_label("BTC"), "BTC");
+        assert_eq!(display_label("wstETH"), "wstETH");
     }
 
     #[test]
