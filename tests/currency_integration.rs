@@ -24,7 +24,9 @@ async fn test_currency_list_returns_seeded_currencies() -> Result<()> {
 
     // Check for specific currencies
     let currency_codes: Vec<&str> = currencies.iter().map(|c| c.code.as_str()).collect();
-    for code in ["USD", "CRC", "EUR", "BTC", "ETH", "SOL", "ADA", "BNB", "TAO", "USDT", "USDC"] {
+    for code in [
+        "USD", "CRC", "EUR", "BTC", "ETH", "SOL", "ADA", "BNB", "TAO", "USDT", "USDC",
+    ] {
         assert!(
             currency_codes.contains(&code),
             "seeded currency {code} missing from list"
