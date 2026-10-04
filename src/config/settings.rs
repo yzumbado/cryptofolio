@@ -222,6 +222,34 @@ pub struct DisplayConfig {
     /// Use thousands separator in numbers (e.g., 1,234.56)
     #[serde(default = "default_thousands_separator")]
     pub thousands_separator: bool,
+
+    /// Asset symbols to hide from the holdings / portfolio DISPLAY.
+    ///
+    /// Presentation-only: the ledger, holdings table, cost basis and valuation
+    /// math are never touched — hidden symbols are merely not rendered. This
+    /// list lives in the user's private config file (outside the repo);
+    /// matching is case-insensitive.
+    #[serde(default)]
+    pub hidden_assets: Vec<String>,
+}
+
+/// Case-insensitive check for whether `symbol` is in the display denylist.
+///
+/// The list is presentation-only: it never affects the ledger, cost basis, or
+/// valuation. Blank entries are ignored, so an empty (or whitespace-only) list
+/// hides nothing.
+pub fn is_hidden_asset(symbol: &str, hidden: &[String]) -> bool {
+    let symbol = symbol.trim();
+    hidden
+        .iter()
+        .any(|h| !h.trim().is_empty() && h.trim().eq_ignore_ascii_case(symbol))
+}
+
+impl DisplayConfig {
+    /// Whether `symbol` should be hidden from display per `[display] hidden_assets`.
+    pub fn is_hidden(&self, symbol: &str) -> bool {
+        is_hidden_asset(symbol, &self.hidden_assets)
+    }
 }
 
 fn default_color() -> bool {
@@ -247,8 +275,19 @@ impl Default for DisplayConfig {
             decimals: default_decimals(),
             price_decimals: default_price_decimals(),
             thousands_separator: default_thousands_separator(),
+            hidden_assets: Vec::new(),
         }
     }
+}
+
+/// Parse a comma-separated `display.hidden_assets` value into the normalized
+/// (uppercased, trimmed) symbol list. Blank entries are dropped.
+fn parse_hidden_assets(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(|s| s.trim().to_uppercase())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 impl AppConfig {
@@ -361,6 +400,9 @@ impl AppConfig {
                 self.display.thousands_separator = value
                     .parse()
                     .map_err(|_| CryptofolioError::Config("Invalid boolean value".into()))?;
+            }
+            "display.hidden_assets" => {
+                self.display.hidden_assets = parse_hidden_assets(value);
             }
             "ai.mode" => {
                 self.ensure_ai_config();
@@ -555,5 +597,88 @@ impl AppConfig {
         } else {
             "https://api.binance.com"
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Synthetic placeholder symbols only — never real airdrop tokens.
+    fn list(symbols: &[&str]) -> Vec<String> {
+        symbols.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn is_hidden_asset_matches_case_insensitively() {
+        let hidden = list(&["SCAMTOKENA"]);
+        assert!(is_hidden_asset("SCAMTOKENA", &hidden));
+        assert!(is_hidden_asset("scamtokena", &hidden));
+        assert!(is_hidden_asset("ScamTokenA", &hidden));
+        assert!(is_hidden_asset("  scamtokena  ", &hidden));
+        assert!(!is_hidden_asset("SCAMTOKENB", &hidden));
+        assert!(!is_hidden_asset("BTC", &hidden));
+    }
+
+    #[test]
+    fn is_hidden_asset_empty_or_blank_list_hides_nothing() {
+        assert!(!is_hidden_asset("SCAMTOKENA", &[]));
+        let blanks = list(&["", "   "]);
+        assert!(!is_hidden_asset("SCAMTOKENA", &blanks));
+        assert!(!is_hidden_asset("", &blanks));
+    }
+
+    #[test]
+    fn display_config_default_hides_nothing() {
+        let config = DisplayConfig::default();
+        assert!(config.hidden_assets.is_empty());
+        assert!(!config.is_hidden("SCAMTOKENA"));
+    }
+
+    #[test]
+    fn display_config_is_hidden_uses_configured_list() {
+        let config = DisplayConfig {
+            hidden_assets: list(&["scamtokenb"]),
+            ..DisplayConfig::default()
+        };
+        assert!(config.is_hidden("SCAMTOKENB"));
+        assert!(!config.is_hidden("SCAMTOKENA"));
+    }
+
+    #[test]
+    fn app_config_default_has_no_hidden_assets() {
+        assert!(AppConfig::default().display.hidden_assets.is_empty());
+    }
+
+    #[test]
+    fn app_config_deserializes_without_hidden_assets_key() {
+        // Existing config files predate this setting; the serde default must
+        // apply so nothing is hidden until the owner opts in.
+        let config: AppConfig = toml::from_str("[display]\ncolor = false\n").expect("must parse");
+        assert!(config.display.hidden_assets.is_empty());
+        assert!(!config.display.is_hidden("SCAMTOKENA"));
+    }
+
+    #[test]
+    fn app_config_parses_hidden_assets_list() {
+        let config: AppConfig =
+            toml::from_str("[display]\nhidden_assets = [\"SCAMTOKENA\", \"SCAMTOKENB\"]\n")
+                .expect("must parse");
+        assert_eq!(
+            config.display.hidden_assets,
+            list(&["SCAMTOKENA", "SCAMTOKENB"])
+        );
+    }
+
+    #[test]
+    fn set_hidden_assets_parses_and_normalizes_comma_separated() {
+        let mut config = AppConfig::default();
+        config
+            .set("display.hidden_assets", " scamtokena , ScamTokenB ,,")
+            .expect("valid key");
+        assert_eq!(
+            config.display.hidden_assets,
+            list(&["SCAMTOKENA", "SCAMTOKENB"])
+        );
     }
 }

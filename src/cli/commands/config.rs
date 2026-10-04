@@ -55,6 +55,8 @@ struct DisplayConfig {
     decimals: u8,
     price_decimals: u8,
     thousands_separator: bool,
+    /// Symbols hidden from the holdings/portfolio display (presentation-only).
+    hidden_assets: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -99,6 +101,7 @@ pub async fn handle_config_command(
                         decimals: config.display.decimals,
                         price_decimals: config.display.price_decimals,
                         thousands_separator: config.display.thousands_separator,
+                        hidden_assets: config.display.hidden_assets.clone(),
                     },
                     paths: PathsConfig {
                         config_dir: AppConfig::config_dir()?.display().to_string(),
@@ -214,6 +217,12 @@ pub async fn handle_config_command(
                         "false"
                     },
                 );
+                let hidden_assets = if config.display.hidden_assets.is_empty() {
+                    "-".to_string()
+                } else {
+                    config.display.hidden_assets.join(",")
+                };
+                print_kv("hidden_assets", &hidden_assets);
                 println!();
 
                 // Show paths
