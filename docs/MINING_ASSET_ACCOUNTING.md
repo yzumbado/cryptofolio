@@ -16,8 +16,8 @@ professional treatment: cost attaches to what you *bought*; revenue attaches to 
 > cost and depreciated. They meet only in a mining P&L statement — never on a token's cost
 > line.**
 
-Putting the $2,600 miner cost onto the GEOD/WINGS tokens (the amateur move) makes the tokens
-look like they "cost" ~$1 each and are "down 74%", when in reality they are pure margin and
+Putting the [private] miner cost onto the GEOD/WINGS tokens (the amateur move) makes the tokens
+look like they "cost" [private] each and are "down [private]", when in reality they are pure margin and
 the *hardware* is the thing being recovered over time.
 
 ---
@@ -25,8 +25,8 @@ the *hardware* is the thing being recovered over time.
 ## 2. The three ledgers
 
 ### 2.1 Earned tokens — Revenue, zero cost basis
-- **Where:** the on-chain wallet that receives them (`GN-01-Avioneta` → GEOD,
-  `WB-01-Avioneta` → WINGS).
+- **Where:** the on-chain wallet that receives them (`[private wallet]` → GEOD,
+  `[private wallet]` → WINGS).
 - **Cost basis:** `$0`. Every token mined is income at fair value on the day received; with
   no tax layer we keep the clean form — basis `0`, so 100% of current value is income earned.
 - **Representation in the tracker:** `tax_lots.acquisition_price = '0'` for the earned
@@ -36,12 +36,12 @@ the *hardware* is the thing being recovered over time.
 
 ### 2.2 Mining hardware — Capital asset (PP&E), depreciated
 - **Where:** the `DePIN Hardware` account (type `bank`, category `banking`), as
-  pseudo-assets `MINER-GEODNET-LOC1` and `MINER-WINGBITS-LOC2`.
-- **Cost:** $1,300 each, $2,600 total, booked at acquisition.
+  pseudo-assets `[private]` and `[private]`.
+- **Cost:** [private] each, [private] total, booked at acquisition.
 - **Depreciation:** straight-line over a **useful life** (default **5 years = 60 months**;
   3 years is the aggressive alternative). Monthly expense = cost / months.
-  - 5-year: $2,600 / 60 = **$43.33/mo**
-  - 3-year: $2,600 / 36 = **$72.22/mo**
+  - 5-year: [private] / 60 = **[private]/mo**
+  - 3-year: [private] / 36 = **[private]/mo**
 - **Net book value (NBV):** `cost − accumulated depreciation`, floored at $0 (or salvage).
 
 ### 2.3 Mining P&L — where revenue meets cost
@@ -56,10 +56,10 @@ DePIN Mining Operation — P&L (period / cumulative)
   Operating profit / (loss)
 
   Memo — capital recovery:
-    Hardware at cost:          $2,600
+    Hardware at cost:          [private]
     Accumulated depreciation:  −$X
     Net book value:            $Y
-    Tokens earned to date:     $Z   (Z / 2,600 = % of capital recovered)
+    Tokens earned to date:     $Z   (Z / [private] = % of capital recovered)
 ```
 
 ---
@@ -115,9 +115,9 @@ edit the old one (append-only ledger).
 ## 5. Current state (2026-10-03)
 
 - GEOD/WINGS: being moved to **$0 cost** (income). ← this change
-- Hardware: $2,600 at cost in `DePIN Hardware`. Depreciation params: **to be set** (default
+- Hardware: [private] at cost in `DePIN Hardware`. Depreciation params: **to be set** (default
   5-year straight-line, in-service date = earliest reward date per wallet).
-- Tokens earned to date ≈ **$672** → **25.8% of the $2,600 recovered.**
+- Tokens earned to date ≈ **[private]** → **[private]% of the [private] recovered.**
 
 ---
 
@@ -125,11 +125,11 @@ edit the old one (append-only ledger).
 
 - **Per-reward FMV history IS available** (corrected 2026-10-03): each DePIN reward lands as a
   dated daily transfer on the token ACCOUNT (not the owner wallet — the owner-level signature
-  list misses them). The GEOD token account shows ~10-12 GEOD/day, one tx per day, each with
+  list misses them). The GEOD token account shows [private] GEOD/day, one tx per day, each with
   an exact `blockTime`. Income-by-period is therefore reconstructable: book each reward at its
   FMV on its receipt date. Procedure P5 below covers it.
 - **Opex (power/internet) is NOT tracked, by design** (owner decision 2026-10-03): the miners
-  run in two homes the owner already owns and already pays electricity + internet for. There
+  run in homes the owner already owns and already pays electricity + internet for. There
   is **no incremental cost** attributable to mining, so opex = $0 and the operating profit is
   revenue − depreciation only. Revisit only if a dedicated/metered cost ever arises.
 - This is management accounting for decision-making, not a tax filing. No wash-sale logic.

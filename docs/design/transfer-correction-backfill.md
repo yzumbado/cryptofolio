@@ -24,7 +24,7 @@ whenever coins move between the user's own accounts or a bad row is corrected:
    into the destination account (observed across TAO, BTC, RPL, the `LD*` Simple-Earn
    wrappers). The same coins already have a `buy` lot in the source account, so the
    backfill counts them **twice or three times**. Example measured this session:
-   TAO held = 71.40, but `tax_lots` summed to ~163 across three accounts
+   TAO held = [private], but `tax_lots` summed to ~[private] across three accounts
    (Binance buys + a manual re-entry of the same buys + transfer-to-cold-storage rows,
    all typed `buy`).
 
@@ -109,10 +109,10 @@ duplicates. This is a guided, reviewed step — never a blind bulk delete.
   in B with the original basis, zero in A, and no realized P&L.
 - Unit: `transfer_out` to an external (unknown) account removes the lot, records no gain.
 - Unit: a `correction` removing qty reduces lots; a correction adding qty creates a lot.
-- Integration: seed the TAO triple-count scenario (26 API buys + 12 duplicate manual buys
-  + 3 transfers) → after backfill + reconciliation, `SUM(lots)=SUM(holdings)=71.40` and
-  blended basis ≈ $256/TAO.
-- Regression: RPL realized stays +$469.57; withdrawals still book no phantom loss.
+- Integration: seed the TAO triple-count scenario ([private] API buys + [private] duplicate
+  manual buys + [private] transfers) → after backfill + reconciliation,
+  `SUM(lots)=SUM(holdings)=[private]` and blended basis ≈ [private]/TAO.
+- Regression: RPL realized stays [private]; withdrawals still book no phantom loss.
 - Gates: `cargo fmt --check`, `cargo clippy -D warnings`, unwrap gate (baseline 8),
   `cargo test --lib`, MCP suite.
 

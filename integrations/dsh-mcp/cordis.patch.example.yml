@@ -1,0 +1,20 @@
+# Copy to cordis.patch.yml (gitignored — it holds machine-specific paths),
+# replace REPO_ROOT with the absolute path to this checkout, then install
+# through DSH's plugin_manager with this directory as the bundle target.
+#
+# Prerequisites (rebuild first):
+#   cargo build --release
+#   (cd mcp && npm run build)
+- insert:
+    - id: mcp-cryptofolio
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: cryptofolio
+        transport: stdio
+        command: node
+        args:
+          - REPO_ROOT/mcp/dist/index.js
+        cwd: REPO_ROOT
+        env:
+          CRYPTOFOLIO_BIN: REPO_ROOT/target/release/cryptofolio
+        failOnStartupError: true

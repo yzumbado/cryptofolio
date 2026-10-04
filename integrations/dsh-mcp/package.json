@@ -1,0 +1,12 @@
+{
+  "name": "@yzumbado/dsh-cryptofolio-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Connects the cryptofolio MCP server (18 tools) to the DeepSeek Harness profile.",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -1,29 +1,36 @@
 # Cryptofolio — Working Backlog
 
 **Purpose:** the living record of what's done and what's queued, so work continues
-across sessions. Committed to git (durable, versioned). The agent's briefing points
-here. Update it as items move.
+across sessions and tools (DSH, Claude Code, KiroCrew). Committed to git — this file
+is **public**, so it contains no personal figures, addresses, or keys. Personal
+financial state lives in `.portfolio_private.md` (gitignored; enforced by
+`scripts/check_leaks.sh` + `.github/workflows/leak-check.yml`).
 
 **Last updated:** 2026-10-03
+
+**Tier legend:** 🤖 = delegable to a subagent (cheap model) · 🧠 = main agent ·
+👤 = needs user design/approval. Estimate: S < 15 min, M < 1 h, L multi-session.
 
 ---
 
 ## ✅ Done (recent → older)
 
-### Session 2026-10-03 — reconciliation + mining accounting
-- **Mining accounting model** — `docs/MINING_ASSET_ACCOUNTING.md`; tokens = $0-cost
-  income, hardware = depreciating capital, `cryptofolio mining-pnl` command. **PR #43 merged.**
-  Live: +$462 operating profit, 26.1% of $2,600 capital recovered.
-- **Aave aTokens display as underlying** (wstETH/rETH/USDT, not aEth*). **PR #42 merged.**
-- **Staked SOL in balance + Stake program-id fix** (was invisible ~$7.9k). **PR #41 merged.**
-- **Cost basis set:** wstETH $29,469 (exact, USDT legs); rETH $10,778 (certain FIFO lots,
-  ETH-equiv price — rETH was supplied to Aave, not sold).
-- **SOL lot dedup** — removed duplicate aggregate lot; correct basis $5,122 (65.66 @ $78.01).
-- **GEOD/WINGS → $0 cost** (income); miners → $2,600 capital with 5yr straight-line depreciation.
-- **Binance outflow audit** — all 9 withdrawn coins reconciled; USDT→Aave + ADA→NIGHT traced
-  on-chain; 3 chain-verified audit notes in ledger. No unidentified wallets.
-- **ZEC/NEAR/LINK** confirmed present (Binance Simple Earn, LD* wrappers).
-- Portfolio net worth ~$111–115k (price-dependent); realized P&L −$1,935.
+### Session 2026-10-03 (DSH)
+- **Leak remediation (Phase 0)**: identified public-repo leak — personal figures in
+  `docs/BACKLOG.md`, `docs/MINING_ASSET_ACCOUNTING.md`, `docs/design/*`. Redacted
+  public copies; real values moved to `.portfolio_private.md`. Added `.gitignore`
+  hardening (TDR/, prototypes/, .kiro/, .portfolio_*.json/md, .sqlx/, *.docx) and a
+  deterministic CI gate (`scripts/check_leaks.sh` + `leak-check.yml`).
+- **DSH MCP bundle (Phase 1)**: `integrations/dsh-mcp/` — connects the 18
+  `cryptofolio_*` tools to the DSH profile via `@deepseek-ai/dsh-mcp-client` (stdio).
+- Rebuilt `mcp/dist/` (was stale vs `mcp/src/`).
+
+### KiroCrew sessions (pre-DSH)
+- Mining accounting model (`docs/MINING_ASSET_ACCOUNTING.md`, `cryptofolio mining-pnl`).
+- Aave aTokens displayed as underlying (wstETH/rETH/USDT). Staked SOL in balance.
+- Cost basis set for all reconstructed positions (details in private notes).
+- Binance outflow audit — all withdrawn coins reconciled; chain-verified notes in ledger.
+- Portfolio reconstruction complete; ledger replayed via `pnl backfill` + reconciliation.
 
 ### Earlier
 - Engine fixes #34; CI fixes #35/#36/#37; trade/convert pairing #38/#40.
@@ -32,34 +39,87 @@ here. Update it as items move.
 
 ## 📋 Open queue (priority order)
 
-### P1 — security (flagged, awaiting user)
-- [ ] **Rotate the plaintext Claude API key** in `config.toml [ai]` and move it to Keychain
-  (`src/config/keychain.rs` supports it). Do NOT commit/echo the value.
+### P1 — Repo hygiene (deep review actions) — ✅ DONE 2026-10-03
 
-### P2 — accounting completeness
-- [ ] **P5: dated reward income** — wire the on-chain daily-reward pull (token ACCOUNT, not
-  owner wallet; ~10-12 GEOD/day with blockTime) into `mining-pnl` for a real income-by-month
-  view. `core::mining::RewardEvent` already exists; needs the Solana fetch + historical price.
-- [ ] Decide depreciation life: currently 5-year straight-line; 3-year is the alternative.
+| ID | Action | Status |
+|---|---|---|
+| D1 | Removed coverage_output.txt (tracked tarpaulin dump) | ✅ untracked+deleted |
+| D2 | Cryptofolio_Feature_Proposal.docx untracked (file kept locally, now gitignored); temp file deleted | ✅ |
+| D3 | Removed .sqlx/ + setup_sqlx.sh | ✅ |
+| D4 | Deleted sign.sh | ✅ |
+| D5 | Deleted test_keychain.sh | ✅ |
+| D6 | Deleted docs/mcp/* (Feb design artifacts) | ✅ |
+| D7 | Deleted docs/CONVERSATIONAL_CLI.md | ✅ |
+| D8 | SECURITY.md rewritten to current reality; docs/SECURE_SECRETS.md deleted | ✅ |
+| D9 | Deleted validation/ | ✅ |
+| D10 | Deleted legacy keychain FFI modules (cargo gates green) | ✅ |
+| D11 | Local cleanup: .claude/worktrees/* removed, 3 merged claude/* branches deleted | ✅ |
+| D12 | History scrub: **decided — skip for now** (accept history, move forward redacted) | ⏸️ decided |
+| D13 | Branch `docs/portfolio-roadmap` carries 2 unmerged docs (CAPABILITY_AND_GAPS.md, REBUILD_PROCEDURE.md, 778 lines). Review → leak-scan → decide merge/redact/delete | 👤 | S |
 
-### P3 — hygiene / display
-- [ ] Filter scam airdrop tokens (CAT/HEX/DIXT/yRise/YES/xAI) out of raw holdings (excluded
-  from value already; still clutter the holdings list).
-- [ ] Drop two already-merged git stashes.
+### P2 — DSH alignment
 
-### P4 — automation / UX
-- [ ] Daily portfolio-refresh cron (sync wallets + prices).
-- [ ] Wire cost basis into the portfolio summary top-line (unrealized P&L headline).
-- [ ] Recreate the `/portfolio` workflow as a KiroCrew agent/skill (from briefing).
+| ID | Action | Tier | Size |
+|---|---|---|---|
+| S1 | AGENTS.md: migrate CLAUDE.md → AGENTS.md (DSH-native), prune Claude-specific bits, fix stale facts (DB path, trait method names, network_to_chain location) | 🧠 | M |
+| S2 | `.dsh/skills/portfolio/SKILL.md` — port ledger-keeper skill; change "no investment advice" refusal to a hand-off to the advisor skill | 🧠 | M |
+| S3 | `.dsh/skills/investment-advisor/SKILL.md` — the decision assistant: thesis building, plan design, validation/invalidation scenarios, honest plan tracking. **Design session with user first** (see P6) | 👤→🧠 | L |
+| S4 | `.dsh/skills/cryptofolio-maintainer/SKILL.md` — encode CLAUDE.md conventions + ROAD_TO_A rituals for DSH sessions | 🧠 | S |
+| S5 | Dedicated DSH presets: "Ledger", "Advisor" (read-only cryptofolio tools only — structural guarantee), "Maintainer" | 🧠 | M |
+| S6 | README: remove Claude badge/Desktop sections + Ollama/AI-mode claims; add DSH section | 🤖 | S |
+
+### P3 — Decision engine (user's core goal)
+
+| ID | Action | Tier | Size |
+|---|---|---|---|
+| A1 | `price_targets` table + `cryptofolio scenario` CLI: project net worth, P&L-at-target, yield, Aave health factor under bear/base/bull (productize the TDR prototype) | 🧠 | L |
+| A2 | MCP tool `cryptofolio_project_scenarios` + output schema | 🤖 | S |
+| A3 | Advisor skill consumes live scenarios; per-asset thesis → plan → validation/invalidation triggers → honest review loop | 👤→🧠 | L |
+| A4 | Watchlist alerts + strategy drift reports (later) | 🧠 | M |
+
+### P4 — DSH web UI panel
+
+| ID | Action | Tier | Size |
+|---|---|---|---|
+| W1 | UI plugin: portfolio dashboard panel in DSH Web (theme tokens; evolve prototypes/portfolio-dashboard.html) | 🧠 | L |
+| W2 | Panel reads data via CLI/DB read path — define contract first | 👤→🧠 | M |
+
+### P5 — Trust foundation & MCP fixes
+
+| ID | Action | Tier | Size |
+|---|---|---|---|
+| T1 | Wire reconciliation_log (schema-only today; no writer) — "trust before acting" needs data | 🧠 | M |
+| T2 | Fix timestamp parse silent fallback to Utc::now() in transactions repo | 🤖 | S |
+| T3 | Fix blockchain sync: EXISTS-before-INSERT + swallowed errors (.ok()) | 🤖 | S |
+| T4 | `status --json` support (only command without it) | 🤖 | S |
+| T5 | MCP: fix list_transactions double-applied offset on asset filter | 🤖 | S |
+| T6 | MCP: float math → Decimal in track_conversion / unrealized totals; MISSING_PARAM(S) consistency; runCli {message} fallback hardening | 🤖 | M |
+| T7 | MCP: add output schemas + tighten tool descriptions (agent-experience standards); rewrite docs/mcp API reference against reality | 🤖 | M |
+| T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | 🤖 | M |
+| T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | 🤖 | S |
+| T10 | Binance client: stop eprintln-ing raw signed responses; keychain backend: stop passing secrets as argv | 🧠 | S |
+
+### P6 — Advisor skill design session (with user)
+Agenda: persona & scope (professional trader + long-term investor equivalent);
+thesis format; plan fields (allocations, entries, exits, timeframes); validation /
+invalidation triggers; honesty rules (no moving goalposts, log thesis outcomes);
+which tools it may call (read-only ledger + web research + TDR/).
+
+### P7 — Documentation refresh
+U3 ARCHITECTURE.md → v0.6 reality · U4 DATA_MODEL.md (tx_type enum, migrations refs) ·
+U5 CHANGELOG Unreleased (PRs #31–44) · U6 ROADMAP.md (DSH + advisor direction) ·
+U8 SECURITY.md (versions, contact) · U9 Dockerfile rust 1.93. All 🤖-friendly.
 
 ---
 
 ## 🔑 Key facts (don't re-derive)
-- Live DB: `~/Library/Application Support/cryptofolio/database.sqlite` (NOT ~/.config).
+
+- Live DB path: in `.portfolio_private.md` (machine-specific; NOT ~/.config — that copy is stale).
 - FIFO cost basis; no tax layer. Ledger is append-only (correct via tx_type='correction').
-- CI gate before push: `cargo fmt -- --check`, `cargo clippy -- -D warnings`,
-  `cargo test --lib`, AND integration tests. Unwrap baseline = 8.
+- CI gates: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --lib`,
+  integration tests, unwrap gate (baseline 8), mcp typecheck+lint+vitest, **leak-check**.
+- MCP server: stdio only; `CRYPTOFOLIO_BIN` env picks the binary; rebuild with `npm run build` in mcp/.
 - Never fabricate lots — only from authoritative data (Binance export or on-chain tx).
-- `trust_level` ∈ {exchange_verified, chain_verified, manual, unverified};
-  `cost_basis_method` lowercase (fifo/lifo/average).
+- `trust_level` ∈ {exchange_verified, chain_verified, manual, unverified}; `cost_basis_method` lowercase.
 - Archive DB before edits (`_archive/database.pre-*`).
+- Personal figures → `.portfolio_private.md`, never committed docs (CI-enforced).
