@@ -12,12 +12,18 @@ figures, addresses, keys, or investment plans. That material lives in the
 
 **Tier legend:** 🤖 = delegable to a subagent (cheap model) · 🧠 = main agent ·
 👤 = needs user design/approval. Estimate: S < 15 min, M < 1 h, L multi-session.
+Tasks block via `Depends on` notes when relevant; **decompose only on activation —
+never design ahead.**
 
 ---
 
 ## ✅ Done (recent → older)
 
 ### Session 2026-10-03 (DSH)
+- **Working-mode layer (trimmed inferenceFlow adoption)**: AGENTS.md + STATE.md,
+  skills `working-discipline` / `plan-before-build` / `co-author-review` /
+  `cryptofolio-conventions`, CLAUDE.md → pointer. Mechanisms verified live
+  (AGENTS.md auto-loaded, skills discovered by the DSH catalog).
 - **Leak remediation (Phase 0)** — **merged as PR #45** ✅: identified public-repo leak —
   personal figures in `docs/BACKLOG.md`, `docs/MINING_ASSET_ACCOUNTING.md`, `docs/design/*`.
   Redacted public copies; real values moved to `.portfolio_private.md`. Added `.gitignore`
@@ -67,12 +73,13 @@ figures, addresses, keys, or investment plans. That material lives in the
 
 | ID | Action | Tier | Size |
 |---|---|---|---|
-| S1 | AGENTS.md: migrate CLAUDE.md → AGENTS.md (DSH-native), prune Claude-specific bits, fix stale facts (DB path, trait method names, network_to_chain location) | 🧠 | M |
+| S1 | ✅ done — AGENTS.md + STATE.md + skills landed; CLAUDE.md → pointer. Stale-fact doc refresh remains (P7) | ✅ | — |
 | S2 | `.dsh/skills/portfolio/SKILL.md` — port ledger-keeper skill; change "no investment advice" refusal to a hand-off to the advisor skill | 🧠 | M |
 | S3 | `.dsh/skills/investment-advisor/SKILL.md` — the decision assistant: thesis building, plan design, validation/invalidation scenarios, honest plan tracking. **Design session with user first** (see P6) | 👤→🧠 | L |
-| S4 | `.dsh/skills/cryptofolio-maintainer/SKILL.md` — encode CLAUDE.md conventions + ROAD_TO_A rituals for DSH sessions | 🧠 | S |
+| S4 | ✅ done — as `working-discipline` (rituals/guardrails) + `cryptofolio-conventions` (technical rules) skills | ✅ | — |
 | S5 | Dedicated DSH presets: "Ledger", "Advisor" (read-only cryptofolio tools only — structural guarantee), "Maintainer" | 🧠 | M |
 | S6 | README: remove Claude badge/Desktop sections + Ollama/AI-mode claims; add DSH section | 🤖 | S |
+| S7 | Revisit session journal after 3 sessions of real use (inferenceFlow pattern; deliberately deferred) | 👤 | S |
 
 ### P3 — Decision engine (user's core goal)
 
