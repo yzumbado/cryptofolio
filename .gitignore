@@ -33,3 +33,24 @@ import_cold_storage.csv
 .claude/*
 # Skills are part of the codebase — shared with the repo
 !.claude/skills
+
+# Agent tool state (user-specific — not shared)
+.kiro/
+.agents/
+.dsh/*
+# DSH skills are part of the codebase — shared with the repo
+!.dsh/skills
+
+# Personal / private data — NEVER commit (enforced by scripts/check_leaks.sh)
+TDR/
+prototypes/
+.portfolio_data.json
+.portfolio_private.md
+import_*.csv
+coverage_output.txt
+.sqlx/
+*.docx
+~$*
+.DS_Store
+# Local bundle patch holds machine-specific paths (see integrations/dsh-mcp/README.md)
+integrations/dsh-mcp/cordis.patch.yml

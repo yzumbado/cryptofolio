@@ -5,15 +5,40 @@ use sqlx::SqlitePool;
 use crate::core::currency::{AssetType, Currency, ExchangeRate};
 use crate::error::Result;
 
+#[derive(sqlx::FromRow)]
+struct CurrencyRow {
+    code: String,
+    name: String,
+    symbol: String,
+    decimals: i64,
+    asset_type: String,
+    enabled: bool,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ExchangeRateRow {
+    id: i64,
+    from_currency: String,
+    to_currency: String,
+    rate: String,
+    timestamp: String,
+    source: Option<String>,
+    notes: Option<String>,
+    created_at: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct CountRow {
+    count: i64,
+}
+
 /// Get all currencies
 pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<Currency>> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query_as::<_, CurrencyRow>(
         r#"
-        SELECT code as "code!", name as "name!", symbol as "symbol!",
-               decimals as "decimals!", asset_type as "asset_type!",
-               enabled as "enabled!",
-               created_at as "created_at: String",
-               updated_at as "updated_at: String"
+        SELECT code, name, symbol, decimals, asset_type, enabled, created_at, updated_at
         FROM currencies
         ORDER BY
             CASE asset_type
@@ -22,7 +47,7 @@ pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<Currency>> {
                 WHEN 'crypto' THEN 3
             END,
             code
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -56,18 +81,14 @@ pub async fn list_currencies(pool: &SqlitePool) -> Result<Vec<Currency>> {
 
 /// Get a currency by code
 pub async fn get_currency(pool: &SqlitePool, code: &str) -> Result<Option<Currency>> {
-    let row = sqlx::query!(
+    let row = sqlx::query_as::<_, CurrencyRow>(
         r#"
-        SELECT code as "code!", name as "name!", symbol as "symbol!",
-               decimals as "decimals!", asset_type as "asset_type!",
-               enabled as "enabled!",
-               created_at as "created_at: String",
-               updated_at as "updated_at: String"
+        SELECT code, name, symbol, decimals, asset_type, enabled, created_at, updated_at
         FROM currencies
         WHERE code = ?
         "#,
-        code
     )
+    .bind(code)
     .fetch_optional(pool)
     .await?;
 
@@ -99,20 +120,20 @@ pub async fn add_currency(pool: &SqlitePool, currency: &Currency) -> Result<()> 
     let created_at = currency.created_at.to_rfc3339();
     let updated_at = currency.updated_at.to_rfc3339();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO currencies (code, name, symbol, decimals, asset_type, enabled, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
-        currency.code,
-        currency.name,
-        currency.symbol,
-        currency.decimals,
-        asset_type,
-        currency.enabled,
-        created_at,
-        updated_at
     )
+    .bind(currency.code.as_str())
+    .bind(currency.name.as_str())
+    .bind(currency.symbol.as_str())
+    .bind(currency.decimals)
+    .bind(asset_type)
+    .bind(currency.enabled)
+    .bind(created_at)
+    .bind(updated_at)
     .execute(pool)
     .await?;
 
@@ -124,20 +145,20 @@ pub async fn update_currency(pool: &SqlitePool, currency: &Currency) -> Result<(
     let asset_type = currency.asset_type.as_str();
     let updated_at = Utc::now().to_rfc3339();
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         UPDATE currencies
         SET name = ?, symbol = ?, decimals = ?, asset_type = ?, enabled = ?, updated_at = ?
         WHERE code = ?
         "#,
-        currency.name,
-        currency.symbol,
-        currency.decimals,
-        asset_type,
-        currency.enabled,
-        updated_at,
-        currency.code
     )
+    .bind(currency.name.as_str())
+    .bind(currency.symbol.as_str())
+    .bind(currency.decimals)
+    .bind(asset_type)
+    .bind(currency.enabled)
+    .bind(updated_at)
+    .bind(currency.code.as_str())
     .execute(pool)
     .await?;
 
@@ -146,28 +167,21 @@ pub async fn update_currency(pool: &SqlitePool, currency: &Currency) -> Result<(
 
 /// Remove a currency
 pub async fn remove_currency(pool: &SqlitePool, code: &str) -> Result<()> {
-    sqlx::query!(
-        r#"
-        DELETE FROM currencies WHERE code = ?
-        "#,
-        code
-    )
-    .execute(pool)
-    .await?;
+    sqlx::query("DELETE FROM currencies WHERE code = ?")
+        .bind(code)
+        .execute(pool)
+        .await?;
 
     Ok(())
 }
 
 /// Check if a currency exists
 pub async fn currency_exists(pool: &SqlitePool, code: &str) -> Result<bool> {
-    let row = sqlx::query!(
-        r#"
-        SELECT COUNT(*) as count FROM currencies WHERE code = ?
-        "#,
-        code
-    )
-    .fetch_one(pool)
-    .await?;
+    let row =
+        sqlx::query_as::<_, CountRow>("SELECT COUNT(*) as count FROM currencies WHERE code = ?")
+            .bind(code)
+            .fetch_one(pool)
+            .await?;
 
     Ok(row.count > 0)
 }
@@ -182,7 +196,7 @@ pub async fn add_exchange_rate(pool: &SqlitePool, rate: &ExchangeRate) -> Result
     let timestamp = rate.timestamp.to_rfc3339();
     let created_at = rate.created_at.to_rfc3339();
 
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO exchange_rates (from_currency, to_currency, rate, timestamp, source, notes, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -191,14 +205,14 @@ pub async fn add_exchange_rate(pool: &SqlitePool, rate: &ExchangeRate) -> Result
             source = excluded.source,
             notes = excluded.notes
         "#,
-        rate.from_currency,
-        rate.to_currency,
-        rate_str,
-        timestamp,
-        rate.source,
-        rate.notes,
-        created_at
     )
+    .bind(rate.from_currency.as_str())
+    .bind(rate.to_currency.as_str())
+    .bind(rate_str)
+    .bind(timestamp)
+    .bind(rate.source.as_str())
+    .bind(&rate.notes)
+    .bind(created_at)
     .execute(pool)
     .await?;
 
@@ -211,21 +225,17 @@ pub async fn get_latest_exchange_rate(
     from_currency: &str,
     to_currency: &str,
 ) -> Result<Option<ExchangeRate>> {
-    let row = sqlx::query!(
+    let row = sqlx::query_as::<_, ExchangeRateRow>(
         r#"
-        SELECT id as "id!", from_currency as "from_currency!",
-               to_currency as "to_currency!", rate as "rate!",
-               timestamp as "timestamp: String",
-               source, notes,
-               created_at as "created_at: String"
+        SELECT id, from_currency, to_currency, rate, timestamp, source, notes, created_at
         FROM exchange_rates
         WHERE from_currency = ? AND to_currency = ?
         ORDER BY timestamp DESC
         LIMIT 1
         "#,
-        from_currency,
-        to_currency
     )
+    .bind(from_currency)
+    .bind(to_currency)
     .fetch_optional(pool)
     .await?;
 
@@ -257,22 +267,18 @@ pub async fn get_exchange_rate_at_time(
 ) -> Result<Option<ExchangeRate>> {
     let timestamp_str = timestamp.to_rfc3339();
 
-    let row = sqlx::query!(
+    let row = sqlx::query_as::<_, ExchangeRateRow>(
         r#"
-        SELECT id as "id!", from_currency as "from_currency!",
-               to_currency as "to_currency!", rate as "rate!",
-               timestamp as "timestamp: String",
-               source, notes,
-               created_at as "created_at: String"
+        SELECT id, from_currency, to_currency, rate, timestamp, source, notes, created_at
         FROM exchange_rates
         WHERE from_currency = ? AND to_currency = ? AND timestamp <= ?
         ORDER BY timestamp DESC
         LIMIT 1
         "#,
-        from_currency,
-        to_currency,
-        timestamp_str
     )
+    .bind(from_currency)
+    .bind(to_currency)
+    .bind(timestamp_str)
     .fetch_optional(pool)
     .await?;
 
@@ -301,20 +307,16 @@ pub async fn list_exchange_rates(
     from_currency: &str,
     to_currency: &str,
 ) -> Result<Vec<ExchangeRate>> {
-    let rows = sqlx::query!(
+    let rows = sqlx::query_as::<_, ExchangeRateRow>(
         r#"
-        SELECT id as "id!", from_currency as "from_currency!",
-               to_currency as "to_currency!", rate as "rate!",
-               timestamp as "timestamp: String",
-               source, notes,
-               created_at as "created_at: String"
+        SELECT id, from_currency, to_currency, rate, timestamp, source, notes, created_at
         FROM exchange_rates
         WHERE from_currency = ? AND to_currency = ?
         ORDER BY timestamp DESC
         "#,
-        from_currency,
-        to_currency
     )
+    .bind(from_currency)
+    .bind(to_currency)
     .fetch_all(pool)
     .await?;
 

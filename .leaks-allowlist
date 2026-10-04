@@ -1,0 +1,28 @@
+# Deterministic false-positive exclusions for scripts/check_leaks.sh.
+# One "path:line" per line. Add ONLY verified false positives (test vectors,
+# placeholder paths, intentional repo URLs). Keep this file short.
+
+# Placeholder machine paths in test fixture
+mcp/tests/fixtures/config-show.json:23
+mcp/tests/fixtures/config-show.json:24
+
+# Generic placeholder paths (/Users/user, /Users/you) in docs/mcp (files slated
+# for deletion — BACKLOG D6)
+docs/mcp/API_REFERENCE.md:777
+docs/mcp/TECHNICAL_ANALYSIS.md:807
+docs/mcp/USER_GUIDE.md:590
+docs/mcp/USER_GUIDE.md:627
+
+# Private-key detection unit tests use raw 64-hex test vectors (never real keys)
+src/blockchain/security.rs:167
+src/blockchain/security.rs:173
+src/blockchain/security.rs:220
+src/blockchain/security.rs:232
+
+# Cardano mock responses use 64-hex zero strings (fake pool data)
+tests/support/cardano_mock.rs:223
+tests/support/cardano_mock.rs:251
+tests/support/cardano_mock.rs:253
+
+# BDD scenario passes a raw 64-hex test vector to the rejection gate
+tests/features/security.feature:15

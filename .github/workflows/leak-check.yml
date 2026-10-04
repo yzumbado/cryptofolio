@@ -1,0 +1,15 @@
+name: Leak Check
+
+# Deterministic privacy gate: fails when tracked files contain secrets or
+# personal data (see scripts/check_leaks.sh). Runs on every push and PR.
+on:
+  push:
+  pull_request:
+
+jobs:
+  leak-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run leak guard
+        run: bash scripts/check_leaks.sh
