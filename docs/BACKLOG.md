@@ -16,14 +16,18 @@ financial state lives in `.portfolio_private.md` (gitignored; enforced by
 ## ✅ Done (recent → older)
 
 ### Session 2026-10-03 (DSH)
-- **Leak remediation (Phase 0)**: identified public-repo leak — personal figures in
-  `docs/BACKLOG.md`, `docs/MINING_ASSET_ACCOUNTING.md`, `docs/design/*`. Redacted
-  public copies; real values moved to `.portfolio_private.md`. Added `.gitignore`
+- **Leak remediation (Phase 0)** — **merged as PR #45** ✅: identified public-repo leak —
+  personal figures in `docs/BACKLOG.md`, `docs/MINING_ASSET_ACCOUNTING.md`, `docs/design/*`.
+  Redacted public copies; real values moved to `.portfolio_private.md`. Added `.gitignore`
   hardening (TDR/, prototypes/, .kiro/, .portfolio_*.json/md, .sqlx/, *.docx) and a
-  deterministic CI gate (`scripts/check_leaks.sh` + `leak-check.yml`).
-- **DSH MCP bundle (Phase 1)**: `integrations/dsh-mcp/` — connects the 18
-  `cryptofolio_*` tools to the DSH profile via `@deepseek-ai/dsh-mcp-client` (stdio).
-- Rebuilt `mcp/dist/` (was stale vs `mcp/src/`).
+  deterministic CI gate (`scripts/check_leaks.sh` + `leak-check.yml`, blocking).
+- **Repo hygiene** — merged in #45 ✅: deleted stale scripts (sign/setup_sqlx/test_keychain),
+  Feb-era docs (docs/mcp, CONVERSATIONAL_CLI, SECURE_SECRETS), validation/, coverage dump,
+  .sqlx cache, legacy keychain FFI modules; SECURITY.md rewritten; currencies.rs `query!` →
+  runtime queries (deterministic build, no DATABASE_URL/.sqlx); local branches/worktrees cleaned.
+- **DSH MCP bundle (Phase 1)** — merged in #45 ✅: `integrations/dsh-mcp/` connects the 18
+  `cryptofolio_*` tools to the DSH profile via `@deepseek-ai/dsh-mcp-client` (stdio); verified
+  live returning real ledger data. Rebuilt `mcp/dist/` (was stale vs `mcp/src/`).
 
 ### KiroCrew sessions (pre-DSH)
 - Mining accounting model (`docs/MINING_ASSET_ACCOUNTING.md`, `cryptofolio mining-pnl`).
