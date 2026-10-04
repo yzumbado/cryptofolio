@@ -120,6 +120,48 @@ pub struct WalletTransaction {
 }
 
 // ---------------------------------------------------------------------------
+// Dated on-chain rewards
+// ---------------------------------------------------------------------------
+
+/// A dated on-chain reward credit — one transfer of an earned token (e.g. a
+/// DePIN daily distribution) with the block time it landed at.
+///
+/// This is the dated income stream the mining P&L consumes: earned tokens are
+/// revenue at $0 cost basis, valued at fair value on the receipt date
+/// (`docs/MINING_ASSET_ACCOUNTING.md`, procedure P5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DatedReward {
+    /// Block time of the transfer — the receipt date for accounting.
+    pub date: DateTime<Utc>,
+    /// Token symbol resolved from the mint (e.g. "GEOD", "WINGS").
+    pub asset: String,
+    /// Human-readable quantity received (chain decimals applied).
+    pub quantity: Decimal,
+    /// Chain transaction identifier (signature) — the ledger dedup key.
+    pub signature: String,
+}
+
+/// A reward candidate that could not be decoded. Kept so a sync records a
+/// skip with a reason instead of silently losing income.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RewardDecodeSkip {
+    /// Signature of the transaction that could not be decoded.
+    pub signature: String,
+    /// Human-readable reason (never empty).
+    pub reason: String,
+}
+
+/// Result of scanning an address for dated rewards.
+///
+/// `rewards` are the decoded credits; `skipped` are per-row decode failures.
+/// A skip never aborts the scan — the other rows are still returned.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DatedRewardBatch {
+    pub rewards: Vec<DatedReward>,
+    pub skipped: Vec<RewardDecodeSkip>,
+}
+
+// ---------------------------------------------------------------------------
 // Address summary
 // ---------------------------------------------------------------------------
 

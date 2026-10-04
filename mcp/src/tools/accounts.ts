@@ -16,6 +16,7 @@ import {
   handleCliError,
   buildError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliAccount } from "../types.js";
 
@@ -24,13 +25,16 @@ import type { CliAccount } from "../types.js";
 // ---------------------------------------------------------------------------
 
 export function registerListAccountsTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_list_accounts",
-    "List every configured account with its name, type, category, and sync flags, so other tools can be called with a valid account name. " +
-      outputEnvelopeNote(
-        "{accounts: [{name, account_type, category, sync_enabled, is_testnet}]}"
-      ),
-    {},
+    {
+      description: "List every configured account with its name, type, category, and sync flags, so other tools can be called with a valid account name. " +
+        outputEnvelopeNote(
+          "{accounts: [{name, account_type, category, sync_enabled, is_testnet}]}"
+        ),
+      inputSchema: {},
+      outputSchema: TOOL_OUTPUT_SCHEMA,
+    },
     async () => {
       try {
         const raw = await runCli(["account", "list"]);
@@ -62,39 +66,42 @@ const ACCOUNT_TYPES = [
 ] as const;
 
 export function registerManageAccountTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_manage_account",
-    "Add or archive a portfolio account (write): action=\"add\" creates an account and requires account_type and category, while action=\"remove\" soft-deletes it so it leaves the active portfolio but keeps its transactions and holdings. " +
-      outputEnvelopeNote(
-        "{name, account_type, category, sync_enabled} for add, or {name} for remove"
-      ),
     {
-      action: z
-        .enum(["add", "remove"])
-        .describe('Operation to perform: "add" or "remove"'),
-      name: z.string().describe("Account name (e.g. Binance, Ledger)"),
-      account_type: z
-        .enum(ACCOUNT_TYPES)
-        .optional()
-        .describe(
-          "Required when action=add. One of: exchange, hardware_wallet, software_wallet, custodial_service, bank"
+      description: "Add or archive a portfolio account (write): action=\"add\" creates an account and requires account_type and category, while action=\"remove\" soft-deletes it so it leaves the active portfolio but keeps its transactions and holdings. " +
+        outputEnvelopeNote(
+          "{name, account_type, category, sync_enabled} for add, or {name} for remove"
         ),
-      category: z
-        .string()
-        .optional()
-        .describe(
-          'Required when action=add. Category name (e.g. "trading", "cold-storage", "hot-wallets"). Will be created automatically if it does not exist.'
-        ),
-      sync_enabled: z
-        .boolean()
-        .optional()
-        .describe(
-          "Whether to enable automatic sync for this account (default: false)"
-        ),
-      testnet: z
-        .boolean()
-        .optional()
-        .describe("Mark this account as a testnet account (default: false)"),
+      inputSchema: {
+        action: z
+          .enum(["add", "remove"])
+          .describe('Operation to perform: "add" or "remove"'),
+        name: z.string().describe("Account name (e.g. Binance, Ledger)"),
+        account_type: z
+          .enum(ACCOUNT_TYPES)
+          .optional()
+          .describe(
+            "Required when action=add. One of: exchange, hardware_wallet, software_wallet, custodial_service, bank"
+          ),
+        category: z
+          .string()
+          .optional()
+          .describe(
+            'Required when action=add. Category name (e.g. "trading", "cold-storage", "hot-wallets"). Will be created automatically if it does not exist.'
+          ),
+        sync_enabled: z
+          .boolean()
+          .optional()
+          .describe(
+            "Whether to enable automatic sync for this account (default: false)"
+          ),
+        testnet: z
+          .boolean()
+          .optional()
+          .describe("Mark this account as a testnet account (default: false)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ action, name, account_type, category, sync_enabled, testnet }) => {
       try {

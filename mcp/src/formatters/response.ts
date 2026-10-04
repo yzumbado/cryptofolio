@@ -5,8 +5,47 @@
  * The text is always JSON so Claude can read it structurally.
  */
 
+import { z } from "zod";
 import { CliError } from "../cli.js";
 import type { SuccessResponse, ErrorResponse } from "../types.js";
+
+// ---------------------------------------------------------------------------
+// Machine-readable output schema
+// ---------------------------------------------------------------------------
+
+/**
+ * Output schema attached to every tool via `server.registerTool(...)`.
+ *
+ * The server uses ONE permissive envelope schema rather than a per-tool union:
+ * the SDK's `normalizeObjectSchema` returns `undefined` for a `z.union(...)`,
+ * and `safeParseAsync(undefined, ...)` then throws, so a union is unsafe here.
+ * Every field is optional except `success`, which both envelopes always carry.
+ */
+export const TOOL_OUTPUT_SCHEMA = z.object({
+  success: z
+    .boolean()
+    .describe("true for a success envelope, false for an error envelope"),
+  data: z
+    .unknown()
+    .optional()
+    .describe("Success payload; present when success is true"),
+  message: z
+    .string()
+    .optional()
+    .describe("Human-readable summary; present on most successes"),
+  error: z
+    .string()
+    .optional()
+    .describe("Error message; present when success is false"),
+  code: z
+    .string()
+    .optional()
+    .describe("Machine-readable error code, when the failure has one"),
+  hint: z
+    .string()
+    .optional()
+    .describe("Suggested fix for the error, when available"),
+});
 
 // ---------------------------------------------------------------------------
 // Builders
@@ -36,11 +75,29 @@ export function buildError(
 // Tool content wrapper
 // ---------------------------------------------------------------------------
 
+/**
+ * Result of wrapping a payload for an MCP tool call.
+ *
+ * Both fields carry the same object: `content[0].text` is the pretty-printed
+ * JSON (unchanged from before), and `structuredContent` is the payload itself
+ * for machine consumption. The SDK hard-throws `McpError` when a tool declares
+ * an outputSchema but omits `structuredContent`, so every handler return must
+ * include both.
+ */
+export interface ToolContentResult {
+  // The SDK's CallToolResult is an inferred Zod object with an index
+  // signature, so this alias needs one too to stay assignable.
+  [key: string]: unknown;
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent: Record<string, unknown>;
+}
+
 export function toContent(
   payload: SuccessResponse | ErrorResponse
-): { content: Array<{ type: "text"; text: string }> } {
+): ToolContentResult {
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+    structuredContent: { ...payload },
   };
 }
 
@@ -51,10 +108,10 @@ export function toContent(
 /**
  * Sentence appended to every tool description stating the output envelope.
  *
- * The installed SDK exposes `outputSchema` only on `registerTool()`, not on the
- * `server.tool(...)` overloads this server uses, so the contract is documented
- * in the description instead of a machine-readable schema. `dataShape` is a
- * compact description of the success payload's `data` field.
+ * Every tool also declares `TOOL_OUTPUT_SCHEMA` as its machine-readable
+ * `outputSchema`; this note keeps the same contract visible to the model in
+ * prose. `dataShape` is a compact description of the success payload's `data`
+ * field.
  */
 export function outputEnvelopeNote(dataShape: string): string {
   return (

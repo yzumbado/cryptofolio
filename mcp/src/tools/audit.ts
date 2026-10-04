@@ -12,6 +12,7 @@ import {
   handleCliError,
   paginate,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type {
   CliAuditSyncEntry,
@@ -20,39 +21,42 @@ import type {
 } from "../types.js";
 
 export function registerAuditLogTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_audit_log",
-    "Return one view of the wallet sync audit log — recent sync operations, address coverage, or failed syncs — optionally filtered by wallet and chain, using offset/limit pagination. " +
-      outputEnvelopeNote(
-        "{items, total_fetched, offset, limit, has_more, next_offset?}"
-      ),
     {
-      view: z
-        .enum(["sync_history", "coverage", "errors"])
-        .describe("Which audit view to return"),
-      wallet: z
-        .string()
-        .optional()
-        .describe("Filter to a specific wallet name"),
-      chain: z
-        .string()
-        .optional()
-        .describe(
-          'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+      description: "Return one view of the wallet sync audit log — recent sync operations, address coverage, or failed syncs — optionally filtered by wallet and chain, using offset/limit pagination. " +
+        outputEnvelopeNote(
+          "{items, total_fetched, offset, limit, has_more, next_offset?}"
         ),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(200)
-        .default(50)
-        .describe("Number of entries to return (default: 50)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Entries to skip for pagination (default: 0)"),
+      inputSchema: {
+        view: z
+          .enum(["sync_history", "coverage", "errors"])
+          .describe("Which audit view to return"),
+        wallet: z
+          .string()
+          .optional()
+          .describe("Filter to a specific wallet name"),
+        chain: z
+          .string()
+          .optional()
+          .describe(
+            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .default(50)
+          .describe("Number of entries to return (default: 50)"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe("Entries to skip for pagination (default: 0)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ view, wallet, chain, limit, offset }) => {
       try {
@@ -138,36 +142,39 @@ export function registerAuditLogTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerGetSyncHistoryTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_sync_history",
-    "List recent wallet sync operations from the audit log, newest first, showing the outcome, records pulled, and duration, optionally filtered by wallet and chain. " +
-      outputEnvelopeNote(
-        "{items, total_fetched, offset, limit, has_more, next_offset?}"
-      ),
     {
-      wallet: z
-        .string()
-        .optional()
-        .describe("Filter to a specific wallet name"),
-      chain: z
-        .string()
-        .optional()
-        .describe(
-          'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+      description: "List recent wallet sync operations from the audit log, newest first, showing the outcome, records pulled, and duration, optionally filtered by wallet and chain. " +
+        outputEnvelopeNote(
+          "{items, total_fetched, offset, limit, has_more, next_offset?}"
         ),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(200)
-        .default(50)
-        .describe("Number of entries to return (default: 50)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Entries to skip for pagination (default: 0)"),
+      inputSchema: {
+        wallet: z
+          .string()
+          .optional()
+          .describe("Filter to a specific wallet name"),
+        chain: z
+          .string()
+          .optional()
+          .describe(
+            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .default(50)
+          .describe("Number of entries to return (default: 50)"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe("Entries to skip for pagination (default: 0)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ wallet, chain, limit, offset }) => {
       try {

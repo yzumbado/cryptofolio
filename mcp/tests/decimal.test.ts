@@ -11,6 +11,8 @@ import {
   addDecimalStrings,
   roundDecimalString,
   multiplyDecimalStrings,
+  isNegativeDecimalString,
+  isZeroDecimalString,
 } from "../src/decimal.js";
 
 describe("addDecimalStrings", () => {
@@ -136,5 +138,35 @@ describe("multiplyDecimalStrings", () => {
   it("throws DecimalError on malformed operands", () => {
     expect(() => multiplyDecimalStrings("abc", "1", 8)).toThrow(DecimalError);
     expect(() => multiplyDecimalStrings("1", "", 8)).toThrow(DecimalError);
+  });
+});
+
+describe("isNegativeDecimalString", () => {
+  it("reports the sign carried by the string, zero included", () => {
+    expect(isNegativeDecimalString("-1")).toBe(true);
+    expect(isNegativeDecimalString("-0.00")).toBe(true);
+    expect(isNegativeDecimalString("0")).toBe(false);
+    expect(isNegativeDecimalString("+1.5")).toBe(false);
+    expect(isNegativeDecimalString("1.5")).toBe(false);
+  });
+
+  it("throws DecimalError on a malformed value", () => {
+    expect(() => isNegativeDecimalString("abc")).toThrow(DecimalError);
+    expect(() => isNegativeDecimalString("")).toThrow(DecimalError);
+  });
+});
+
+describe("isZeroDecimalString", () => {
+  it("treats every all-zero spelling as zero, regardless of sign", () => {
+    expect(isZeroDecimalString("0")).toBe(true);
+    expect(isZeroDecimalString("0.00")).toBe(true);
+    expect(isZeroDecimalString("-0.0")).toBe(true);
+    expect(isZeroDecimalString(".0")).toBe(true);
+    expect(isZeroDecimalString("0.001")).toBe(false);
+    expect(isZeroDecimalString("-1")).toBe(false);
+  });
+
+  it("throws DecimalError on a malformed value", () => {
+    expect(() => isZeroDecimalString("1e5")).toThrow(DecimalError);
   });
 });

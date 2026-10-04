@@ -19,6 +19,7 @@ import {
   handleCliError,
   paginate,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliTransaction } from "../types.js";
 
@@ -27,34 +28,37 @@ import type { CliTransaction } from "../types.js";
 // ---------------------------------------------------------------------------
 
 export function registerListTransactionsTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_list_transactions",
-    "List transaction history for an optional account and asset filter, newest first, using offset/limit pagination. " +
-      outputEnvelopeNote(
-        "{items, total_fetched, offset, limit, has_more, next_offset?}"
-      ),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account name"),
-      asset: z
-        .string()
-        .optional()
-        .describe('Filter to a specific asset symbol, e.g. "BTC"'),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(50)
-        .describe("Number of transactions to return (default: 50, max: 500)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Number of transactions to skip for pagination (default: 0)"),
+      description: "List transaction history for an optional account and asset filter, newest first, using offset/limit pagination. " +
+        outputEnvelopeNote(
+          "{items, total_fetched, offset, limit, has_more, next_offset?}"
+        ),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account name"),
+        asset: z
+          .string()
+          .optional()
+          .describe('Filter to a specific asset symbol, e.g. "BTC"'),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .default(50)
+          .describe("Number of transactions to return (default: 50, max: 500)"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe("Number of transactions to skip for pagination (default: 0)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account, asset, limit, offset }) => {
       try {
@@ -126,77 +130,80 @@ export function registerListTransactionsTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerRecordTransactionTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_record_transaction",
-    "Record a buy, sell, transfer, or swap to the ledger (write), taking monetary values as decimal strings to preserve precision. " +
-      outputEnvelopeNote("the CLI's transaction object, or {recorded: true}"),
     {
-      type: z
-        .enum(["buy", "sell", "transfer", "swap"])
-        .describe("Transaction type"),
-      asset: z
-        .string()
-        .optional()
-        .describe(
-          "Asset symbol for buy/sell/transfer (e.g. BTC). For swap, use from_asset and to_asset."
-        ),
-      quantity: z
-        .string()
-        .optional()
-        .describe(
-          "Quantity of asset for buy/sell/transfer (e.g. '0.1'). For swap, use from_quantity and to_quantity."
-        ),
-      account: z
-        .string()
-        .optional()
-        .describe("Account name for buy/sell/swap"),
-      from_account: z
-        .string()
-        .optional()
-        .describe("Source account for transfer"),
-      to_account: z
-        .string()
-        .optional()
-        .describe("Destination account for transfer"),
-      price_usd: z
-        .string()
-        .optional()
-        .describe(
-          "Price in USD per unit for buy/sell (e.g. '95000'). Required for buy and sell."
-        ),
-      from_asset: z
-        .string()
-        .optional()
-        .describe("Source asset symbol for swap (e.g. USDT)"),
-      from_quantity: z
-        .string()
-        .optional()
-        .describe("Source quantity for swap (e.g. '1000')"),
-      to_asset: z
-        .string()
-        .optional()
-        .describe("Destination asset symbol for swap (e.g. BTC)"),
-      to_quantity: z
-        .string()
-        .optional()
-        .describe("Destination quantity for swap (e.g. '0.01049')"),
-      fee: z
-        .string()
-        .optional()
-        .describe("Transaction fee amount (optional)"),
-      timestamp: z
-        .string()
-        .optional()
-        .describe(
-          "Transaction timestamp in ISO 8601 format (default: now)"
-        ),
-      notes: z.string().optional().describe("Optional notes or memo"),
-      cost_basis_only: z
-        .boolean()
-        .optional()
-        .describe(
-          "Record a cost-basis tax lot without changing the holdings quantity (for buys on synced accounts)."
-        ),
+      description: "Record a buy, sell, transfer, or swap to the ledger (write), taking monetary values as decimal strings to preserve precision. " +
+        outputEnvelopeNote("the CLI's transaction object, or {recorded: true}"),
+      inputSchema: {
+        type: z
+          .enum(["buy", "sell", "transfer", "swap"])
+          .describe("Transaction type"),
+        asset: z
+          .string()
+          .optional()
+          .describe(
+            "Asset symbol for buy/sell/transfer (e.g. BTC). For swap, use from_asset and to_asset."
+          ),
+        quantity: z
+          .string()
+          .optional()
+          .describe(
+            "Quantity of asset for buy/sell/transfer (e.g. '0.1'). For swap, use from_quantity and to_quantity."
+          ),
+        account: z
+          .string()
+          .optional()
+          .describe("Account name for buy/sell/swap"),
+        from_account: z
+          .string()
+          .optional()
+          .describe("Source account for transfer"),
+        to_account: z
+          .string()
+          .optional()
+          .describe("Destination account for transfer"),
+        price_usd: z
+          .string()
+          .optional()
+          .describe(
+            "Price in USD per unit for buy/sell (e.g. '95000'). Required for buy and sell."
+          ),
+        from_asset: z
+          .string()
+          .optional()
+          .describe("Source asset symbol for swap (e.g. USDT)"),
+        from_quantity: z
+          .string()
+          .optional()
+          .describe("Source quantity for swap (e.g. '1000')"),
+        to_asset: z
+          .string()
+          .optional()
+          .describe("Destination asset symbol for swap (e.g. BTC)"),
+        to_quantity: z
+          .string()
+          .optional()
+          .describe("Destination quantity for swap (e.g. '0.01049')"),
+        fee: z
+          .string()
+          .optional()
+          .describe("Transaction fee amount (optional)"),
+        timestamp: z
+          .string()
+          .optional()
+          .describe(
+            "Transaction timestamp in ISO 8601 format (default: now)"
+          ),
+        notes: z.string().optional().describe("Optional notes or memo"),
+        cost_basis_only: z
+          .boolean()
+          .optional()
+          .describe(
+            "Record a cost-basis tax lot without changing the holdings quantity (for buys on synced accounts)."
+          ),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({
       type,
@@ -356,39 +363,42 @@ interface ConversionStep {
 }
 
 export function registerTrackConversionTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_track_conversion",
-    "Record a multi-step conversion such as CRC → USD → USDT → BTC as one swap transaction per step (write); failed steps are reported without rolling back earlier ones. " +
-      outputEnvelopeNote("{description, steps_recorded, errors}"),
     {
-      description: z
-        .string()
-        .describe(
-          "Human-readable description of the overall conversion (e.g. 'Monthly DCA: CRC to BTC')"
-        ),
-      steps: z
-        .array(
-          z.object({
-            from: z.string().describe("Source asset symbol (e.g. CRC)"),
-            to: z.string().describe("Destination asset symbol (e.g. USD)"),
-            amount: z.string().describe("Amount of source asset"),
-            rate: z
-              .string()
-              .optional()
-              .describe("Exchange rate (to/from ratio, optional)"),
-            account: z
-              .string()
-              .optional()
-              .describe("Account for this step"),
-            fee: z.string().optional().describe("Fee for this step"),
-            notes: z
-              .string()
-              .optional()
-              .describe("Notes for this step"),
-          })
-        )
-        .min(1)
-        .describe("Ordered list of conversion steps"),
+      description: "Record a multi-step conversion such as CRC → USD → USDT → BTC as one swap transaction per step (write); failed steps are reported without rolling back earlier ones. " +
+        outputEnvelopeNote("{description, steps_recorded, errors}"),
+      inputSchema: {
+        description: z
+          .string()
+          .describe(
+            "Human-readable description of the overall conversion (e.g. 'Monthly DCA: CRC to BTC')"
+          ),
+        steps: z
+          .array(
+            z.object({
+              from: z.string().describe("Source asset symbol (e.g. CRC)"),
+              to: z.string().describe("Destination asset symbol (e.g. USD)"),
+              amount: z.string().describe("Amount of source asset"),
+              rate: z
+                .string()
+                .optional()
+                .describe("Exchange rate (to/from ratio, optional)"),
+              account: z
+                .string()
+                .optional()
+                .describe("Account for this step"),
+              fee: z.string().optional().describe("Fee for this step"),
+              notes: z
+                .string()
+                .optional()
+                .describe("Notes for this step"),
+            })
+          )
+          .min(1)
+          .describe("Ordered list of conversion steps"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ description, steps }) => {
       const recorded: string[] = [];
@@ -453,31 +463,34 @@ export function registerTrackConversionTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerExportTransactionsTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_export_transactions",
-    "Write the filtered transaction history to a timestamped CSV or JSON file under ~/.config/cryptofolio/exports/ (write) and return its path. " +
-      outputEnvelopeNote("{file_path, format, filters}"),
     {
-      format: z
-        .enum(["csv", "json"])
-        .default("csv")
-        .describe("Export format (default: csv)"),
-      from_date: z
-        .string()
-        .optional()
-        .describe("Start date filter in YYYY-MM-DD format"),
-      to_date: z
-        .string()
-        .optional()
-        .describe("End date filter in YYYY-MM-DD format"),
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account"),
-      asset: z
-        .string()
-        .optional()
-        .describe("Filter to a specific asset symbol"),
+      description: "Write the filtered transaction history to a timestamped CSV or JSON file under ~/.config/cryptofolio/exports/ (write) and return its path. " +
+        outputEnvelopeNote("{file_path, format, filters}"),
+      inputSchema: {
+        format: z
+          .enum(["csv", "json"])
+          .default("csv")
+          .describe("Export format (default: csv)"),
+        from_date: z
+          .string()
+          .optional()
+          .describe("Start date filter in YYYY-MM-DD format"),
+        to_date: z
+          .string()
+          .optional()
+          .describe("End date filter in YYYY-MM-DD format"),
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account"),
+        asset: z
+          .string()
+          .optional()
+          .describe("Filter to a specific asset symbol"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ format, from_date, to_date, account, asset }) => {
       try {
