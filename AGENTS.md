@@ -13,8 +13,9 @@ say "I don't know, let me verify" when uncertain.
 ## Orient first (before proposing work)
 
 1. Read STATE.md (current truth + the "⚠️ things that will make you act wrongly" list).
-2. Read docs/BACKLOG.md (public development backlog); check the private notebook's
-   §2/§3 for personal context when the work touches the owner's data.
+2. Read docs/BACKLOG.md (public development backlog); when the work touches the
+   owner's data, also check the private notebook (`.portfolio_private.md`) — its
+   "portfolio-management backlog" and "privacy & clean-up log" sections.
 3. Load the `working-discipline` skill and follow its start ritual.
 4. Propose the session focus in plain language, items by number AND name.
    Do NOT execute until Yoel confirms.

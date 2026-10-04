@@ -15,9 +15,9 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
 SECRETS='sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|5[HJK][1-9A-HJ-NP-Za-km-z]{50,}|[0-9a-f]{64}'
-# Machine paths, wallet names, full name. (The GitHub username alone is
-# intentional in repo URLs, so it is not a marker here.)
-PERSONAL='/Users/[A-Za-z0-9._-]+|Avioneta|Keystone|Yoel'
+# Machine paths, wallet names, the owner's full name. (First name alone is the
+# owner's own voice in instruction files; the GitHub username is public.)
+PERSONAL='/Users/[A-Za-z0-9._-]+|Avioneta|Keystone|Yoel Zumbado'
 MONEY='\$[0-9]{2,3}(,[0-9]{3})+(\.[0-9]+)?'
 # Files where dollar figures are never acceptable (real position data lives here).
 MONEY_FORBIDDEN='docs/BACKLOG.md|docs/MINING_ASSET_ACCOUNTING.md|docs/design/'

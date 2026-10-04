@@ -7,7 +7,7 @@
 ## Project
 
 - Local-first crypto portfolio tracker: Rust CLI (`cryptofolio`) + TypeScript MCP
-  server (18 `cryptofolio_*` tools, stdio) + DSH agent layer. Watch-only by design:
+  server (exposes the `cryptofolio_*` tools) + DSH agent layer. Watch-only by design:
   no signing, no broadcasting; private keys rejected at input.
 - Version 0.6.0 (Cargo.toml ↔ CHANGELOG). Public repo `yzumbado/cryptofolio`.
 - Ledger: append-only SQLite (DB-trigger enforced); corrections only via
@@ -33,19 +33,23 @@
 
 ## ⚠️ Things that will make you act wrongly
 
+Durable invariants stay; **transient landmines get deleted once their fix lands.**
+
 1. **Two databases exist.** The live ledger is NOT `~/.config/cryptofolio` — that
    copy is stale. The real path is in the private notebook. Never delete/reset a
    database file without checking which one you're touching.
 2. **`reconciliation_log` has no writer yet** — never claim balances are
-   "reconciled"; report uncertainty instead.
+   "reconciled"; report uncertainty instead. *(transient — remove when the writer
+   lands, backlog T1)*
 3. **`cost_basis_only: true`** is mandatory when recording buys on synced
-   accounts — without it the holding double-counts.
+   accounts — without it the holding double-counts. *(durable)*
 4. **Binary staleness:** `~/.local/bin/cryptofolio` may lag; the MCP server uses
    the repo build via `CRYPTOFOLIO_BIN`. `cargo build --release` before trusting.
+   *(transient — remove once local binaries are refreshed)*
 5. **Prices/balances are only as fresh as the last sync** — check `last_synced`
-   before quoting numbers; never fabricate or interpolate.
+   before quoting numbers; never fabricate or interpolate. *(durable)*
 6. **Everything in docs/ is public** — no personal figures, addresses, or keys
-   (the leak gate fails the build otherwise).
+   (the leak gate fails the build otherwise). *(durable)*
 
 ## Current focus
 
