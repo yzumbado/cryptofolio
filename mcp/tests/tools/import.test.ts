@@ -51,7 +51,7 @@ describe("cryptofolio_import_binance", () => {
     const tool = getTool(server, "cryptofolio_import_binance");
 
     const result = await tool!.handler({
-      file: "/Users/me/Exports/Binance history 2024.csv",
+      file: "/tmp/Binance history 2024.csv",
       account: "Binance",
     });
     const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
@@ -66,7 +66,7 @@ describe("cryptofolio_import_binance", () => {
     expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
       [
         "import-binance",
-        "/Users/me/Exports/Binance history 2024.csv",
+        "/tmp/Binance history 2024.csv",
         "--account",
         "Binance",
       ],
