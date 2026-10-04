@@ -7,4 +7,5 @@ pub mod mining;
 pub mod pnl;
 pub mod portfolio;
 pub mod pricing;
+pub mod reconciliation;
 pub mod transaction;

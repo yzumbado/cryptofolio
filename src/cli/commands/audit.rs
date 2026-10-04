@@ -1,7 +1,9 @@
 use crate::cli::{AuditCommands, GlobalOptions};
+use crate::db::{HoldingRepository, ReconciliationLogRepository, TransactionRepository};
 use crate::error::Result;
 use colored::Colorize;
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 
 pub async fn handle_audit_command(
     command: AuditCommands,
@@ -20,6 +22,10 @@ pub async fn handle_audit_command(
         }
 
         AuditCommands::Errors { limit } => handle_audit_errors(limit, pool, opts).await,
+
+        AuditCommands::Reconciliation { write } => {
+            handle_audit_reconciliation(write, pool, opts).await
+        }
     }
 }
 
@@ -399,6 +405,116 @@ async fn handle_audit_errors(limit: i64, pool: &SqlitePool, opts: &GlobalOptions
         );
         println!("  {} {}", "→".red(), err.red());
         println!();
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// audit reconciliation
+// ---------------------------------------------------------------------------
+
+async fn handle_audit_reconciliation(
+    write: bool,
+    pool: &SqlitePool,
+    opts: &GlobalOptions,
+) -> Result<()> {
+    let transactions = TransactionRepository::new(pool)
+        .list_all_chronological()
+        .await?;
+    let holdings = HoldingRepository::new(pool).list_all().await?;
+    let account_names: HashMap<String, String> =
+        sqlx::query_as::<_, (String, String)>("SELECT id, name FROM accounts")
+            .fetch_all(pool)
+            .await?
+            .into_iter()
+            .collect();
+
+    let rows = crate::core::reconciliation::reconcile(&transactions, &holdings, &account_names);
+
+    if rows.is_empty() {
+        if !opts.quiet {
+            println!("Nothing to reconcile — no transactions or holdings yet.");
+        }
+        return Ok(());
+    }
+
+    // Persist readings on request (mechanical status only — no policy).
+    if write {
+        let repo = ReconciliationLogRepository::new(pool);
+        for r in &rows {
+            repo.insert(
+                &r.account_id,
+                &r.asset,
+                &r.onchain_balance,
+                &r.computed_balance,
+                &r.delta,
+                r.status,
+                None,
+            )
+            .await?;
+        }
+    }
+
+    let verified = rows.iter().filter(|r| r.status == "verified").count();
+    let unreconciled = rows.len() - verified;
+
+    if opts.json {
+        println!("[");
+        for (i, r) in rows.iter().enumerate() {
+            let comma = if i < rows.len() - 1 { "," } else { "" };
+            println!(
+                "  {{\"account\":\"{}\",\"asset\":\"{}\",\"recorded\":\"{}\",\
+                 \"computed\":\"{}\",\"delta\":\"{}\",\"status\":\"{}\"}}{}",
+                r.account_name,
+                r.asset,
+                r.onchain_balance,
+                r.computed_balance,
+                r.delta,
+                r.status,
+                comma
+            );
+        }
+        println!("]");
+        return Ok(());
+    }
+
+    println!("{}", "Ledger Reconciliation".bold());
+    println!(
+        "  {} assets  •  {} verified  •  {}",
+        rows.len(),
+        verified.to_string().green(),
+        if unreconciled > 0 {
+            format!("{} unreconciled", unreconciled)
+                .yellow()
+                .to_string()
+        } else {
+            "0 unreconciled".to_string()
+        }
+    );
+    println!();
+    println!(
+        "  {:<20}  {:<10}  {:>18}  {:>18}  {:>18}  {}",
+        "Account".dimmed(),
+        "Asset".dimmed(),
+        "Recorded".dimmed(),
+        "Computed (tx-sum)".dimmed(),
+        "Delta".dimmed(),
+        "Status".dimmed(),
+    );
+    println!("  {}", "-".repeat(96).dimmed());
+
+    for r in &rows {
+        let name = truncate(&r.account_name, 20);
+        let status = if r.status == "verified" {
+            "verified".green().to_string()
+        } else {
+            "unreconciled".yellow().to_string()
+        };
+        println!(
+            "  {:<20}  {:<10}  {:>18}  {:>18}  {:>18}  {}",
+            name, r.asset, r.onchain_balance, r.computed_balance, r.delta, status
+        );
     }
 
     Ok(())
