@@ -329,7 +329,7 @@ pub enum Commands {
     /// Provides visibility into sync history, provider errors, and which
     /// addresses have or have not been synced recently.
     #[command(
-        after_help = "EXAMPLES:\n    # Show recent sync operations\n    cryptofolio audit sync\n    cryptofolio audit sync --limit 50\n    cryptofolio audit sync --wallet \"My Ledger\"\n    cryptofolio audit sync --chain bitcoin\n\n    # Show per-address sync coverage\n    cryptofolio audit coverage\n    cryptofolio audit coverage --chain ethereum\n\n    # Show only sync errors\n    cryptofolio audit errors\n    cryptofolio audit errors --limit 20"
+        after_help = "EXAMPLES:\n    # Show recent sync operations\n    cryptofolio audit sync\n    cryptofolio audit sync --limit 50\n    cryptofolio audit sync --wallet \"My Ledger\"\n    cryptofolio audit sync --chain bitcoin\n\n    # Show per-address sync coverage\n    cryptofolio audit coverage\n    cryptofolio audit coverage --chain ethereum\n\n    # Show only sync errors\n    cryptofolio audit errors\n    cryptofolio audit errors --limit 20\n\n    # Reconcile recorded balances vs transaction history (read-only)\n    cryptofolio audit reconciliation\n    cryptofolio audit reconciliation --json\n    # Persist the readings to reconciliation_log\n    cryptofolio audit reconciliation --write"
     )]
     Audit {
         #[command(subcommand)]
@@ -574,6 +574,13 @@ pub enum AuditCommands {
         /// Maximum number of errors to show
         #[arg(long, default_value = "20")]
         limit: i64,
+    },
+
+    /// Reconcile recorded balances against transaction history
+    Reconciliation {
+        /// Persist the computed rows to reconciliation_log
+        #[arg(long)]
+        write: bool,
     },
 }
 
