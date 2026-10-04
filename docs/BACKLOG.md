@@ -1,10 +1,12 @@
-# Cryptofolio — Working Backlog
+# Cryptofolio — Development Backlog (public)
 
-**Purpose:** the living record of what's done and what's queued, so work continues
-across sessions and tools (DSH, Claude Code, KiroCrew). Committed to git — this file
-is **public**, so it contains no personal figures, addresses, or keys. Personal
-financial state lives in `.portfolio_private.md` (gitignored; enforced by
-`scripts/check_leaks.sh` + `.github/workflows/leak-check.yml`).
+**Purpose:** the living record of **app/engineering** work — what's done and what's
+queued, so development continues across sessions and tools (DSH, Claude Code,
+KiroCrew). Committed to git — this file is public, so it contains no personal
+figures, addresses, keys, or investment plans. That material lives in the
+**private notebook** `.portfolio_private.md` (gitignored): §1 financial state,
+§2 portfolio-management backlog, §3 privacy/clean-up log. The leak gate
+(`scripts/check_leaks.sh` + CI `leak-check.yml`) enforces the boundary.
 
 **Last updated:** 2026-10-03
 
@@ -102,12 +104,18 @@ financial state lives in `.portfolio_private.md` (gitignored; enforced by
 | T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | 🤖 | M |
 | T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | 🤖 | S |
 | T10 | Binance client: stop eprintln-ing raw signed responses; keychain backend: stop passing secrets as argv | 🧠 | S |
+| T11 | Wire dated on-chain reward income (Solana token-account daily pulls) into mining-pnl | 🤖 | M |
+| T12 | Filter scam airdrop tokens from holdings display (token list lives in private notebook §2) | 🤖 | S |
+| T13 | Daily portfolio-refresh cron (sync wallets + prices) | 🤖 | S |
+| T14 | Show cost basis / unrealized P&L headline in portfolio summary top-line | 🤖 | S |
+| T15 | Rescue stashed Binance spot-trade fix: "Order No" column-offset detection (stash@{1}) — verify vs real exports, add tests | 🤖 | S |
 
 ### P6 — Advisor skill design session (with user)
 Agenda: persona & scope (professional trader + long-term investor equivalent);
 thesis format; plan fields (allocations, entries, exits, timeframes); validation /
 invalidation triggers; honesty rules (no moving goalposts, log thesis outcomes);
 which tools it may call (read-only ledger + web research + TDR/).
+**Design outputs are personal → they land in `.portfolio_private.md` §2, never in tracked files.**
 
 ### P7 — Documentation refresh
 U3 ARCHITECTURE.md → v0.6 reality · U4 DATA_MODEL.md (tx_type enum, migrations refs) ·
@@ -126,4 +134,4 @@ U8 SECURITY.md (versions, contact) · U9 Dockerfile rust 1.93. All 🤖-friendly
 - Never fabricate lots — only from authoritative data (Binance export or on-chain tx).
 - `trust_level` ∈ {exchange_verified, chain_verified, manual, unverified}; `cost_basis_method` lowercase.
 - Archive DB before edits (`_archive/database.pre-*`).
-- Personal figures → `.portfolio_private.md`, never committed docs (CI-enforced).
+- Personal data (figures, wallet names, investment plans, decisions) → `.portfolio_private.md`, never committed docs (CI-enforced). This file holds engineering tasks only.
