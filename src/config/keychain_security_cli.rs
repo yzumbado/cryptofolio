@@ -14,7 +14,8 @@
 //! - User must approve keychain access via system dialog
 
 use std::collections::HashMap;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -139,8 +140,8 @@ impl KeychainStorage for SecurityCliKeychain {
         // Delete existing entry first (keychain requires this for updates)
         let _ = self.delete(key);
 
-        // Build security command
-        // Note: Touch ID support via CLI is limited - we use standard keychain for all levels
+        // Touch ID is not available via the CLI — store at the standard level
+        // regardless; the note is informational (not a secret).
         if level.requires_touchid() {
             eprintln!(
                 "Note: Touch ID protection via `security` command is limited. \
@@ -149,24 +150,55 @@ impl KeychainStorage for SecurityCliKeychain {
             );
         }
 
-        let output = Command::new("security")
+        // Build security command. `-w` is passed WITHOUT a value as the last
+        // option so `security` prompts for the password and reads it from
+        // stdin — keeping the secret out of the process argument vector (which
+        // is visible to other users via `ps` on macOS). With a piped stdin it
+        // reads TWO lines (password + "retype password" confirmation), so we
+        // write the secret twice.
+        let mut child = Command::new("security")
             .args([
                 "add-generic-password",
                 "-s",
                 SERVICE_NAME,
                 "-a",
                 key,
-                "-w",
-                secret,
                 "-U", // Update if exists (though we deleted above)
+                "-w",
             ])
-            .output()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|e| {
                 CryptofolioError::Keychain(format!(
                     "Failed to run security command: {}. Is macOS security command available?",
                     e
                 ))
             })?;
+
+        {
+            let stdin = child.stdin.as_mut().ok_or_else(|| {
+                CryptofolioError::Keychain("Failed to open security command stdin".to_string())
+            })?;
+            let line = format!("{}\n", secret);
+            stdin.write_all(line.as_bytes()).map_err(|e| {
+                CryptofolioError::Keychain(format!(
+                    "Failed to write secret to security command: {}",
+                    e
+                ))
+            })?;
+            stdin.write_all(line.as_bytes()).map_err(|e| {
+                CryptofolioError::Keychain(format!(
+                    "Failed to write secret confirmation to security command: {}",
+                    e
+                ))
+            })?;
+        }
+
+        let output = child.wait_with_output().map_err(|e| {
+            CryptofolioError::Keychain(format!("Failed to wait for security command: {}", e))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

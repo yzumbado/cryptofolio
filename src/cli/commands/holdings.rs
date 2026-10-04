@@ -8,9 +8,22 @@ use crate::cli::output::{
     format_quantity, format_usd, print_header, print_row, success, suggest_next,
 };
 use crate::cli::{GlobalOptions, HoldingsCommands};
+use crate::config::AppConfig;
+use crate::core::holdings::Holding;
 use crate::core::transaction::Transaction;
 use crate::db::{AccountRepository, HoldingRepository, TransactionRepository};
 use crate::error::{CryptofolioError, Result};
+
+/// Drop holdings whose symbol is hidden by `[display] hidden_assets`.
+///
+/// Presentation-only: the repository rows (and the ledger) are untouched; the
+/// filtered vector is used solely for rendering.
+fn filter_hidden_holdings(holdings: Vec<Holding>, config: &AppConfig) -> Vec<Holding> {
+    holdings
+        .into_iter()
+        .filter(|h| !config.display.is_hidden(&h.asset))
+        .collect()
+}
 
 #[derive(Serialize)]
 struct HoldingOutput {
@@ -41,6 +54,11 @@ pub async fn handle_holdings_command(
             } else {
                 holding_repo.list_all().await?
             };
+
+            // Display-only filter: `[display] hidden_assets` symbols are skipped
+            // for both human and --json output, so automation matches the view.
+            let config = AppConfig::load()?;
+            let holdings = filter_hidden_holdings(holdings, &config);
 
             if holdings.is_empty() {
                 if opts.json {
@@ -290,4 +308,55 @@ pub async fn handle_holdings_command(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    /// Synthetic placeholder symbols only — never real airdrop tokens.
+    fn holding(asset: &str) -> Holding {
+        Holding {
+            id: 1,
+            account_id: "acc".to_string(),
+            asset: asset.to_string(),
+            quantity: Decimal::ONE,
+            avg_cost_basis: None,
+            cost_basis_currency: None,
+            avg_cost_basis_base: None,
+            updated_at: Utc::now(),
+        }
+    }
+
+    fn config_with_hidden(symbols: &[&str]) -> AppConfig {
+        let mut config = AppConfig::default();
+        config.display.hidden_assets = symbols.iter().map(|s| s.to_string()).collect();
+        config
+    }
+
+    #[test]
+    fn filter_hidden_holdings_drops_hidden_case_insensitively() {
+        let holdings = vec![holding("scamtokena"), holding("SCAMTOKENB"), holding("BTC")];
+        let config = config_with_hidden(&["SCAMTOKENA"]);
+        let visible: Vec<_> = filter_hidden_holdings(holdings, &config)
+            .into_iter()
+            .map(|h| h.asset)
+            .collect();
+        assert_eq!(visible, vec!["SCAMTOKENB".to_string(), "BTC".to_string()]);
+    }
+
+    #[test]
+    fn filter_hidden_holdings_empty_list_is_a_no_op() {
+        let holdings = vec![holding("SCAMTOKENA"), holding("SCAMTOKENB")];
+        let config = AppConfig::default();
+        assert_eq!(filter_hidden_holdings(holdings, &config).len(), 2);
+    }
+
+    #[test]
+    fn filter_hidden_holdings_can_remove_every_row() {
+        let holdings = vec![holding("SCAMTOKENA"), holding("SCAMTOKENB")];
+        let config = config_with_hidden(&["scamtokena", "scamtokenb"]);
+        assert!(filter_hidden_holdings(holdings, &config).is_empty());
+    }
 }

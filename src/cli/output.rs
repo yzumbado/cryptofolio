@@ -584,6 +584,7 @@ mod tests {
             price_decimals: 2,
             decimals: 8,
             thousands_separator: true,
+            hidden_assets: Vec::new(),
         };
         let value = Decimal::from_str("1234567.89").unwrap();
         assert_eq!(format_usd_with_config(value, &config), "$1,234,567.89");
@@ -597,6 +598,7 @@ mod tests {
             price_decimals: 2,
             decimals: 8,
             thousands_separator: false,
+            hidden_assets: Vec::new(),
         };
         let value = Decimal::from_str("1234567.89").unwrap();
         assert_eq!(format_usd_with_config(value, &config), "$1234567.89");
@@ -610,6 +612,7 @@ mod tests {
             price_decimals: 2,
             decimals: 4,
             thousands_separator: true,
+            hidden_assets: Vec::new(),
         };
         let value = Decimal::from_str("1234.56789").unwrap();
         // Truncated, not rounded
@@ -624,6 +627,7 @@ mod tests {
             price_decimals: 2,
             decimals: 8,
             thousands_separator: true,
+            hidden_assets: Vec::new(),
         };
         let value = Decimal::from_str("1234.56").unwrap();
         assert_eq!(format_pnl_with_config(value, &config), "+$1,234.56");
@@ -637,6 +641,7 @@ mod tests {
             price_decimals: 2,
             decimals: 8,
             thousands_separator: false,
+            hidden_assets: Vec::new(),
         };
         let value = Decimal::from_str("-1234.56").unwrap();
         assert_eq!(format_pnl_with_config(value, &config), "$-1234.56");

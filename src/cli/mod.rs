@@ -152,7 +152,7 @@ pub enum Commands {
 
     /// Manage holdings across accounts
     #[command(
-        after_help = "EXAMPLES:\n    # List all holdings\n    cryptofolio holdings list\n    cryptofolio holdings list --account Binance\n    cryptofolio holdings list --json\n\n    # Add holdings with cost basis\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings add ETH 2.0 --account MetaMask --cost 2800\n\n    # Move holdings between accounts\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger --yes"
+        after_help = "EXAMPLES:\n    # List all holdings\n    cryptofolio holdings list\n    cryptofolio holdings list --account Binance\n    cryptofolio holdings list --json\n\n    # Add holdings with cost basis\n    cryptofolio holdings add BTC 0.5 --account Ledger --cost 45000\n    cryptofolio holdings add ETH 2.0 --account MetaMask --cost 2800\n\n    # Move holdings between accounts\n    cryptofolio holdings move BTC 0.1 --from Binance --to Ledger --yes\n\nHIDDEN ASSETS: set [display] hidden_assets in config.toml (or 'cryptofolio config set\ndisplay.hidden_assets \"SCAMTOKENA,SCAMTOKENB\"') to hide symbols from this display.\nDisplay-only: ledger, cost basis and valuation are never changed."
     )]
     Holdings {
         #[command(subcommand)]
@@ -161,7 +161,7 @@ pub enum Commands {
 
     /// View portfolio with P&L calculations
     #[command(
-        after_help = "EXAMPLES:\n    # View full portfolio\n    cryptofolio portfolio\n\n    # Group by category or account\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --by-account\n\n    # Filter by account or category\n    cryptofolio portfolio --account Binance\n    cryptofolio portfolio --category cold-storage\n\n    # JSON output for automation\n    cryptofolio portfolio --json\n    cryptofolio portfolio --json | jq '.total_value_usd'"
+        after_help = "EXAMPLES:\n    # View full portfolio\n    cryptofolio portfolio\n\n    # Group by category or account\n    cryptofolio portfolio --by-category\n    cryptofolio portfolio --by-account\n\n    # Filter by account or category\n    cryptofolio portfolio --account Binance\n    cryptofolio portfolio --category cold-storage\n\n    # JSON output for automation\n    cryptofolio portfolio --json\n    cryptofolio portfolio --json | jq '.total_value_usd'\n\nHIDDEN ASSETS: [display] hidden_assets in config.toml hides those symbols from this\ntable (presentation-only; totals and valuation are unchanged)."
     )]
     Portfolio {
         /// Group by account
@@ -880,7 +880,7 @@ pub enum ConfigCommands {
 
     /// Set a configuration value
     #[command(
-        after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n    cryptofolio config set display.decimals 6\n    cryptofolio config set display.thousands_separator true\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet          Enable testnet mode (true/false)\n    general.default_account       Default account name\n    display.color                 Enable colors (true/false)\n    display.decimals              Decimal places for quantities (0-18, default: 8)\n    display.price_decimals        Decimal places for prices (0-18, default: 2)\n    display.thousands_separator   Use thousands separator (true/false, default: true)"
+        after_help = "EXAMPLES:\n    cryptofolio config set general.use_testnet true\n    cryptofolio config set display.color false\n    cryptofolio config set display.decimals 6\n    cryptofolio config set display.thousands_separator true\n    cryptofolio config set display.hidden_assets \"SCAMTOKENA,SCAMTOKENB\"\n\n⚠️  WARNING: For API keys/secrets, use 'config set-secret' instead!\n\nKEYS:\n    general.use_testnet          Enable testnet mode (true/false)\n    general.default_account       Default account name\n    display.color                 Enable colors (true/false)\n    display.decimals              Decimal places for quantities (0-18, default: 8)\n    display.price_decimals        Decimal places for prices (0-18, default: 2)\n    display.thousands_separator   Use thousands separator (true/false, default: true)\n    display.hidden_assets         Symbols hidden from the holdings/portfolio display (comma-separated, presentation-only)"
     )]
     Set {
         /// Configuration key (e.g., general.use_testnet)

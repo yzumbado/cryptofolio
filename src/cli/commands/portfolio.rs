@@ -143,12 +143,14 @@ pub async fn handle_portfolio_command(
             entries: portfolio
                 .entries
                 .iter()
+                .filter(|e| has_visible_holding(e, &config))
                 .map(|e| PortfolioEntryOutput {
                     account_name: e.account_name.clone(),
                     category_name: e.category_name.clone(),
                     holdings: e
                         .holdings
                         .iter()
+                        .filter(|h| is_visible_holding(h, &config))
                         .map(|h| HoldingOutput {
                             asset: h.holding.asset.clone(),
                             quantity: h.holding.quantity.to_string(),
@@ -200,6 +202,15 @@ pub async fn handle_portfolio_command(
         let category_summaries = portfolio.by_category();
 
         for summary in category_summaries {
+            let visible_accounts: Vec<&PortfolioEntry> = summary
+                .accounts
+                .iter()
+                .filter(|e| has_visible_holding(e, &config))
+                .collect();
+            if visible_accounts.is_empty() {
+                continue;
+            }
+
             println!(
                 "{}",
                 format!(
@@ -210,14 +221,18 @@ pub async fn handle_portfolio_command(
                 .bold()
             );
 
-            for entry in &summary.accounts {
+            for entry in visible_accounts {
                 println!(
                     "    {} ({})",
                     entry.account_name,
                     format_usd(entry.total_value())
                 );
 
-                for h in &entry.holdings {
+                for h in entry
+                    .holdings
+                    .iter()
+                    .filter(|h| is_visible_holding(h, &config))
+                {
                     print_holding(h, &config, 6);
                 }
             }
@@ -226,13 +241,21 @@ pub async fn handle_portfolio_command(
     } else if by_account {
         // Group by account
         for entry in &portfolio.entries {
+            if !has_visible_holding(entry, &config) {
+                continue;
+            }
+
             println!(
                 "  {} [{}]",
                 entry.account_name.bold(),
                 format_usd(entry.total_value())
             );
 
-            for h in &entry.holdings {
+            for h in entry
+                .holdings
+                .iter()
+                .filter(|h| is_visible_holding(h, &config))
+            {
                 print_holding(h, &config, 4);
             }
             println!();
@@ -247,9 +270,17 @@ pub async fn handle_portfolio_command(
         println!("{}", "-".repeat(70));
 
         for entry in &portfolio.entries {
+            if !has_visible_holding(entry, &config) {
+                continue;
+            }
+
             println!("  {}", entry.account_name.dimmed());
 
-            for h in &entry.holdings {
+            for h in entry
+                .holdings
+                .iter()
+                .filter(|h| is_visible_holding(h, &config))
+            {
                 let price_str = h
                     .current_price
                     .map(format_usd)
@@ -284,7 +315,13 @@ pub async fn handle_portfolio_command(
     }
 
     // Asset totals
-    let asset_totals = portfolio.asset_totals();
+    // Display-only: hidden symbols are skipped here too, but `asset_totals()`
+    // itself (and every total above) still values the full portfolio.
+    let asset_totals: Vec<crate::core::portfolio::AssetTotal> = portfolio
+        .asset_totals()
+        .into_iter()
+        .filter(|t| !config.display.is_hidden(&t.asset))
+        .collect();
     if !asset_totals.is_empty() {
         println!();
         println!("{}", "ASSET TOTALS".bold());
@@ -306,6 +343,19 @@ pub async fn handle_portfolio_command(
     println!();
 
     Ok(())
+}
+
+/// Whether a holding is shown under `[display] hidden_assets`.
+///
+/// Presentation-only: the portfolio (and its totals) is still built from every
+/// holding; this only decides what gets rendered.
+fn is_visible_holding(h: &HoldingWithPrice, config: &AppConfig) -> bool {
+    !config.display.is_hidden(&h.holding.asset)
+}
+
+/// Whether an account entry has at least one holding left to display.
+fn has_visible_holding(entry: &PortfolioEntry, config: &AppConfig) -> bool {
+    entry.holdings.iter().any(|h| is_visible_holding(h, config))
 }
 
 /// Render the cost-basis / unrealized-P&L headline shown above the holdings
@@ -427,5 +477,91 @@ mod tests {
             line,
             "  Cost Basis:      $0.00  |  Unrealized P&L:  +$150.00 (+0.00%)"
         );
+    }
+
+    /// Synthetic placeholder symbols only — never real airdrop tokens.
+    fn holding_named(asset: &str) -> HoldingWithPrice {
+        HoldingWithPrice {
+            holding: Holding {
+                id: 1,
+                account_id: "acc".to_string(),
+                asset: asset.to_string(),
+                quantity: Decimal::ONE,
+                avg_cost_basis: None,
+                cost_basis_currency: None,
+                avg_cost_basis_base: None,
+                updated_at: Utc::now(),
+            },
+            current_price: None,
+            current_value: None,
+            unrealized_pnl: None,
+            unrealized_pnl_percent: None,
+            defi_kind: DefiKind::Plain,
+        }
+    }
+
+    fn config_with_hidden(symbols: &[&str]) -> AppConfig {
+        let mut config = AppConfig::default();
+        config.display.hidden_assets = symbols.iter().map(|s| s.to_string()).collect();
+        config
+    }
+
+    #[test]
+    fn is_visible_holding_hides_configured_symbol_case_insensitively() {
+        let config = config_with_hidden(&["SCAMTOKENA"]);
+        assert!(!is_visible_holding(&holding_named("scamtokena"), &config));
+        assert!(!is_visible_holding(&holding_named("ScamTokenA"), &config));
+        assert!(is_visible_holding(&holding_named("SCAMTOKENB"), &config));
+        assert!(is_visible_holding(&holding_named("BTC"), &config));
+    }
+
+    #[test]
+    fn is_visible_holding_empty_list_shows_everything() {
+        let config = AppConfig::default();
+        assert!(is_visible_holding(&holding_named("SCAMTOKENA"), &config));
+    }
+
+    #[test]
+    fn has_visible_holding_is_false_only_when_every_row_is_hidden() {
+        let entry = |assets: &[&str]| PortfolioEntry {
+            account_id: "acc".to_string(),
+            account_name: "Acc".to_string(),
+            category_id: "cat".to_string(),
+            category_name: "Cat".to_string(),
+            holdings: assets.iter().map(|a| holding_named(a)).collect(),
+        };
+        let config = config_with_hidden(&["SCAMTOKENA", "SCAMTOKENB"]);
+
+        assert!(!has_visible_holding(
+            &entry(&["SCAMTOKENA", "SCAMTOKENB"]),
+            &config
+        ));
+        assert!(has_visible_holding(&entry(&["SCAMTOKENA", "BTC"]), &config));
+        assert!(has_visible_holding(&entry(&["BTC"]), &config));
+    }
+
+    #[test]
+    fn hidden_assets_do_not_change_portfolio_totals() {
+        // Deliberate: the filter is presentation-only. The `Portfolio` is still
+        // built from every holding (exactly as before this feature), so a
+        // hidden symbol keeps contributing to the totals — no valuation,
+        // cost-basis, or P&L change. Only rendering is filtered.
+        let config = config_with_hidden(&["SCAMTOKENA"]);
+
+        let mut hidden = holding_named("SCAMTOKENA");
+        hidden.current_value = Some(Decimal::from(999));
+        let portfolio = Portfolio::from_entries(vec![PortfolioEntry {
+            account_id: "acc".to_string(),
+            account_name: "Acc".to_string(),
+            category_id: "cat".to_string(),
+            category_name: "Cat".to_string(),
+            holdings: vec![hidden, holding_named("BTC")],
+        }]);
+
+        assert!(!is_visible_holding(
+            &portfolio.entries[0].holdings[0],
+            &config
+        ));
+        assert_eq!(portfolio.total_value_usd, Decimal::from(999));
     }
 }

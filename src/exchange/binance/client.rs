@@ -140,15 +140,12 @@ impl BinanceClient {
         match serde_json::from_str(&response_text) {
             Ok(data) => Ok(data),
             Err(e) => {
-                // Log the raw response to help debug API changes
+                // Never print the raw response body: it carries account
+                // balances / order data (private financial information) that
+                // must not go to stderr or logs. Log only endpoint + error.
                 eprintln!(
-                    "[ERROR] Failed to parse Binance API response from {}",
-                    endpoint
-                );
-                eprintln!("[ERROR] Parse error: {}", e);
-                eprintln!(
-                    "[ERROR] Raw response (first 500 chars): {}",
-                    &response_text.chars().take(500).collect::<String>()
+                    "[ERROR] Failed to parse Binance API response from {}: {}",
+                    endpoint, e
                 );
 
                 Err(CryptofolioError::ExchangeApi(format!(
@@ -210,15 +207,10 @@ impl BinanceClient {
         match serde_json::from_str::<T>(&response_text) {
             Ok(data) => Ok(data),
             Err(e) => {
-                // Log the raw response to help debug API changes
+                // Never print the raw response body (private account data).
                 eprintln!(
-                    "[ERROR] Failed to parse Binance API response from {}",
-                    endpoint
-                );
-                eprintln!("[ERROR] Parse error: {}", e);
-                eprintln!(
-                    "[ERROR] Raw response (first 500 chars): {}",
-                    &response_text.chars().take(500).collect::<String>()
+                    "[ERROR] Failed to parse Binance API response from {}: {}",
+                    endpoint, e
                 );
 
                 Err(CryptofolioError::ExchangeApi(format!(
