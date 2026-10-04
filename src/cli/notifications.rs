@@ -183,7 +183,7 @@ pub fn reset_fallback_warning() {
 }
 
 /// System status for display
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct SystemStatus {
     /// Configuration file path
     pub config_path: Option<String>,
@@ -202,7 +202,7 @@ pub struct SystemStatus {
 }
 
 /// Status of an AI provider
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ProviderStatus {
     pub name: &'static str,
     pub available: bool,

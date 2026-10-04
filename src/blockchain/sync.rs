@@ -211,12 +211,20 @@ async fn sync_single_address(
             .bind(chain.as_str())
             .execute(&pool)
             .await
-            .ok();
+            .map_err(|e| SyncError {
+                address: address.clone(),
+                message: format!("clear watermark failed: {}", e),
+            })?;
         None
     } else if let Some(explicit) = opts.since_block {
         Some(explicit)
     } else {
-        load_watermark(&pool, &address, &chain).await
+        load_watermark(&pool, &address, &chain)
+            .await
+            .map_err(|e| SyncError {
+                address: address.clone(),
+                message: format!("load_watermark failed: {}", e),
+            })?
     };
 
     pb.set_message(format!(
@@ -237,7 +245,12 @@ async fn sync_single_address(
 
     // Persist balances
     let balances_updated = if !opts.dry_run {
-        persist_balances(&pool, &account_id, &summary.balances).await
+        persist_balances(&pool, &account_id, &summary.balances)
+            .await
+            .map_err(|e| SyncError {
+                address: address.clone(),
+                message: format!("persist_balances failed: {}", e),
+            })?
     } else {
         summary.balances.len()
     };
@@ -263,7 +276,12 @@ async fn sync_single_address(
 
     // Persist transactions
     let transactions_new = if !opts.dry_run {
-        persist_transactions(&pool, &account_id, &address, &chain, &txs).await
+        persist_transactions(&pool, &account_id, &address, &chain, &txs)
+            .await
+            .map_err(|e| SyncError {
+                address: address.clone(),
+                message: format!("persist_transactions failed: {}", e),
+            })?
     } else {
         txs.len()
     };
@@ -271,7 +289,12 @@ async fn sync_single_address(
     // Update watermark
     if !opts.dry_run {
         if let Some(block) = highest_block {
-            save_watermark(&pool, &address, &chain, block).await;
+            save_watermark(&pool, &address, &chain, block)
+                .await
+                .map_err(|e| SyncError {
+                    address: address.clone(),
+                    message: format!("save_watermark failed: {}", e),
+                })?;
         }
     }
 
@@ -309,20 +332,29 @@ async fn sync_single_address(
 // Watermark helpers
 // ---------------------------------------------------------------------------
 
-async fn load_watermark(pool: &SqlitePool, address: &str, chain: &Chain) -> Option<u64> {
-    let row: Option<(i64,)> =
+async fn load_watermark(
+    pool: &SqlitePool,
+    address: &str,
+    chain: &Chain,
+) -> crate::error::Result<Option<u64>> {
+    let row: Option<(Option<i64>,)> =
         sqlx::query_as("SELECT last_block FROM wallet_sync_state WHERE address = ? AND chain = ?")
             .bind(address)
             .bind(chain.as_str())
             .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten();
+            .await?;
 
-    row.map(|(b,)| (b + 1) as u64) // start from next block
+    // No row, or a NULL watermark, means full history. Otherwise start from
+    // the block after the last one we synced.
+    Ok(row.and_then(|(b,)| b.map(|b| (b + 1) as u64)))
 }
 
-async fn save_watermark(pool: &SqlitePool, address: &str, chain: &Chain, block: u64) {
+async fn save_watermark(
+    pool: &SqlitePool,
+    address: &str,
+    chain: &Chain,
+    block: u64,
+) -> crate::error::Result<()> {
     sqlx::query(
         "INSERT INTO wallet_sync_state (address, chain, last_block, last_sync_at, updated_at)
          VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -335,8 +367,9 @@ async fn save_watermark(pool: &SqlitePool, address: &str, chain: &Chain, block: 
     .bind(chain.as_str())
     .bind(block as i64)
     .execute(pool)
-    .await
-    .ok();
+    .await?;
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -347,10 +380,10 @@ async fn persist_balances(
     pool: &SqlitePool,
     account_id: &str,
     balances: &[crate::blockchain::types::WalletBalance],
-) -> usize {
+) -> crate::error::Result<usize> {
     let mut updated = 0;
     for balance in balances {
-        let result = sqlx::query(
+        sqlx::query(
             "INSERT INTO holdings (account_id, asset, quantity, updated_at)
              VALUES (?, ?, ?, CURRENT_TIMESTAMP)
              ON CONFLICT(account_id, asset) DO UPDATE SET
@@ -361,13 +394,11 @@ async fn persist_balances(
         .bind(&balance.asset)
         .bind(balance.quantity.to_string())
         .execute(pool)
-        .await;
+        .await?;
 
-        if result.is_ok() {
-            updated += 1;
-        }
+        updated += 1;
     }
-    updated
+    Ok(updated)
 }
 
 async fn persist_transactions(
@@ -376,23 +407,12 @@ async fn persist_transactions(
     address: &str,
     chain: &Chain,
     txs: &[WalletTransaction],
-) -> usize {
+) -> crate::error::Result<usize> {
     use crate::blockchain::types::TransactionDirection;
 
     let mut new_count = 0;
     for tx in txs {
         let external_id = format!("{}-{}", chain.as_str(), tx.external_id);
-
-        let exists: bool =
-            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM transactions WHERE external_id = ?)")
-                .bind(&external_id)
-                .fetch_one(pool)
-                .await
-                .unwrap_or(true); // on error, skip to avoid duplicates
-
-        if exists {
-            continue;
-        }
 
         // Use canonical TransactionType strings and correct asset/quantity columns.
         // Incoming:  asset arrives in account → to_asset / to_quantity
@@ -428,7 +448,7 @@ async fn persist_transactions(
             ),
         };
 
-        sqlx::query(
+        let result = sqlx::query(
             "INSERT INTO transactions
              (tx_type, from_account_id, to_account_id,
               from_asset, from_quantity, to_asset, to_quantity,
@@ -448,12 +468,19 @@ async fn persist_transactions(
         .bind(address)
         .bind(tx.timestamp.to_rfc3339())
         .execute(pool)
-        .await
-        .ok();
+        .await;
 
-        new_count += 1;
+        match result {
+            Ok(_) => new_count += 1,
+            // Dedup lives in the UNIQUE(external_id) constraint: a unique
+            // violation means this chain event is already in the ledger.
+            Err(e)
+                if e.as_database_error()
+                    .is_some_and(|db| db.is_unique_violation()) => {}
+            Err(e) => return Err(e.into()),
+        }
     }
-    new_count
+    Ok(new_count)
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +541,192 @@ fn redact_address(address: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::blockchain::types::{TransactionDirection, WalletBalance};
+    use crate::db::init_memory_pool;
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    const ACCOUNT_ID: &str = "acc-1";
+
+    async fn setup_db() -> SqlitePool {
+        let pool = init_memory_pool().await.expect("in-memory pool");
+        sqlx::query("INSERT INTO categories (id, name) VALUES ('test-cat', 'Test')")
+            .execute(&pool)
+            .await
+            .expect("insert category");
+        sqlx::query(
+            "INSERT INTO accounts (id, category_id, name, account_type) \
+             VALUES (?, 'test-cat', 'Test Wallet', 'wallet')",
+        )
+        .bind(ACCOUNT_ID)
+        .execute(&pool)
+        .await
+        .expect("insert account");
+        pool
+    }
+
+    fn sample_tx(
+        external_id: &str,
+        direction: TransactionDirection,
+        amount: &str,
+    ) -> WalletTransaction {
+        WalletTransaction {
+            external_id: external_id.to_string(),
+            direction,
+            amount: Decimal::from_str(amount).expect("decimal"),
+            asset: "BTC".to_string(),
+            fee: None,
+            fee_asset: None,
+            block_height: Some(800_000),
+            timestamp: Utc::now(),
+            counterparty: None,
+            memo: None,
+        }
+    }
+
+    fn sample_balance(asset: &str, quantity: &str) -> WalletBalance {
+        WalletBalance {
+            asset: asset.to_string(),
+            asset_id: None,
+            quantity: Decimal::from_str(quantity).expect("decimal"),
+            decimals: 8,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_persist_transactions_dedups_on_unique_violation() {
+        let pool = setup_db().await;
+        let chain = Chain::Bitcoin;
+        let address = "bc1qtestaddress";
+
+        let txs = vec![
+            sample_tx("tx-a", TransactionDirection::Incoming, "0.5"),
+            sample_tx("tx-b", TransactionDirection::Outgoing, "0.25"),
+        ];
+
+        let first = persist_transactions(&pool, ACCOUNT_ID, address, &chain, &txs)
+            .await
+            .expect("first persist");
+        assert_eq!(first, 2);
+
+        // Re-persisting the same chain events must dedup via the UNIQUE
+        // (external_id) constraint and report zero new rows.
+        let second = persist_transactions(&pool, ACCOUNT_ID, address, &chain, &txs)
+            .await
+            .expect("second persist");
+        assert_eq!(second, 0);
+
+        // A mixed batch keeps the genuinely new rows and skips the duplicates.
+        let mixed = vec![
+            sample_tx("tx-a", TransactionDirection::Incoming, "0.5"),
+            sample_tx("tx-c", TransactionDirection::Incoming, "0.75"),
+        ];
+        let third = persist_transactions(&pool, ACCOUNT_ID, address, &chain, &mixed)
+            .await
+            .expect("third persist");
+        assert_eq!(third, 1);
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+            .fetch_one(&pool)
+            .await
+            .expect("count transactions");
+        assert_eq!(rows, 3);
+    }
+
+    #[tokio::test]
+    async fn test_persist_transactions_propagates_non_unique_errors() {
+        let pool = setup_db().await;
+        let txs = vec![sample_tx("tx-fk", TransactionDirection::Incoming, "1")];
+
+        // Unknown account → foreign key violation. It is not a duplicate, so it
+        // must surface instead of being swallowed and counted as a new row.
+        let outcome =
+            persist_transactions(&pool, "missing-account", "addr", &Chain::Bitcoin, &txs).await;
+        assert!(
+            outcome.is_err(),
+            "expected FK violation to propagate, got {outcome:?}"
+        );
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
+            .fetch_one(&pool)
+            .await
+            .expect("count transactions");
+        assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_persist_balances_upserts_and_propagates_errors() {
+        let pool = setup_db().await;
+        let balances = vec![sample_balance("BTC", "0.5"), sample_balance("USDC", "10")];
+
+        let first = persist_balances(&pool, ACCOUNT_ID, &balances)
+            .await
+            .expect("first persist");
+        assert_eq!(first, 2);
+
+        // Upsert in place, not a second pair of rows.
+        let second = persist_balances(&pool, ACCOUNT_ID, &balances)
+            .await
+            .expect("second persist");
+        assert_eq!(second, 2);
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM holdings WHERE account_id = ?")
+            .bind(ACCOUNT_ID)
+            .fetch_one(&pool)
+            .await
+            .expect("count holdings");
+        assert_eq!(rows, 2);
+
+        // Unknown account → foreign key violation must propagate.
+        let outcome = persist_balances(&pool, "missing-account", &balances).await;
+        assert!(
+            outcome.is_err(),
+            "expected FK violation to propagate, got {outcome:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_watermark_roundtrip() {
+        let pool = setup_db().await;
+        let chain = Chain::Ethereum;
+        let address = "0xtestaddress";
+
+        // No watermark yet → full history.
+        assert_eq!(
+            load_watermark(&pool, address, &chain)
+                .await
+                .expect("load empty"),
+            None
+        );
+
+        save_watermark(&pool, address, &chain, 19_000_000)
+            .await
+            .expect("save watermark");
+        // Resume from the block after the last synced one.
+        assert_eq!(
+            load_watermark(&pool, address, &chain)
+                .await
+                .expect("load watermark"),
+            Some(19_000_001)
+        );
+
+        save_watermark(&pool, address, &chain, 19_000_050)
+            .await
+            .expect("overwrite watermark");
+        assert_eq!(
+            load_watermark(&pool, address, &chain)
+                .await
+                .expect("load overwritten"),
+            Some(19_000_051)
+        );
+
+        let rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM wallet_sync_state")
+            .fetch_one(&pool)
+            .await
+            .expect("count watermarks");
+        assert_eq!(rows, 1);
+    }
 
     #[test]
     fn test_redact_address_long() {

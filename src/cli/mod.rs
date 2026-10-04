@@ -348,7 +348,7 @@ pub enum Commands {
     /// AI provider status (Claude API, Ollama), and network mode (testnet/mainnet).
     /// Useful for troubleshooting connectivity issues or verifying setup.
     #[command(
-        after_help = "EXAMPLES:\n    cryptofolio status\n    cryptofolio status --check\n\nThis command shows:\n    - Configuration file location\n    - Database file location\n    - Testnet/Mainnet mode\n    - Claude API connection status\n    - Ollama local LLM status\n    - Active AI provider"
+        after_help = "EXAMPLES:\n    cryptofolio status\n    cryptofolio status --check\n\nJSON output for automation:\n    cryptofolio status --json\n\nThis command shows:\n    - Configuration file location\n    - Database file location\n    - Testnet/Mainnet mode\n    - Claude API connection status\n    - Ollama local LLM status\n    - Active AI provider"
     )]
     Status {
         /// Run connectivity checks for AI providers

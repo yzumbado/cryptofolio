@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 use std::str::FromStr;
@@ -162,14 +162,23 @@ impl<'a> TransactionRepository<'a> {
             source: row.source,
             trust_level: row.trust_level,
             notes: row.notes,
-            timestamp: DateTime::parse_from_rfc3339(&row.timestamp)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
-            created_at: DateTime::parse_from_rfc3339(&row.created_at)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
+            timestamp: DateTime::parse_from_rfc3339(&row.timestamp)?.with_timezone(&Utc),
+            created_at: parse_db_timestamp(&row.created_at)?,
         })
     }
+}
+
+/// Parse a timestamp read back from SQLite.
+///
+/// `created_at` is populated by the schema default `CURRENT_TIMESTAMP`, which
+/// SQLite writes as `YYYY-MM-DD HH:MM:SS` (UTC) — *not* RFC 3339. Accept that
+/// form alongside RFC 3339. A value matching neither is an error (via
+/// `CryptofolioError::DateParse`), never a silent `Utc::now()` fallback.
+fn parse_db_timestamp(value: &str) -> Result<DateTime<Utc>> {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(value) {
+        return Ok(dt.with_timezone(&Utc));
+    }
+    Ok(NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S")?.and_utc())
 }
 
 #[derive(sqlx::FromRow)]
@@ -659,6 +668,93 @@ mod tests {
 
         let acc_txs = repo.list_by_account("test-acc-1", Some(10)).await?;
         assert_eq!(acc_txs.len(), 0);
+
+        Ok(())
+    }
+
+    /// A well-formed row used to isolate timestamp-parsing behavior.
+    fn valid_transaction_row() -> TransactionRow {
+        TransactionRow {
+            id: 1,
+            tx_type: "buy".to_string(),
+            from_account_id: None,
+            from_asset: None,
+            from_quantity: None,
+            to_account_id: Some("test-acc-1".to_string()),
+            to_asset: Some("BTC".to_string()),
+            to_quantity: Some("1.0".to_string()),
+            price_usd: Some("45000".to_string()),
+            price_currency: None,
+            price_amount: None,
+            exchange_rate: None,
+            exchange_rate_pair: None,
+            fee: None,
+            fee_asset: None,
+            tx_hash: None,
+            external_id: None,
+            source: "manual".to_string(),
+            trust_level: "manual".to_string(),
+            notes: None,
+            timestamp: "2024-01-01T00:00:00Z".to_string(),
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_rejects_malformed_timestamp() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TransactionRepository::new(&pool);
+
+        let mut row = valid_transaction_row();
+        row.timestamp = "not-a-date".to_string();
+
+        let err = repo
+            .parse_transaction(row)
+            .expect_err("a malformed timestamp must be an error, never Utc::now()");
+        assert!(
+            matches!(err, CryptofolioError::DateParse(_)),
+            "expected DateParse, got {err:?}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_rejects_malformed_created_at() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TransactionRepository::new(&pool);
+
+        let mut row = valid_transaction_row();
+        row.created_at = "not-a-date".to_string();
+
+        let err = repo
+            .parse_transaction(row)
+            .expect_err("a malformed created_at must be an error, never Utc::now()");
+        assert!(
+            matches!(err, CryptofolioError::DateParse(_)),
+            "expected DateParse, got {err:?}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_transaction_accepts_sqlite_format_created_at() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TransactionRepository::new(&pool);
+
+        let mut row = valid_transaction_row();
+        row.created_at = "2024-01-01 00:00:00".to_string();
+
+        let tx = repo.parse_transaction(row)?;
+        assert_eq!(
+            tx.created_at,
+            Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap()
+        );
+        assert_eq!(
+            tx.timestamp,
+            Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap()
+        );
 
         Ok(())
     }
