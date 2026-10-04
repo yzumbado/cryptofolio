@@ -158,3 +158,21 @@ export function multiplyDecimalStrings(
     decimalPlaces
   );
 }
+
+/**
+ * True when the string carries a negative sign, including for a negative zero
+ * (`"-0.00"`). Display code pairs this with {@link isZeroDecimalString} to keep
+ * the sign of a nonzero value that rounds to zero while rendering a literal
+ * zero unsigned.
+ */
+export function isNegativeDecimalString(value: string): boolean {
+  return parseDecimal(value).negative;
+}
+
+/**
+ * True when every digit is zero, ignoring the sign: `"0"`, `"0.00"` and
+ * `"-0.0"` are all zero. Throws `DecimalError` on a malformed value.
+ */
+export function isZeroDecimalString(value: string): boolean {
+  return parseDecimal(value).units === 0n;
+}

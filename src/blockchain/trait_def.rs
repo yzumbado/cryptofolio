@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 
-use super::types::{AddressSummary, ChainExtras, HealthStatus, WalletTransaction};
+use super::types::{
+    AddressSummary, ChainExtras, DatedRewardBatch, HealthStatus, WalletTransaction,
+};
 use crate::error::Result;
 
 /// Common interface for all blockchain providers.
@@ -52,5 +54,22 @@ pub trait BlockchainClient: Send + Sync {
     async fn get_chain_extras(&self, address: &str) -> Result<Option<ChainExtras>> {
         let _ = address;
         Ok(None)
+    }
+
+    /// Dated on-chain reward credits for `address` (mined/earned token income).
+    ///
+    /// Used by the sync to book each reward as a dated ledger row so the mining
+    /// P&L can compute income-by-period instead of approximating it from the
+    /// current held FMV. `since_block` mirrors [`Self::get_transactions`]: a
+    /// client that cannot honour it must return all rewards (the caller dedups
+    /// by signature). The default returns an empty batch — most chains have no
+    /// dated reward stream, and the mining P&L then falls back to current FMV.
+    async fn get_dated_rewards(
+        &self,
+        address: &str,
+        since_block: Option<u64>,
+    ) -> Result<DatedRewardBatch> {
+        let _ = (address, since_block);
+        Ok(DatedRewardBatch::default())
     }
 }

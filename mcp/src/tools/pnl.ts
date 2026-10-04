@@ -16,6 +16,7 @@ import {
   handleCliError,
   paginate,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type {
   CliPnlSummary,
@@ -28,25 +29,28 @@ import type {
 // ---------------------------------------------------------------------------
 
 export function registerGetPnlSummaryTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_pnl_summary",
-    "Return total realized, unrealized, and net P&L, optionally filtered by account and date range. " +
-      outputEnvelopeNote(
-        "{total_realized, total_unrealized, net_pnl, account?, from?, to?}"
-      ),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account"),
-      from_date: z
-        .string()
-        .optional()
-        .describe("Start date in YYYY-MM-DD format"),
-      to_date: z
-        .string()
-        .optional()
-        .describe("End date in YYYY-MM-DD format"),
+      description: "Return total realized, unrealized, and net P&L, optionally filtered by account and date range. " +
+        outputEnvelopeNote(
+          "{total_realized, total_unrealized, net_pnl, account?, from?, to?}"
+        ),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account"),
+        from_date: z
+          .string()
+          .optional()
+          .describe("Start date in YYYY-MM-DD format"),
+        to_date: z
+          .string()
+          .optional()
+          .describe("End date in YYYY-MM-DD format"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account, from_date, to_date }) => {
       try {
@@ -76,42 +80,45 @@ export function registerGetPnlSummaryTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerGetRealizedPnlTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_realized_pnl",
-    "List closed positions with proceeds, cost basis, and gain or loss per disposal event, optionally filtered by account, asset, and date range, using offset/limit pagination. " +
-      outputEnvelopeNote(
-        "{items, total_fetched, offset, limit, has_more, next_offset?}"
-      ),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account"),
-      asset: z
-        .string()
-        .optional()
-        .describe("Filter to a specific asset symbol"),
-      from_date: z
-        .string()
-        .optional()
-        .describe("Start date (e.g. 2024-01-01)"),
-      to_date: z
-        .string()
-        .optional()
-        .describe("End date (e.g. 2024-12-31)"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(500)
-        .default(50)
-        .describe("Number of entries to return (default: 50)"),
-      offset: z
-        .number()
-        .int()
-        .min(0)
-        .default(0)
-        .describe("Entries to skip for pagination (default: 0)"),
+      description: "List closed positions with proceeds, cost basis, and gain or loss per disposal event, optionally filtered by account, asset, and date range, using offset/limit pagination. " +
+        outputEnvelopeNote(
+          "{items, total_fetched, offset, limit, has_more, next_offset?}"
+        ),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account"),
+        asset: z
+          .string()
+          .optional()
+          .describe("Filter to a specific asset symbol"),
+        from_date: z
+          .string()
+          .optional()
+          .describe("Start date (e.g. 2024-01-01)"),
+        to_date: z
+          .string()
+          .optional()
+          .describe("End date (e.g. 2024-12-31)"),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(500)
+          .default(50)
+          .describe("Number of entries to return (default: 50)"),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .default(0)
+          .describe("Entries to skip for pagination (default: 0)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account, asset, from_date, to_date, limit, offset }) => {
       try {
@@ -146,19 +153,22 @@ export function registerGetRealizedPnlTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerGetUnrealizedPnlTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_unrealized_pnl",
-    "Return each open position with average cost basis, current price, and unrealized gain, plus the summed total unrealized P&L. " +
-      outputEnvelopeNote("{entries, total_unrealized_pnl}"),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account"),
-      asset: z
-        .string()
-        .optional()
-        .describe("Filter to a specific asset symbol"),
+      description: "Return each open position with average cost basis, current price, and unrealized gain, plus the summed total unrealized P&L. " +
+        outputEnvelopeNote("{entries, total_unrealized_pnl}"),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account"),
+        asset: z
+          .string()
+          .optional()
+          .describe("Filter to a specific asset symbol"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account, asset }) => {
       try {
@@ -205,20 +215,23 @@ export function registerGetUnrealizedPnlTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerAnalyzeAssetTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_analyze_asset",
-    "Return a combined P&L breakdown for one asset — realized and unrealized P&L — optionally scoped to a single account. " +
-      outputEnvelopeNote(
-        "{asset, account, realized_transactions, total_realized, total_unrealized, net_pnl} (all monetary values as decimal strings)"
-      ),
     {
-      asset: z
-        .string()
-        .describe("Asset symbol to analyze (e.g. BTC, ETH, SOL)"),
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account"),
+      description: "Return a combined P&L breakdown for one asset — realized and unrealized P&L — optionally scoped to a single account. " +
+        outputEnvelopeNote(
+          "{asset, account, realized_transactions, total_realized, total_unrealized, net_pnl} (all monetary values as decimal strings)"
+        ),
+      inputSchema: {
+        asset: z
+          .string()
+          .describe("Asset symbol to analyze (e.g. BTC, ETH, SOL)"),
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ asset, account }) => {
       try {
@@ -245,15 +258,18 @@ export function registerAnalyzeAssetTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerPnlBackfillTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_pnl_backfill",
-    "Recompute tax lots and realized P&L by replaying every transaction oldest-first, clearing and rebuilding existing P&L data (destructive write); re-run cryptofolio_get_pnl_summary afterwards. " +
-      outputEnvelopeNote("{output}"),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Only backfill transactions touching this account"),
+      description: "Recompute tax lots and realized P&L by replaying every transaction oldest-first, clearing and rebuilding existing P&L data (destructive write); re-run cryptofolio_get_pnl_summary afterwards. " +
+        outputEnvelopeNote("{output}"),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Only backfill transactions touching this account"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account }) => {
       try {

@@ -10,20 +10,24 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 
 export function registerSyncExchangeTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_sync_exchange",
-    "Pull current spot balances and recent history from a Binance exchange account into the ledger (write), requiring Binance API keys configured outside the MCP server. " +
-      outputEnvelopeNote("{output}"),
     {
-      account: z
-        .string()
-        .optional()
-        .describe(
-          "Account name to sync. Omit to sync the default account."
-        ),
+      description: "Pull current spot balances and recent history from a Binance exchange account into the ledger (write), requiring Binance API keys configured outside the MCP server. " +
+        outputEnvelopeNote("{output}"),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe(
+            "Account name to sync. Omit to sync the default account."
+          ),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account }) => {
       try {

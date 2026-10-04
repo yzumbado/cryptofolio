@@ -9,17 +9,21 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliMiningPnl } from "../types.js";
 
 export function registerGetMiningPnlTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_mining_pnl",
-    "Return the DePIN mining P&L statement: earned-token revenue at current fair market value, hardware depreciation, operating profit, and capital recovery. " +
-      outputEnvelopeNote(
-        "{revenue_usd, depreciation_usd, opex_usd, operating_profit_usd, hardware_cost_usd, net_book_value_usd, capital_recovered_percent}"
-      ),
-    {},
+    {
+      description: "Return the DePIN mining P&L statement: earned-token revenue at current fair market value, hardware depreciation, operating profit, and capital recovery. " +
+        outputEnvelopeNote(
+          "{revenue_usd, depreciation_usd, opex_usd, operating_profit_usd, hardware_cost_usd, net_book_value_usd, capital_recovered_percent}"
+        ),
+      inputSchema: {},
+      outputSchema: TOOL_OUTPUT_SCHEMA,
+    },
     async () => {
       try {
         // `mining-pnl` takes no options; runCli adds --json --quiet.

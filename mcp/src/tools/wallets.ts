@@ -12,6 +12,7 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type {
   CliWallet,
@@ -26,65 +27,68 @@ const BLOCKCHAINS = ["bitcoin", "ethereum", "solana", "cardano"] as const;
 // ---------------------------------------------------------------------------
 
 export function registerManageWalletTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_manage_wallet",
-    "Add, list, show, or remove a blockchain wallet address or xpub (add and remove write; list and show only read), auto-creating the account when account_type and category are supplied. " +
-      outputEnvelopeNote(
-        "the wallet add result {wallet, blockchain, network, address|xpub, derived_addresses?} for add, {wallets} for list, the wallet detail {name, addresses, holdings} for show, or {name} for remove"
-      ),
     {
-      action: z
-        .enum(["add", "list", "show", "remove"])
-        .describe('Operation: "add", "list", "show", or "remove"'),
-      name: z
-        .string()
-        .optional()
-        .describe(
-          "Wallet (account) name; required for add, show, and remove, and the account must already exist."
+      description: "Add, list, show, or remove a blockchain wallet address or xpub (add and remove write; list and show only read), auto-creating the account when account_type and category are supplied. " +
+        outputEnvelopeNote(
+          "the wallet add result {wallet, blockchain, network, address|xpub, derived_addresses?} for add, {wallets} for list, the wallet detail {name, addresses, holdings} for show, or {name} for remove"
         ),
-      blockchain: z
-        .enum(BLOCKCHAINS)
-        .optional()
-        .describe(
-          'Required for add. One of: bitcoin, ethereum, solana, cardano. For list, optionally filters by blockchain.'
-        ),
-      address: z
-        .string()
-        .optional()
-        .describe("Blockchain address (conflicts with xpub)"),
-      xpub: z
-        .string()
-        .optional()
-        .describe("Extended public key for HD wallet (conflicts with address)"),
-      derivation_path: z
-        .string()
-        .optional()
-        .describe("Derivation path for xpub (e.g. m/84'/0'/0')"),
-      address_type: z
-        .enum(["legacy", "segwit", "native_segwit", "taproot", "erc20"])
-        .optional()
-        .describe(
-          "Address type for xpub derivation. Use taproot for BIP-86 P2TR (bc1p) wallets."
-        ),
-      label: z.string().optional().describe("Optional label for this address"),
-      account_type: z
-        .enum([
-          "exchange",
-          "hardware_wallet",
-          "software_wallet",
-          "custodial_service",
-          "bank",
-        ])
-        .optional()
-        .describe(
-          "If provided and the account does not exist, it will be created automatically with this type."
-        ),
-      category: z
-        .string()
-        .optional()
-        .describe(
-          'Category for auto-created account (e.g. "cold-storage"). Required when account_type is provided.'
-        ),
+      inputSchema: {
+        action: z
+          .enum(["add", "list", "show", "remove"])
+          .describe('Operation: "add", "list", "show", or "remove"'),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "Wallet (account) name; required for add, show, and remove, and the account must already exist."
+          ),
+        blockchain: z
+          .enum(BLOCKCHAINS)
+          .optional()
+          .describe(
+            'Required for add. One of: bitcoin, ethereum, solana, cardano. For list, optionally filters by blockchain.'
+          ),
+        address: z
+          .string()
+          .optional()
+          .describe("Blockchain address (conflicts with xpub)"),
+        xpub: z
+          .string()
+          .optional()
+          .describe("Extended public key for HD wallet (conflicts with address)"),
+        derivation_path: z
+          .string()
+          .optional()
+          .describe("Derivation path for xpub (e.g. m/84'/0'/0')"),
+        address_type: z
+          .enum(["legacy", "segwit", "native_segwit", "taproot", "erc20"])
+          .optional()
+          .describe(
+            "Address type for xpub derivation. Use taproot for BIP-86 P2TR (bc1p) wallets."
+          ),
+        label: z.string().optional().describe("Optional label for this address"),
+        account_type: z
+          .enum([
+            "exchange",
+            "hardware_wallet",
+            "software_wallet",
+            "custodial_service",
+            "bank",
+          ])
+          .optional()
+          .describe(
+            "If provided and the account does not exist, it will be created automatically with this type."
+          ),
+        category: z
+          .string()
+          .optional()
+          .describe(
+            'Category for auto-created account (e.g. "cold-storage"). Required when account_type is provided.'
+          ),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({
       action,
@@ -252,29 +256,32 @@ export function registerManageWalletTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerSyncWalletTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_sync_wallet",
-    "Sync on-chain balances and optional full transaction history for one wallet or all wallets through external blockchain APIs (write), which can take up to two minutes. " +
-      outputEnvelopeNote("the CLI's sync summary, or {synced: true}"),
     {
-      wallet_name: z
-        .string()
-        .optional()
-        .describe("Name of the wallet to sync. Omit if using sync_all."),
-      sync_all: z
-        .boolean()
-        .optional()
-        .describe("Sync all wallets (default: false)"),
-      import_history: z
-        .boolean()
-        .optional()
-        .describe(
-          "Import full transaction history (slower, use on first sync). Default: false."
-        ),
-      use_local_node: z
-        .boolean()
-        .optional()
-        .describe("Use configured local node instead of public API. Default: false."),
+      description: "Sync on-chain balances and optional full transaction history for one wallet or all wallets through external blockchain APIs (write), which can take up to two minutes. " +
+        outputEnvelopeNote("the CLI's sync summary, or {synced: true}"),
+      inputSchema: {
+        wallet_name: z
+          .string()
+          .optional()
+          .describe("Name of the wallet to sync. Omit if using sync_all."),
+        sync_all: z
+          .boolean()
+          .optional()
+          .describe("Sync all wallets (default: false)"),
+        import_history: z
+          .boolean()
+          .optional()
+          .describe(
+            "Import full transaction history (slower, use on first sync). Default: false."
+          ),
+        use_local_node: z
+          .boolean()
+          .optional()
+          .describe("Use configured local node instead of public API. Default: false."),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ wallet_name, sync_all, import_history, use_local_node }) => {
       try {

@@ -750,14 +750,18 @@ async fn handle_wallet_sync(
 
         if !opts.quiet {
             println!(
-                "  ✓ Synced {} addresses — {} balance updates, {} new transactions ({} ms)",
+                "  ✓ Synced {} addresses — {} balance updates, {} new transactions, {} dated rewards ({} ms)",
                 report.addresses_synced,
                 report.balances_updated,
                 report.transactions_new,
+                report.reward_rows_new,
                 report.duration_ms,
             );
             for err in &report.errors {
                 println!("  ⚠️  {}: {}", err.address, err.message);
+            }
+            for warning in &report.warnings {
+                println!("  ⚠️  {}: {}", warning.address, warning.message);
             }
         }
     }

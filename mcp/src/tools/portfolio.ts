@@ -10,31 +10,35 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliPortfolio } from "../types.js";
 
 export function registerPortfolioTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_portfolio",
-    "Return the current portfolio snapshot with per-asset quantity, current USD value, cost basis, and unrealized P&L, optionally filtered by account or category. " +
-      outputEnvelopeNote(
-        "{total_value_usd, total_cost_basis, unrealized_pnl, unrealized_pnl_percent, entries}"
-      ),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account name"),
-      category: z
-        .string()
-        .optional()
-        .describe(
-          'Filter to a category (e.g. "trading", "cold-storage")'
+      description: "Return the current portfolio snapshot with per-asset quantity, current USD value, cost basis, and unrealized P&L, optionally filtered by account or category. " +
+        outputEnvelopeNote(
+          "{total_value_usd, total_cost_basis, unrealized_pnl, unrealized_pnl_percent, entries}"
         ),
-      by_account: z
-        .boolean()
-        .optional()
-        .describe("Group holdings by account (default: false)"),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account name"),
+        category: z
+          .string()
+          .optional()
+          .describe(
+            'Filter to a category (e.g. "trading", "cold-storage")'
+          ),
+        by_account: z
+          .boolean()
+          .optional()
+          .describe("Group holdings by account (default: false)"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account, category, by_account }) => {
       try {

@@ -11,7 +11,7 @@ use sqlx::SqlitePool;
 use tokio::task::JoinSet;
 
 use crate::blockchain::provider::ProviderRegistry;
-use crate::blockchain::types::{Chain, WalletTransaction};
+use crate::blockchain::types::{Chain, DatedReward, WalletTransaction};
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -37,6 +37,10 @@ pub struct AddressSyncResult {
     pub provider: String,
     pub balances_updated: usize,
     pub transactions_new: usize,
+    /// New dated reward rows booked as mining income.
+    pub reward_rows_new: usize,
+    /// Non-fatal per-address warnings (e.g. a reward row that failed to decode).
+    pub warnings: Vec<String>,
     pub highest_block: Option<u64>,
     pub duration_ms: u64,
 }
@@ -47,7 +51,11 @@ pub struct SyncReport {
     pub addresses_synced: usize,
     pub balances_updated: usize,
     pub transactions_new: usize,
+    /// New dated reward (mining income) rows across all addresses.
+    pub reward_rows_new: usize,
     pub errors: Vec<SyncError>,
+    /// Non-fatal warnings: rows skipped with a reason, never silent drops.
+    pub warnings: Vec<SyncError>,
     pub duration_ms: u64,
 }
 
@@ -56,6 +64,13 @@ impl SyncReport {
         self.addresses_synced += 1;
         self.balances_updated += result.balances_updated;
         self.transactions_new += result.transactions_new;
+        self.reward_rows_new += result.reward_rows_new;
+        let address = result.address.clone();
+        self.warnings
+            .extend(result.warnings.into_iter().map(|message| SyncError {
+                address: address.clone(),
+                message,
+            }));
     }
 }
 
@@ -286,6 +301,44 @@ async fn sync_single_address(
         txs.len()
     };
 
+    // Dated on-chain reward income (DePIN mined tokens). Generic across chains:
+    // a client with no dated reward stream returns an empty batch. RPC failure
+    // is an address-level SyncError (existing convention); an individual
+    // undecodable reward row is a warning and does not drop the other rows.
+    pb.set_message(format!(
+        "Fetching {} reward history ...",
+        chain.native_asset()
+    ));
+
+    let mut warnings: Vec<String> = Vec::new();
+
+    let batch = client
+        .get_dated_rewards(&address, since_block)
+        .await
+        .map_err(|e| SyncError {
+            address: address.clone(),
+            message: format!("get_dated_rewards failed: {}", e),
+        })?;
+
+    warnings.extend(
+        batch
+            .skipped
+            .iter()
+            .map(|skip| format!("reward {} skipped: {}", skip.signature, skip.reason)),
+    );
+
+    let reward_rows_new = if opts.dry_run {
+        // Dry run still reports what would be booked, but writes nothing.
+        batch.rewards.len()
+    } else {
+        persist_rewards(&pool, &account_id, &chain, &batch.rewards)
+            .await
+            .map_err(|e| SyncError {
+                address: address.clone(),
+                message: format!("persist_rewards failed: {}", e),
+            })?
+    };
+
     // Update watermark
     if !opts.dry_run {
         if let Some(block) = highest_block {
@@ -300,7 +353,8 @@ async fn sync_single_address(
 
     let duration_ms = task_start.elapsed().as_millis() as u64;
 
-    // Audit log — record sync completion
+    // Audit log — record sync completion. Per-row reward skips are surfaced in
+    // the report's warnings; log the count of new reward rows as records_new.
     if !opts.dry_run {
         write_audit_log(
             &pool,
@@ -309,8 +363,8 @@ async fn sync_single_address(
             &chain,
             &provider_name,
             "sync_complete",
-            Some(txs.len() as i64),
-            Some(transactions_new as i64),
+            Some((txs.len() + reward_rows_new) as i64),
+            Some((transactions_new + reward_rows_new) as i64),
             None,
             duration_ms,
         )
@@ -323,6 +377,8 @@ async fn sync_single_address(
         provider: provider_name,
         balances_updated,
         transactions_new,
+        reward_rows_new,
+        warnings,
         highest_block,
         duration_ms,
     })
@@ -483,6 +539,50 @@ async fn persist_transactions(
     Ok(new_count)
 }
 
+/// Persist dated reward credits as ledger income rows.
+///
+/// Each row is the mining-income shape from `docs/MINING_ASSET_ACCOUNTING.md`:
+/// a `receive` of the token into the wallet account at the block time, marked
+/// `chain_verified`, with `external_id = {chain}-{signature}` so the UNIQUE
+/// constraint dedups re-syncs. Source is `helius` — the Solana on-chain
+/// provenance value this schema allows.
+async fn persist_rewards(
+    pool: &SqlitePool,
+    account_id: &str,
+    chain: &Chain,
+    rewards: &[DatedReward],
+) -> crate::error::Result<usize> {
+    let mut new_count = 0;
+    for reward in rewards {
+        let external_id = format!("{}-{}", chain.as_str(), reward.signature);
+        let notes = format!("MINING REWARD: {}", external_id);
+
+        let result = sqlx::query(
+            "INSERT INTO transactions
+             (tx_type, to_account_id, to_asset, to_quantity,
+              external_id, source, trust_level, notes, timestamp)
+             VALUES ('receive', ?, ?, ?, ?, 'helius', 'chain_verified', ?, ?)",
+        )
+        .bind(account_id)
+        .bind(&reward.asset)
+        .bind(reward.quantity.to_string())
+        .bind(&external_id)
+        .bind(&notes)
+        .bind(reward.date.to_rfc3339())
+        .execute(pool)
+        .await;
+
+        match result {
+            Ok(_) => new_count += 1,
+            Err(e)
+                if e.as_database_error()
+                    .is_some_and(|db| db.is_unique_violation()) => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(new_count)
+}
+
 // ---------------------------------------------------------------------------
 // Audit log
 // ---------------------------------------------------------------------------
@@ -594,6 +694,15 @@ mod tests {
         }
     }
 
+    fn sample_reward(signature: &str, quantity: &str) -> DatedReward {
+        DatedReward {
+            date: chrono::DateTime::from_timestamp(1_728_000_000, 0).expect("fixture block time"),
+            asset: "GEOD".to_string(),
+            quantity: Decimal::from_str(quantity).expect("decimal"),
+            signature: signature.to_string(),
+        }
+    }
+
     #[tokio::test]
     async fn test_persist_transactions_dedups_on_unique_violation() {
         let pool = setup_db().await;
@@ -653,6 +762,61 @@ mod tests {
             .await
             .expect("count transactions");
         assert_eq!(rows, 0);
+    }
+
+    #[tokio::test]
+    async fn test_persist_rewards_dedups_and_tags_income_rows() {
+        let pool = setup_db().await;
+        let rewards = vec![sample_reward("sig-a", "12.5"), sample_reward("sig-b", "3")];
+
+        let first = persist_rewards(&pool, ACCOUNT_ID, &Chain::Solana, &rewards)
+            .await
+            .expect("first persist");
+        assert_eq!(first, 2);
+
+        // Re-syncing the same signatures must dedup via UNIQUE(external_id).
+        let second = persist_rewards(&pool, ACCOUNT_ID, &Chain::Solana, &rewards)
+            .await
+            .expect("second persist");
+        assert_eq!(second, 0);
+
+        // The rows are dated `receive` income, chain-verified, marked as mining.
+        let rows: Vec<(String, String, String, String, String, String)> = sqlx::query_as(
+            "SELECT tx_type, to_asset, to_quantity, external_id, trust_level, notes
+             FROM transactions ORDER BY id ASC",
+        )
+        .fetch_all(&pool)
+        .await
+        .expect("select reward rows");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].0, "receive");
+        assert_eq!(rows[0].1, "GEOD");
+        assert_eq!(rows[0].2, "12.5");
+        assert_eq!(rows[0].3, "solana-sig-a");
+        assert_eq!(rows[0].4, "chain_verified");
+        assert!(rows[0].5.starts_with("MINING REWARD"));
+
+        // `timestamp` is the block time, not sync time. 1_728_000_000 is
+        // 2024-10-04T00:00:00Z — an exact, deterministic fixture value.
+        let expected_ts = chrono::DateTime::from_timestamp(1_728_000_000, 0)
+            .expect("valid fixture block time")
+            .to_rfc3339();
+        let ts: String = sqlx::query_scalar(
+            "SELECT timestamp FROM transactions WHERE external_id = 'solana-sig-a'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("timestamp");
+        assert_eq!(ts, expected_ts);
+
+        // Unknown account → FK violation, not a duplicate; must propagate.
+        // Use an unseen signature so the UNIQUE dedup cannot mask the FK error.
+        let fk_rewards = vec![sample_reward("sig-fk", "1")];
+        let outcome = persist_rewards(&pool, "missing-account", &Chain::Solana, &fk_rewards).await;
+        assert!(
+            outcome.is_err(),
+            "expected FK violation to propagate, got {outcome:?}"
+        );
     }
 
     #[tokio::test]
@@ -752,6 +916,8 @@ mod tests {
             provider: "Blockstream".to_string(),
             balances_updated: 1,
             transactions_new: 5,
+            reward_rows_new: 2,
+            warnings: vec!["reward sig-a skipped: malformed".to_string()],
             highest_block: Some(800_000),
             duration_ms: 120,
         });
@@ -761,12 +927,17 @@ mod tests {
             provider: "Etherscan".to_string(),
             balances_updated: 3,
             transactions_new: 10,
+            reward_rows_new: 0,
+            warnings: vec![],
             highest_block: Some(19_000_000),
             duration_ms: 200,
         });
         assert_eq!(report.addresses_synced, 2);
         assert_eq!(report.balances_updated, 4);
         assert_eq!(report.transactions_new, 15);
+        assert_eq!(report.reward_rows_new, 2);
+        assert_eq!(report.warnings.len(), 1);
+        assert_eq!(report.warnings[0].address, "addr1");
     }
 
     #[test]

@@ -10,19 +10,23 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliHolding } from "../types.js";
 
 export function registerListHoldingsTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_list_holdings",
-    "List raw holdings across accounts with quantity and average cost basis, optionally filtered by account; use cryptofolio_get_portfolio for live USD values and unrealized P&L. " +
-      outputEnvelopeNote("[{asset, quantity, cost_basis, account, account_id}]"),
     {
-      account: z
-        .string()
-        .optional()
-        .describe("Filter to a specific account name"),
+      description: "List raw holdings across accounts with quantity and average cost basis, optionally filtered by account; use cryptofolio_get_portfolio for live USD values and unrealized P&L. " +
+        outputEnvelopeNote("[{asset, quantity, cost_basis, account, account_id}]"),
+      inputSchema: {
+        account: z
+          .string()
+          .optional()
+          .describe("Filter to a specific account name"),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ account }) => {
       try {

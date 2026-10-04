@@ -13,6 +13,7 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliConfigOutput, CliAccount } from "../types.js";
 
@@ -30,13 +31,16 @@ interface SystemStatus {
 }
 
 export function registerStatusTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_system_status",
-    "Report whether cryptofolio is configured and ready — database and config paths, configured accounts, API-key status, and any remaining setup steps; call this first in a new session. " +
-      outputEnvelopeNote(
-        "{ready_for_use, accounts_count, accounts, setup_steps_remaining, ...}"
-      ),
-    {},
+    {
+      description: "Report whether cryptofolio is configured and ready — database and config paths, configured accounts, API-key status, and any remaining setup steps; call this first in a new session. " +
+        outputEnvelopeNote(
+          "{ready_for_use, accounts_count, accounts, setup_steps_remaining, ...}"
+        ),
+      inputSchema: {},
+      outputSchema: TOOL_OUTPUT_SCHEMA,
+    },
     async () => {
       try {
         const [configRaw, accountsRaw] = await Promise.all([

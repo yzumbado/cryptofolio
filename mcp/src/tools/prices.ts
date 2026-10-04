@@ -11,6 +11,7 @@ import {
   toContent,
   handleCliError,
   outputEnvelopeNote,
+  TOOL_OUTPUT_SCHEMA,
 } from "../formatters/response.js";
 import type { CliPrice, CliMarketOutput } from "../types.js";
 
@@ -19,15 +20,18 @@ import type { CliPrice, CliMarketOutput } from "../types.js";
 // ---------------------------------------------------------------------------
 
 export function registerGetPricesTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_prices",
-    "Return the current USD spot price for each requested asset symbol. " +
-      outputEnvelopeNote("{prices: [{symbol, price}]}"),
     {
-      assets: z
-        .array(z.string())
-        .min(1)
-        .describe('List of asset symbols, e.g. ["BTC", "ETH", "SOL"]'),
+      description: "Return the current USD spot price for each requested asset symbol. " +
+        outputEnvelopeNote("{prices: [{symbol, price}]}"),
+      inputSchema: {
+        assets: z
+          .array(z.string())
+          .min(1)
+          .describe('List of asset symbols, e.g. ["BTC", "ETH", "SOL"]'),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ assets }) => {
       try {
@@ -52,14 +56,17 @@ export function registerGetPricesTool(server: McpServer): void {
 // ---------------------------------------------------------------------------
 
 export function registerGetMarketDataTool(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "cryptofolio_get_market_data",
-    "Return 24-hour market statistics for one asset: price, percent change, high, low, and volume. " +
-      outputEnvelopeNote(
-        "{symbol, base_asset, quote_asset, price, ticker_24h?}"
-      ),
     {
-      asset: z.string().describe('Asset symbol, e.g. "BTC"'),
+      description: "Return 24-hour market statistics for one asset: price, percent change, high, low, and volume. " +
+        outputEnvelopeNote(
+          "{symbol, base_asset, quote_asset, price, ticker_24h?}"
+        ),
+      inputSchema: {
+        asset: z.string().describe('Asset symbol, e.g. "BTC"'),
+      },
+      outputSchema: TOOL_OUTPUT_SCHEMA,
     },
     async ({ asset }) => {
       try {

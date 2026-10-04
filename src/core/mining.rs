@@ -93,6 +93,61 @@ pub struct RewardEvent {
     pub fmv_usd: Decimal,
 }
 
+/// How a mining P&L's revenue figure was derived.
+///
+/// Reported explicitly so an approximation is never silently substituted for
+/// the dated stream: `DatedRewards` means the ledger had dated reward rows;
+/// `CurrentFmv` means the current-value fallback was used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevenueBasis {
+    /// Sum of dated reward FMVs read from the ledger.
+    DatedRewards,
+    /// Current held FMV — the fallback when no dated stream exists.
+    CurrentFmv,
+}
+
+impl RevenueBasis {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RevenueBasis::DatedRewards => "dated_rewards",
+            RevenueBasis::CurrentFmv => "current_fmv",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "dated_rewards" => Some(RevenueBasis::DatedRewards),
+            "current_fmv" => Some(RevenueBasis::CurrentFmv),
+            _ => None,
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            RevenueBasis::DatedRewards => "Dated on-chain rewards",
+            RevenueBasis::CurrentFmv => "Current FMV approximation",
+        }
+    }
+}
+
+/// Total USD revenue from a dated reward stream (sum of each reward's FMV).
+pub fn dated_reward_revenue(events: &[RewardEvent]) -> Decimal {
+    events.iter().map(|e| e.fmv_usd).sum()
+}
+
+/// Pick mining revenue and report which basis was used.
+///
+/// The dated stream wins whenever it has any events; otherwise fall back to
+/// `current_fmv` (the approximation that values currently-held earned tokens at
+/// today's price). Returns `(revenue_usd, basis)`.
+pub fn select_revenue(events: &[RewardEvent], current_fmv: Decimal) -> (Decimal, RevenueBasis) {
+    if events.is_empty() {
+        (current_fmv, RevenueBasis::CurrentFmv)
+    } else {
+        (dated_reward_revenue(events), RevenueBasis::DatedRewards)
+    }
+}
+
 /// The mining P&L for a reporting window (or cumulative).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MiningPnl {
@@ -210,5 +265,42 @@ mod tests {
         assert!(is_mining_hardware("miner-wingbits-loc2"));
         assert!(!is_mining_hardware("GEOD"));
         assert!(!is_mining_hardware("BTC"));
+    }
+
+    fn reward(asset: &str, quantity: &str, fmv: &str) -> RewardEvent {
+        RewardEvent {
+            date: d(2026, 9, 1),
+            asset: asset.to_string(),
+            quantity: dec(quantity),
+            fmv_usd: dec(fmv),
+        }
+    }
+
+    #[test]
+    fn revenue_prefers_the_dated_stream_when_present() {
+        let events = vec![
+            reward("GEOD", "10", "0.50"),
+            reward("GEOD", "10", "0.75"),
+            reward("WINGS", "5", "1.25"),
+        ];
+        let (revenue, basis) = select_revenue(&events, dec("999.99"));
+        assert_eq!(basis, RevenueBasis::DatedRewards);
+        assert_eq!(revenue, dec("2.50"));
+        assert_eq!(dated_reward_revenue(&events), dec("2.50"));
+    }
+
+    #[test]
+    fn revenue_falls_back_to_current_fmv_without_dated_events() {
+        let (revenue, basis) = select_revenue(&[], dec("671.59"));
+        assert_eq!(basis, RevenueBasis::CurrentFmv);
+        assert_eq!(revenue, dec("671.59"));
+    }
+
+    #[test]
+    fn revenue_basis_round_trips_through_str() {
+        for basis in [RevenueBasis::DatedRewards, RevenueBasis::CurrentFmv] {
+            assert_eq!(RevenueBasis::from_str(basis.as_str()), Some(basis));
+        }
+        assert_eq!(RevenueBasis::from_str("nonsense"), None);
     }
 }

@@ -19,6 +19,20 @@ never design ahead.**
 
 ## ✅ Done (recent → older)
 
+### Session 2026-10-04 (DSH, trust-fix batch 3)
+- **T11** dated on-chain reward income: Solana token-account history → `persist_rewards`
+  (`receive` rows, `external_id` dedup, `chain_verified`), `select_revenue` with explicit
+  `RevenueBasis` (dated stream wins, current-FMV fallback); current-price approximation
+  surfaced in `--json` (`revenue_basis`) + human output. Watch-only, +wiremock tests.
+- **T20** MCP display formatters (`formatUsd/Pct/Quantity/SignedUsd`) now exact via
+  decimal.ts (BigInt); differential-verified over 6,621 values.
+- **T21** all 23 tools migrated to `registerTool` with a real permissive `outputSchema`;
+  `toContent` emits `structuredContent`; InMemoryTransport integration test proves
+  `validateToolOutput` runs (incl. negative controls). 159 MCP tests.
+- **T23** dropped unused `security-framework`/`core-foundation` direct deps.
+- Leak-guard false positive fixed (import-binance test used a machine-style absolute
+  path → `/tmp`); gate ordering corrected: stage, then leak-check, then commit.
+
 ### Session 2026-10-04 (DSH, trust-fix batch 2 + P7 docs)
 - **T6** exact decimal-string math in MCP (BigInt, half-up like rust_decimal): track_conversion
   multiply, unrealized-total summation; `MISSING_PARAM` code unified; runCli/runCliRaw
@@ -144,7 +158,7 @@ never design ahead.**
 | T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | ✅ done 2026-10-04 (23 tools) | M |
 | T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | ✅ done 2026-10-04 | S |
 | T10 | Binance client: stop eprintln-ing raw signed responses; keychain backend: stop passing secrets as argv | 🧠 | S |
-| T11 | Wire dated on-chain reward income (Solana token-account daily pulls) into mining-pnl | 🤖 | M |
+| T11 | Wire dated on-chain reward income (Solana token-account daily pulls) into mining-pnl | ✅ done 2026-10-04 (dated reward rows + `select_revenue` + explicit current-price approximation; see T24) | M |
 | T12 | Filter scam airdrop tokens from holdings display (token list lives in private notebook §2) | 🤖 | S |
 | T13 | Daily portfolio-refresh cron (sync wallets + prices) | ✅ done 2026-10-04 (script + plist in scripts/; NOT installed — install is a user step) | S |
 | T14 | Show cost basis / unrealized P&L headline in portfolio summary top-line | ✅ done 2026-10-04 (was already at HEAD; consolidated to one line + tests) | S |
@@ -153,10 +167,11 @@ never design ahead.**
 | T17 | Blockchain sync: wrap per-address persist + watermark in one DB transaction (per-address atomicity; today a mid-batch failure leaves earlier rows committed) | 🧠 | M |
 | T18 | MCP list_transactions: `has_more` is always false on the unfiltered path (fetch window == offset+limit); fetch `needed+1` so the "call again" hint actually fires | ✅ done 2026-10-04 | S |
 | T19 | `cryptofolio_analyze_asset` was returning a "no structured output" marker (pnl by-asset had no `--json` branch) | ✅ fixed 2026-10-04 (AssetPnlOutput JSON branch + serde test) | S |
-| T20 | MCP display formatters (`formatters/numbers.ts`) still use parseFloat for USD/pct/quantity — display-only, but the header claim "never floats" is now wrong | 🤖 | S |
-| T21 | Real MCP outputSchema: migrate tools to `registerTool` + emit `structuredContent` in toContent, permissive object schema, in-process server test (unit tests bypass validation — see T7 note) | 🧠 | M |
+| T20 | MCP display formatters (`formatters/numbers.ts`) still use parseFloat for USD/pct/quantity — display-only, but the header claim "never floats" is now wrong | ✅ done 2026-10-04 (exact via decimal.ts; differential-verified over 6621 values) | S |
+| T21 | Real MCP outputSchema: migrate tools to `registerTool` + emit `structuredContent` in toContent, permissive object schema, in-process server test (unit tests bypass validation — see T7 note) | ✅ done 2026-10-04 (all 23 tools + InMemoryTransport integration test with negative controls) | M |
 | T22 | Live-DB `created_at` default is still legacy (schema is IF NOT EXISTS, no migrations). Decide: table-rebuild migration vs accept both formats forever (parser already accepts both) | 👤 | S |
-| T23 | Drop unused `security-framework` / `core-foundation` macOS deps from Cargo.toml (keychain now shells out to the `security` CLI) | 🤖 | S |
+| T23 | Drop unused `security-framework` / `core-foundation` macOS deps from Cargo.toml (keychain now shells out to the `security` CLI) | ✅ done 2026-10-04 (crates remain transitively via reqwest's TLS stack) | S |
+| T24 | Mining rewards: every incoming SPL transfer to a tracked token account is booked as a reward — a DEX purchase into that same ATA would be misclassified. Add a distributor allow-list; also cap/reduce the per-token-account rescan cost (>1000 sigs, N getTransaction calls when the owner has no new txs) | 🧠 | M |
 
 ### P6 — Advisor skill design session (with user)
 Agenda: persona & scope (professional trader + long-term investor equivalent);
