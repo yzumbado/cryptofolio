@@ -18,7 +18,7 @@ Track cryptocurrency and fiat holdings across exchanges, wallets, and bank accou
 
 ## Why Cryptofolio?
 
-🤖 **MCP Server** — 18 tools for LLM-native portfolio management via Claude Desktop
+🤖 **MCP Server** — 23 tools for LLM-native portfolio management via Claude Desktop
 ✅ **4-Chain Wallet Sync** — Bitcoin, Ethereum, Cardano, Solana from blockchain
 ✅ **HD Wallet Support** — xpub/zpub derivation for Bitcoin (BIP44/BIP84)
 ✅ **ERC-20 & SPL Tokens** — Automatic token detection on Ethereum and Solana
@@ -352,12 +352,14 @@ When creating your Binance API key:
 
 Manage your portfolio with natural language via Claude Desktop or Claude Code.
 
-**MCP Server — 18 tools via stdio:**
+**MCP Server — 23 tools via stdio:**
 ```bash
 # The MCP server exposes all cryptofolio operations as LLM-callable tools:
-# cryptofolio_get_portfolio, cryptofolio_list_accounts, cryptofolio_get_prices,
-# cryptofolio_get_pnl_summary, cryptofolio_sync_wallet, cryptofolio_sync_exchange,
-# cryptofolio_record_transaction, cryptofolio_list_transactions, and 10 more.
+# cryptofolio_get_system_status, cryptofolio_get_portfolio, cryptofolio_list_accounts,
+# cryptofolio_get_prices, cryptofolio_get_pnl_summary, cryptofolio_get_mining_pnl,
+# cryptofolio_get_sync_history, cryptofolio_list_holdings, cryptofolio_list_transactions,
+# cryptofolio_record_transaction, cryptofolio_sync_wallet, cryptofolio_pnl_backfill,
+# cryptofolio_import_binance, and 10 more.
 ```
 
 **Claude Code `/portfolio` skill:**
@@ -379,7 +381,7 @@ from any Claude conversation — no terminal required.
 [MCP server setup →](mcp/README.md)
 
 **Features:**
-- ✅ 18 portfolio management tools via MCP protocol
+- ✅ 23 portfolio management tools via MCP protocol
 - ✅ Natural language interface with `/portfolio` Claude Code skill
 - ✅ Reads from your local SQLite database (privacy preserved)
 - ✅ Works with Claude Desktop and Claude Code

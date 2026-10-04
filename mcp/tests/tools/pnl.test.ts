@@ -1,7 +1,8 @@
 /**
  * Unit tests for P&L tools:
  * cryptofolio_get_pnl_summary, cryptofolio_get_realized_pnl,
- * cryptofolio_get_unrealized_pnl, cryptofolio_analyze_asset
+ * cryptofolio_get_unrealized_pnl, cryptofolio_analyze_asset,
+ * cryptofolio_pnl_backfill
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -23,13 +24,14 @@ vi.mock("../../src/cli.js", () => ({
   SYNC_TIMEOUT_MS: 120_000,
 }));
 
-import { runCli } from "../../src/cli.js";
+import { runCli, runCliRaw } from "../../src/cli.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   registerGetPnlSummaryTool,
   registerGetRealizedPnlTool,
   registerGetUnrealizedPnlTool,
   registerAnalyzeAssetTool,
+  registerPnlBackfillTool,
 } from "../../src/tools/pnl.js";
 
 type ToolHandler = (args: unknown) => Promise<{ content: Array<{ type: string; text: string }> }>;
@@ -41,6 +43,7 @@ function makeServer() {
   registerGetRealizedPnlTool(server);
   registerGetUnrealizedPnlTool(server);
   registerAnalyzeAssetTool(server);
+  registerPnlBackfillTool(server);
   return server;
 }
 
@@ -206,6 +209,59 @@ describe("cryptofolio_get_unrealized_pnl", () => {
     expect(parsed.data.total_unrealized_pnl).toBe("0.00");
   });
 
+  it("rounds the total half-up with exact decimal math (float case)", async () => {
+    // parseFloat("1.005").toFixed(2) === "1.00" in JS.
+    vi.mocked(runCli).mockResolvedValueOnce([
+      { asset: "AAA", quantity: "1", unrealized_pnl: "1.005" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_unrealized_pnl");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      data: { total_unrealized_pnl: string };
+    };
+
+    expect(parsed.data.total_unrealized_pnl).toBe("1.01");
+  });
+
+  it("sums totals beyond Number.MAX_SAFE_INTEGER exactly", async () => {
+    // Float addition collapses 9007199254740993 + 1 to 9007199254740992.
+    vi.mocked(runCli).mockResolvedValueOnce([
+      { asset: "AAA", quantity: "1", unrealized_pnl: "9007199254740993" },
+      { asset: "BBB", quantity: "1", unrealized_pnl: "1" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_unrealized_pnl");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      data: { total_unrealized_pnl: string };
+    };
+
+    expect(parsed.data.total_unrealized_pnl).toBe("9007199254740994.00");
+  });
+
+  it("fails closed when the CLI returns a non-list payload", async () => {
+    vi.mocked(runCli).mockResolvedValueOnce({
+      message: "Command completed (no structured output)",
+    });
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_get_unrealized_pnl");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      error: string;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toContain("non-list payload");
+  });
+
   it("passes account and asset filters to CLI", async () => {
     vi.mocked(runCli).mockResolvedValueOnce([
       { asset: "SOL", quantity: "100", unrealized_pnl: "500.00" },
@@ -280,5 +336,70 @@ describe("cryptofolio_analyze_asset", () => {
     expect(vi.mocked(runCli)).toHaveBeenCalledWith(
       expect.arrayContaining(["pnl", "by-asset", "DOGE"])
     );
+  });
+});
+
+describe("cryptofolio_pnl_backfill", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("runs a full backfill with --yes and returns CLI output", async () => {
+    vi.mocked(runCliRaw).mockResolvedValueOnce(
+      "[OK] Backfill complete! Processed 3 buys, 1 sells, 0 swaps, 0 transfers, 0 corrections"
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_pnl_backfill");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: { output: string };
+      message: string;
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.output).toContain("Backfill complete");
+    expect(parsed.message).toContain("all accounts");
+    expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
+      expect.arrayContaining(["pnl", "backfill", "--yes"])
+    );
+  });
+
+  it("scopes the backfill to one account when provided", async () => {
+    vi.mocked(runCliRaw).mockResolvedValueOnce("[OK] Backfill complete! Processed 1 buys");
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_pnl_backfill");
+
+    const result = await tool!.handler({ account: "Binance" });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      message: string;
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.message).toContain("Binance");
+    expect(vi.mocked(runCliRaw)).toHaveBeenCalledWith(
+      expect.arrayContaining(["pnl", "backfill", "--yes", "--account", "Binance"])
+    );
+  });
+
+  it("returns error envelope when CLI fails", async () => {
+    const { CliError } = await import("../../src/cli.js");
+    vi.mocked(runCliRaw).mockRejectedValueOnce(
+      new CliError(1, "database is locked", "pnl")
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_pnl_backfill");
+
+    const result = await tool!.handler({});
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      error: string;
+    };
+
+    expect(parsed.success).toBe(false);
+    expect(parsed.error).toContain("database is locked");
   });
 });

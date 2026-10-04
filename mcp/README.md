@@ -2,7 +2,7 @@
 
 LLM-driven crypto portfolio management via the Model Context Protocol.
 
-Exposes 18 tools so Claude Desktop can manage your entire portfolio without
+Exposes 23 tools so Claude Desktop can manage your entire portfolio without
 ever touching the CLI directly.
 
 ## Requirements
@@ -65,7 +65,7 @@ cryptofolio config set-secret binance.api_secret
 This is the only step that cannot be done through Claude — API keys require
 a hidden TTY prompt for security. Everything else can be done via Claude.
 
-## Available Tools (18)
+## Available Tools (23)
 
 | Tool | Purpose |
 |------|---------|
@@ -87,6 +87,11 @@ a hidden TTY prompt for security. Everything else can be done via Claude.
 | `cryptofolio_get_unrealized_pnl` | Open position P&L |
 | `cryptofolio_analyze_asset` | Deep dive on one asset |
 | `cryptofolio_get_audit_log` | Blockchain sync history and errors |
+| `cryptofolio_get_sync_history` | Recent wallet sync operations (audit log) |
+| `cryptofolio_list_holdings` | Current holdings with quantity and cost basis |
+| `cryptofolio_get_mining_pnl` | DePIN mining P&L: revenue, depreciation, capital recovery |
+| `cryptofolio_pnl_backfill` | Recompute tax lots and realized P&L (write) |
+| `cryptofolio_import_binance` | Import a Binance CSV/ZIP export (write) |
 
 ## Onboarding Flow (LLM-only)
 

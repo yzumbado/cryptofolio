@@ -232,3 +232,23 @@ export interface CliAuditErrorEntry {
   provider: string;
   error: string;
 }
+
+// mining-pnl --json
+export interface CliMiningPnl {
+  revenue_usd: string;
+  depreciation_usd: string;
+  opex_usd: string;
+  operating_profit_usd: string;
+  hardware_cost_usd: string;
+  net_book_value_usd: string;
+  capital_recovered_percent: string;
+}
+
+// holdings list --json
+export interface CliHolding {
+  asset: string;
+  quantity: string;
+  cost_basis: string | null;
+  account: string;
+  account_id: string;
+}

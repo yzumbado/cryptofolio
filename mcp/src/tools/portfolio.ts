@@ -9,13 +9,17 @@ import {
   buildSuccess,
   toContent,
   handleCliError,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type { CliPortfolio } from "../types.js";
 
 export function registerPortfolioTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_portfolio",
-    "Get the current portfolio snapshot including all asset holdings, current values, cost basis, and unrealized P&L. Optionally filter by account or category.",
+    "Return the current portfolio snapshot with per-asset quantity, current USD value, cost basis, and unrealized P&L, optionally filtered by account or category. " +
+      outputEnvelopeNote(
+        "{total_value_usd, total_cost_basis, unrealized_pnl, unrealized_pnl_percent, entries}"
+      ),
     {
       account: z
         .string()

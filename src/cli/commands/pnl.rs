@@ -49,6 +49,16 @@ struct UnrealizedPnLOutput {
     unrealized_pnl: String,
 }
 
+#[derive(Serialize)]
+struct AssetPnlOutput {
+    asset: String,
+    account: Option<String>,
+    realized_transactions: usize,
+    total_realized: String,
+    total_unrealized: String,
+    net_pnl: String,
+}
+
 pub async fn handle_pnl_command(
     command: PnlCommands,
     pool: &SqlitePool,
@@ -400,6 +410,21 @@ async fn handle_by_asset(
     // Get unrealized P&L for this asset
     let total_unrealized =
         calculate_total_unrealized(account.as_deref(), Some(&asset), pool, opts).await?;
+
+    let net_pnl = total_realized + total_unrealized;
+
+    if opts.json {
+        let output = AssetPnlOutput {
+            asset: asset.to_uppercase(),
+            account: account.clone(),
+            realized_transactions: realized_pnls.len(),
+            total_realized: total_realized.to_string(),
+            total_unrealized: total_unrealized.to_string(),
+            net_pnl: net_pnl.to_string(),
+        };
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
 
     println!("\n=== P&L Breakdown: {} ===\n", asset.to_uppercase());
 
@@ -782,4 +807,26 @@ async fn calculate_total_unrealized(
     }
 
     Ok(total_unrealized)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asset_pnl_output_serializes_decimals_as_strings() {
+        let output = AssetPnlOutput {
+            asset: "BTC".to_string(),
+            account: None,
+            realized_transactions: 3,
+            total_realized: "1234.5".to_string(),
+            total_unrealized: "-67.89".to_string(),
+            net_pnl: "1166.61".to_string(),
+        };
+        let json = serde_json::to_string(&output).expect("AssetPnlOutput must serialize");
+        assert!(json.contains("\"total_realized\":\"1234.5\""));
+        assert!(json.contains("\"total_unrealized\":\"-67.89\""));
+        assert!(json.contains("\"realized_transactions\":3"));
+        assert!(json.contains("\"asset\":\"BTC\""));
+    }
 }

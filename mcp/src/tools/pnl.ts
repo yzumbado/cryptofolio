@@ -3,16 +3,19 @@
  * cryptofolio_get_realized_pnl     — closed positions with gain/loss per disposal
  * cryptofolio_get_unrealized_pnl   — open position P&L (mark-to-market)
  * cryptofolio_analyze_asset        — deep dive on one asset: holdings + P&L
+ * cryptofolio_pnl_backfill         — recompute tax lots + realized P&L (WRITE)
  */
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { runCli } from "../cli.js";
+import { runCli, runCliRaw } from "../cli.js";
+import { addDecimalStrings, roundDecimalString } from "../decimal.js";
 import {
   buildSuccess,
   toContent,
   handleCliError,
   paginate,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type {
   CliPnlSummary,
@@ -27,7 +30,10 @@ import type {
 export function registerGetPnlSummaryTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_pnl_summary",
-    "Get a high-level P&L summary combining realized and unrealized gains/losses. Optionally filter by account or date range. Great for a quick answer to 'how am I doing overall?'",
+    "Return total realized, unrealized, and net P&L, optionally filtered by account and date range. " +
+      outputEnvelopeNote(
+        "{total_realized, total_unrealized, net_pnl, account?, from?, to?}"
+      ),
     {
       account: z
         .string()
@@ -72,7 +78,10 @@ export function registerGetPnlSummaryTool(server: McpServer): void {
 export function registerGetRealizedPnlTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_realized_pnl",
-    "List closed positions with gain/loss per disposal event. Each entry shows the asset sold, proceeds, cost basis, and net gain or loss. Use this for tax year reporting.",
+    "List closed positions with proceeds, cost basis, and gain or loss per disposal event, optionally filtered by account, asset, and date range, using offset/limit pagination. " +
+      outputEnvelopeNote(
+        "{items, total_fetched, offset, limit, has_more, next_offset?}"
+      ),
     {
       account: z
         .string()
@@ -139,7 +148,8 @@ export function registerGetRealizedPnlTool(server: McpServer): void {
 export function registerGetUnrealizedPnlTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_unrealized_pnl",
-    "Show open position P&L — what you would gain or lose if you sold everything today. Includes average cost basis, current price, and unrealized gain per asset.",
+    "Return each open position with average cost basis, current price, and unrealized gain, plus the summed total unrealized P&L. " +
+      outputEnvelopeNote("{entries, total_unrealized_pnl}"),
     {
       account: z
         .string()
@@ -157,12 +167,23 @@ export function registerGetUnrealizedPnlTool(server: McpServer): void {
         if (asset) args.push("--asset", asset);
 
         const raw = await runCli(args);
-        const entries = (raw as CliUnrealizedEntry[]) ?? [];
+        // `pnl unrealized --json` emits a bare array (the CLI only prints a
+        // total on its human-readable path), so the total is summed here.
+        // Fail closed on an unexpected payload instead of misreporting zero.
+        if (!Array.isArray(raw)) {
+          throw new Error(
+            "cryptofolio pnl unrealized returned an unexpected non-list payload"
+          );
+        }
+        const entries = raw as CliUnrealizedEntry[];
 
-        // Compute totals
-        const totalUnrealized = entries
-          .reduce((sum, e) => sum + parseFloat(e.unrealized_pnl), 0)
-          .toFixed(2);
+        // Exact decimal-string addition — never parseFloat on money. The
+        // existing message renders a 2dp USD total, so the exact sum is
+        // rounded half-up to 2dp via integer math rather than truncated.
+        const totalUnrealized = roundDecimalString(
+          addDecimalStrings(entries.map((e) => e.unrealized_pnl)),
+          2
+        );
 
         return toContent(
           buildSuccess(
@@ -186,7 +207,10 @@ export function registerGetUnrealizedPnlTool(server: McpServer): void {
 export function registerAnalyzeAssetTool(server: McpServer): void {
   server.tool(
     "cryptofolio_analyze_asset",
-    "Deep dive on a single asset: realized P&L, unrealized P&L, current holdings, and cost basis breakdown. Great for answering 'how is my BTC position doing?'",
+    "Return a combined P&L breakdown for one asset — realized and unrealized P&L — optionally scoped to a single account. " +
+      outputEnvelopeNote(
+        "{asset, account, realized_transactions, total_realized, total_unrealized, net_pnl} (all monetary values as decimal strings)"
+      ),
     {
       asset: z
         .string()
@@ -211,6 +235,44 @@ export function registerAnalyzeAssetTool(server: McpServer): void {
         );
       } catch (err) {
         return toContent(handleCliError(err, "cryptofolio_analyze_asset"));
+      }
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// cryptofolio_pnl_backfill
+// ---------------------------------------------------------------------------
+
+export function registerPnlBackfillTool(server: McpServer): void {
+  server.tool(
+    "cryptofolio_pnl_backfill",
+    "Recompute tax lots and realized P&L by replaying every transaction oldest-first, clearing and rebuilding existing P&L data (destructive write); re-run cryptofolio_get_pnl_summary afterwards. " +
+      outputEnvelopeNote("{output}"),
+    {
+      account: z
+        .string()
+        .optional()
+        .describe("Only backfill transactions touching this account"),
+    },
+    async ({ account }) => {
+      try {
+        // Non-interactive: pass --yes to confirm the destructive recompute.
+        // `pnl backfill` does not implement --json; use runCliRaw.
+        const args = ["pnl", "backfill", "--yes"];
+        if (account) args.push("--account", account);
+
+        const output = await runCliRaw(args);
+
+        return toContent(
+          buildSuccess(
+            { output: output || "Backfill completed." },
+            "P&L backfill complete." +
+              (account ? ` Scope: ${account}.` : " Scope: all accounts.")
+          )
+        );
+      } catch (err) {
+        return toContent(handleCliError(err, "cryptofolio_pnl_backfill"));
       }
     }
   );

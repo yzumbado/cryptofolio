@@ -10,6 +10,7 @@ import {
   buildSuccess,
   toContent,
   handleCliError,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type { CliPrice, CliMarketOutput } from "../types.js";
 
@@ -20,7 +21,8 @@ import type { CliPrice, CliMarketOutput } from "../types.js";
 export function registerGetPricesTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_prices",
-    "Get current spot prices for one or more crypto assets. Returns price in USD. Useful for quick lookups before recording transactions or analyzing portfolio value.",
+    "Return the current USD spot price for each requested asset symbol. " +
+      outputEnvelopeNote("{prices: [{symbol, price}]}"),
     {
       assets: z
         .array(z.string())
@@ -52,7 +54,10 @@ export function registerGetPricesTool(server: McpServer): void {
 export function registerGetMarketDataTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_market_data",
-    "Get 24-hour market statistics for a single asset: price, change, high, low, and volume.",
+    "Return 24-hour market statistics for one asset: price, percent change, high, low, and volume. " +
+      outputEnvelopeNote(
+        "{symbol, base_asset, quote_asset, price, ticker_24h?}"
+      ),
     {
       asset: z.string().describe('Asset symbol, e.g. "BTC"'),
     },

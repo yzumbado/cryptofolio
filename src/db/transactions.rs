@@ -170,9 +170,12 @@ impl<'a> TransactionRepository<'a> {
 
 /// Parse a timestamp read back from SQLite.
 ///
-/// `created_at` is populated by the schema default `CURRENT_TIMESTAMP`, which
-/// SQLite writes as `YYYY-MM-DD HH:MM:SS` (UTC) — *not* RFC 3339. Accept that
-/// form alongside RFC 3339. A value matching neither is an error (via
+/// The `transactions.created_at` schema default now writes RFC 3339
+/// (`strftime('%Y-%m-%dT%H:%M:%SZ','now')`), but the live ledger still holds
+/// LEGACY rows written while the default was `CURRENT_TIMESTAMP`, which SQLite
+/// formats as `YYYY-MM-DD HH:MM:SS` (UTC) — *not* RFC 3339. This helper exists
+/// to keep those pre-schema-change rows readable, so it accepts both forms
+/// alongside each other. A value matching neither is an error (via
 /// `CryptofolioError::DateParse`), never a silent `Utc::now()` fallback.
 fn parse_db_timestamp(value: &str) -> Result<DateTime<Utc>> {
     if let Ok(dt) = DateTime::parse_from_rfc3339(value) {
@@ -739,10 +742,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_parse_transaction_accepts_sqlite_format_created_at() -> Result<()> {
+    async fn test_parse_transaction_accepts_legacy_sqlite_format_created_at() -> Result<()> {
         let pool = setup_test_db().await?;
         let repo = TransactionRepository::new(&pool);
 
+        // Simulates a row written before the schema change, when the
+        // `created_at` default was `CURRENT_TIMESTAMP` (no `T`, no `Z`).
         let mut row = valid_transaction_row();
         row.created_at = "2024-01-01 00:00:00".to_string();
 
@@ -755,6 +760,46 @@ mod tests {
             tx.timestamp,
             Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap()
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_insert_default_created_at_is_rfc3339() -> Result<()> {
+        let pool = setup_test_db().await?;
+        let repo = TransactionRepository::new(&pool);
+
+        // `insert` never binds `created_at`, so the schema default supplies it.
+        // A sentinel passed in the struct must therefore NOT be persisted.
+        let sentinel = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+        let mut tx = Transaction::new_buy(
+            "test-acc-1",
+            "BTC",
+            Decimal::from_str("1.0").unwrap(),
+            Decimal::from_str("45000").unwrap(),
+            Utc::now(),
+        );
+        tx.created_at = sentinel;
+        repo.insert(&tx).await?;
+
+        // The raw column value must be RFC 3339.
+        let raw: String = sqlx::query_scalar("SELECT created_at FROM transactions LIMIT 1")
+            .fetch_one(&pool)
+            .await?;
+        let parsed = DateTime::parse_from_rfc3339(&raw)?.with_timezone(&Utc);
+        assert_ne!(
+            parsed, sentinel,
+            "created_at came from the struct, not the schema default"
+        );
+        assert!(
+            (Utc::now() - parsed).num_seconds().abs() < 60,
+            "created_at default is not ~now: {raw:?}"
+        );
+
+        // Read back through the repository: the parser must accept the new form.
+        let transactions = repo.list(Some(10)).await?;
+        assert_eq!(transactions.len(), 1);
+        assert_eq!(transactions[0].created_at, parsed);
 
         Ok(())
     }

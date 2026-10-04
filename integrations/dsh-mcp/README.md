@@ -1,7 +1,7 @@
 # DSH MCP bundle
 
 Configuration-only DeepSeek Harness bundle connecting the cryptofolio MCP server
-(18 `cryptofolio_*` tools) to a DSH profile over stdio.
+(23 `cryptofolio_*` tools) to a DSH profile over stdio.
 
 ## Setup
 

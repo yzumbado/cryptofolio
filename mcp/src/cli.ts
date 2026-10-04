@@ -15,6 +15,79 @@ import { execa } from "execa";
 // Error type
 // ---------------------------------------------------------------------------
 
+/**
+ * Success envelope returned by runCli() when the command succeeded but printed
+ * something that was not JSON (i.e. it does not implement --json). It is
+ * deliberately a fixed marker rather than the raw stdout text, so callers can
+ * never mistake unstructured output for a parsed result.
+ */
+export const UNSTRUCTURED_OUTPUT_MESSAGE =
+  "Command completed (no structured output)";
+
+const BINARY_HINT =
+  "Ensure CRYPTOFOLIO_BIN points to the cryptofolio binary, or add it to your PATH.";
+
+/** First non-blank line of stderr, or a non-empty fallback. */
+function firstLine(text: string): string {
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return "unknown error";
+}
+
+/** Message of a thrown value, guaranteed to be non-empty. */
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    const message = err.message.trim();
+    if (message.length > 0) return message;
+  }
+  const text = String(err).trim();
+  return text.length > 0 && text !== "undefined" && text !== "null"
+    ? text
+    : "unknown error";
+}
+
+/**
+ * Pick the first non-blank diagnostic stream. Some commands report failures on
+ * stdout, and an empty stderr must not hide that.
+ */
+function describeStreams(...streams: Array<string | undefined>): string {
+  for (const stream of streams) {
+    if (stream && stream.trim().length > 0) return stream;
+  }
+  return "";
+}
+
+/**
+ * execa does not throw on a spawn failure when `reject: false` is set — it
+ * resolves with `failed === true` and `exitCode === undefined`. Detect that so
+ * a missing binary still surfaces as the actionable exit-127 + hint error
+ * instead of degrading into a hint-less "exit 1: unknown error".
+ */
+function spawnFailure(
+  result: {
+    failed: boolean;
+    timedOut: boolean;
+    exitCode?: number | undefined;
+    stdout?: string | undefined;
+    stderr?: string | undefined;
+    shortMessage?: string | undefined;
+    originalMessage?: string | undefined;
+  },
+  command: string
+): CliError | null {
+  if (!result.failed || result.timedOut || result.exitCode !== undefined) {
+    return null;
+  }
+  const detail =
+    describeStreams(result.stderr, result.stdout) ||
+    result.shortMessage ||
+    result.originalMessage ||
+    "failed to launch the cryptofolio binary";
+  return new CliError(127, detail, command, BINARY_HINT);
+}
+
 export class CliError extends Error {
   constructor(
     public readonly exitCode: number,
@@ -22,7 +95,7 @@ export class CliError extends Error {
     public readonly command: string,
     public readonly hint?: string
   ) {
-    const short = stderr.split("\n")[0] ?? "unknown error";
+    const short = firstLine(stderr);
     super(`cryptofolio ${command} failed (exit ${exitCode}): ${short}`);
     this.name = "CliError";
   }
@@ -67,19 +140,17 @@ export async function runCli(
       all: true,
     });
   } catch (err: unknown) {
-    // execa throws on ENOENT (binary not found) or timeout
-    const msg =
-      err instanceof Error ? err.message : String(err);
-    throw new CliError(
-      127,
-      msg,
-      args[0] ?? "unknown",
-      `Ensure CRYPTOFOLIO_BIN points to the cryptofolio binary, or add it to your PATH.`
-    );
+    // execa throws on a spawn error it cannot represent as a result (e.g. an
+    // option validation failure).
+    const msg = describeError(err);
+    throw new CliError(127, msg, args[0] ?? "unknown", BINARY_HINT);
   }
 
+  const launchError = spawnFailure(result, args[0] ?? "unknown");
+  if (launchError) throw launchError;
+
   if (result.exitCode !== 0) {
-    const stderr = result.stderr ?? result.stdout ?? "";
+    const stderr = describeStreams(result.stderr, result.stdout);
     throw new CliError(
       result.exitCode ?? 1,
       stderr,
@@ -93,9 +164,10 @@ export async function runCli(
   try {
     return JSON.parse(stdout) as unknown;
   } catch {
-    // Command succeeded but emitted non-JSON (command doesn't implement --json yet).
-    // Return a wrapper so tools can still report success.
-    return { message: stdout };
+    // Command succeeded but emitted non-JSON (command doesn't implement --json
+    // yet). Return a fixed marker — never the raw text — so tools can report
+    // success without presenting CLI prose as a structured result.
+    return { message: UNSTRUCTURED_OUTPUT_MESSAGE };
   }
 }
 
@@ -123,18 +195,15 @@ export async function runCliRaw(
       all: true,
     });
   } catch (err: unknown) {
-    const msg =
-      err instanceof Error ? err.message : String(err);
-    throw new CliError(
-      127,
-      msg,
-      args[0] ?? "unknown",
-      `Ensure CRYPTOFOLIO_BIN points to the cryptofolio binary, or add it to your PATH.`
-    );
+    const msg = describeError(err);
+    throw new CliError(127, msg, args[0] ?? "unknown", BINARY_HINT);
   }
 
+  const launchError = spawnFailure(result, args[0] ?? "unknown");
+  if (launchError) throw launchError;
+
   if (result.exitCode !== 0) {
-    const stderr = result.stderr ?? result.stdout ?? "";
+    const stderr = describeStreams(result.stderr, result.stdout);
     throw new CliError(
       result.exitCode ?? 1,
       stderr,

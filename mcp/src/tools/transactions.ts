@@ -11,12 +11,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { runCli, runCliRaw } from "../cli.js";
+import { multiplyDecimalStrings } from "../decimal.js";
 import {
   buildSuccess,
   buildError,
   toContent,
   handleCliError,
   paginate,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type { CliTransaction } from "../types.js";
 
@@ -27,7 +29,10 @@ import type { CliTransaction } from "../types.js";
 export function registerListTransactionsTool(server: McpServer): void {
   server.tool(
     "cryptofolio_list_transactions",
-    "List transaction history with optional filtering by account or asset. Results are paginated — use offset to retrieve subsequent pages.",
+    "List transaction history for an optional account and asset filter, newest first, using offset/limit pagination. " +
+      outputEnvelopeNote(
+        "{items, total_fetched, offset, limit, has_more, next_offset?}"
+      ),
     {
       account: z
         .string()
@@ -60,10 +65,14 @@ export function registerListTransactionsTool(server: McpServer): void {
         // offset = number of matching transactions to skip.
         const MAX_FETCH_WINDOW = 5000;
         const needed = offset + limit;
+        // Fetch one row beyond the requested page on both paths: paginate() can
+        // then prove more rows exist (has_more) instead of assuming the window
+        // boundary is the end of the data.
+        const target = needed + 1;
         const sym = asset?.toUpperCase();
 
         let transactions: CliTransaction[] = [];
-        let window = needed;
+        let window = target;
 
         for (;;) {
           const args = ["tx", "list", "--limit", String(window)];
@@ -78,10 +87,12 @@ export function registerListTransactionsTool(server: McpServer): void {
               )
             : rows;
 
-          // Stop when the window holds enough matching rows, the CLI ran out of
-          // data (fewer rows than requested), or the guard cap is reached.
+          // Stop when the window holds one more matching row than the page
+          // needs (so has_more is provable), the CLI ran out of data (fewer
+          // rows than requested), or the guard cap is reached. When the cap is
+          // hit, has_more reflects only what was fetched.
           if (
-            transactions.length >= needed ||
+            transactions.length >= target ||
             rows.length < window ||
             window >= MAX_FETCH_WINDOW
           ) {
@@ -117,7 +128,8 @@ export function registerListTransactionsTool(server: McpServer): void {
 export function registerRecordTransactionTool(server: McpServer): void {
   server.tool(
     "cryptofolio_record_transaction",
-    "Record a transaction: buy, sell, transfer between accounts, or swap (asset conversion). All monetary values are strings to preserve decimal precision.",
+    "Record a buy, sell, transfer, or swap to the ledger (write), taking monetary values as decimal strings to preserve precision. " +
+      outputEnvelopeNote("the CLI's transaction object, or {recorded: true}"),
     {
       type: z
         .enum(["buy", "sell", "transfer", "swap"])
@@ -183,7 +195,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
         .boolean()
         .optional()
         .describe(
-          "For buy transactions on synced accounts: record cost basis tax lot only, do NOT update holdings quantity. Use this when the account balance comes from an exchange/blockchain sync to avoid double-counting holdings."
+          "Record a cost-basis tax lot without changing the holdings quantity (for buys on synced accounts)."
         ),
     },
     async ({
@@ -212,7 +224,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
               return toContent(
                 buildError(
                   "buy requires: asset, quantity, price_usd, account",
-                  "MISSING_PARAMS"
+                  "MISSING_PARAM"
                 )
               );
             }
@@ -234,7 +246,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
               return toContent(
                 buildError(
                   "sell requires: asset, quantity, price_usd, account",
-                  "MISSING_PARAMS"
+                  "MISSING_PARAM"
                 )
               );
             }
@@ -255,7 +267,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
               return toContent(
                 buildError(
                   "transfer requires: asset, quantity, from_account, to_account",
-                  "MISSING_PARAMS"
+                  "MISSING_PARAM"
                 )
               );
             }
@@ -283,7 +295,7 @@ export function registerRecordTransactionTool(server: McpServer): void {
               return toContent(
                 buildError(
                   "swap requires: from_asset, from_quantity, to_asset, to_quantity, account",
-                  "MISSING_PARAMS"
+                  "MISSING_PARAM"
                 )
               );
             }
@@ -346,7 +358,8 @@ interface ConversionStep {
 export function registerTrackConversionTool(server: McpServer): void {
   server.tool(
     "cryptofolio_track_conversion",
-    "Record a multi-step currency conversion flow, such as CRC → USD → USDT → BTC. Each step is recorded as a swap transaction. Useful for tracking on-ramp flows where multiple currency exchanges occur.",
+    "Record a multi-step conversion such as CRC → USD → USDT → BTC as one swap transaction per step (write); failed steps are reported without rolling back earlier ones. " +
+      outputEnvelopeNote("{description, steps_recorded, errors}"),
     {
       description: z
         .string()
@@ -383,10 +396,12 @@ export function registerTrackConversionTool(server: McpServer): void {
 
       for (const step of steps as ConversionStep[]) {
         try {
-          // Compute to_quantity from rate if provided
-          const fromAmt = parseFloat(step.amount);
-          const rate = step.rate ? parseFloat(step.rate) : null;
-          const toAmt = rate !== null ? (fromAmt * rate).toFixed(8) : step.amount;
+          // Compute to_quantity from rate if provided. Exact decimal-string
+          // math — parseFloat here would inject binary-float noise into a
+          // recorded quantity. Absent/empty rate keeps to_quantity = amount.
+          const toAmt = step.rate
+            ? multiplyDecimalStrings(step.amount, step.rate, 8)
+            : step.amount;
 
           const args = [
             "tx",
@@ -440,7 +455,8 @@ export function registerTrackConversionTool(server: McpServer): void {
 export function registerExportTransactionsTool(server: McpServer): void {
   server.tool(
     "cryptofolio_export_transactions",
-    "Export transactions to a CSV or JSON file for tax reporting or analysis. Returns the file path so you can share it with an accountant or import into a tax tool.",
+    "Write the filtered transaction history to a timestamped CSV or JSON file under ~/.config/cryptofolio/exports/ (write) and return its path. " +
+      outputEnvelopeNote("{file_path, format, filters}"),
     {
       format: z
         .enum(["csv", "json"])

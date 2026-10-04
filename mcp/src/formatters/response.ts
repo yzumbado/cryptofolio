@@ -45,6 +45,25 @@ export function toContent(
 }
 
 // ---------------------------------------------------------------------------
+// Tool-description output contract
+// ---------------------------------------------------------------------------
+
+/**
+ * Sentence appended to every tool description stating the output envelope.
+ *
+ * The installed SDK exposes `outputSchema` only on `registerTool()`, not on the
+ * `server.tool(...)` overloads this server uses, so the contract is documented
+ * in the description instead of a machine-readable schema. `dataShape` is a
+ * compact description of the success payload's `data` field.
+ */
+export function outputEnvelopeNote(dataShape: string): string {
+  return (
+    `Returns JSON in content[0].text — success: {success: true, data, message} ` +
+    `where data is ${dataShape}; failure: {success: false, error, code?, hint?}.`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Error handler — converts CliError or generic Error to a buildError response
 // ---------------------------------------------------------------------------
 

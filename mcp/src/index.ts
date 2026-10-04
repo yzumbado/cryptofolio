@@ -1,7 +1,7 @@
 /**
  * Cryptofolio MCP Server — entry point
  *
- * Registers all 18 tools and connects via stdio transport.
+ * Registers all 23 tools and connects via stdio transport.
  * Run with: node dist/index.js
  * Or in dev: tsx src/index.ts
  *
@@ -38,9 +38,13 @@ import {
   registerGetRealizedPnlTool,
   registerGetUnrealizedPnlTool,
   registerAnalyzeAssetTool,
+  registerPnlBackfillTool,
 } from "./tools/pnl.js";
 import { registerSyncExchangeTool } from "./tools/sync.js";
-import { registerAuditLogTool } from "./tools/audit.js";
+import { registerAuditLogTool, registerGetSyncHistoryTool } from "./tools/audit.js";
+import { registerGetMiningPnlTool } from "./tools/mining.js";
+import { registerListHoldingsTool } from "./tools/holdings.js";
+import { registerImportBinanceTool } from "./tools/import.js";
 
 // ---------------------------------------------------------------------------
 // Server setup
@@ -76,6 +80,13 @@ registerExportTransactionsTool(server); // cryptofolio_export_transactions
 // Phase 4 — Audit and market data
 registerAuditLogTool(server);        // cryptofolio_get_audit_log
 registerGetMarketDataTool(server);   // cryptofolio_get_market_data
+
+// Phase 5 — Remaining CLI surface
+registerGetSyncHistoryTool(server);  // cryptofolio_get_sync_history
+registerListHoldingsTool(server);    // cryptofolio_list_holdings
+registerGetMiningPnlTool(server);    // cryptofolio_get_mining_pnl
+registerPnlBackfillTool(server);     // cryptofolio_pnl_backfill
+registerImportBinanceTool(server);   // cryptofolio_import_binance
 
 // ---------------------------------------------------------------------------
 // Start

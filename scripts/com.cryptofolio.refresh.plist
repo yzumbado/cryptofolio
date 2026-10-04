@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  com.cryptofolio.refresh — daily wallet sync + price refresh (T13).
+
+  INSTALL
+    1. Copy the script somewhere stable and make it executable:
+         mkdir -p ~/.local/share/cryptofolio
+         cp scripts/portfolio-refresh.sh ~/.local/share/cryptofolio/
+         chmod +x ~/.local/share/cryptofolio/portfolio-refresh.sh
+    2. Copy this file into your user LaunchAgents directory:
+         cp scripts/com.cryptofolio.refresh.plist ~/Library/LaunchAgents/
+    3. Load it:
+         launchctl load ~/Library/LaunchAgents/com.cryptofolio.refresh.plist
+    4. (Optional) Run it immediately instead of waiting for 09:00:
+         launchctl start com.cryptofolio.refresh
+
+  UNINSTALL
+         launchctl unload ~/Library/LaunchAgents/com.cryptofolio.refresh.plist
+         rm ~/Library/LaunchAgents/com.cryptofolio.refresh.plist
+         rm -rf ~/.local/share/cryptofolio
+
+  NOTES
+    - The job runs daily at 09:00 local time. Change Hour/Minute below to taste.
+    - ProgramArguments invokes the script through `/bin/bash -c` so `$HOME` is
+      expanded at run time; this keeps the file free of machine-specific paths.
+      If you install the script elsewhere, edit only the path in that string.
+    - The script writes its own timestamped log to
+      ~/Library/Logs/cryptofolio/portfolio-refresh-<date>.log. The two /tmp paths
+      below only capture launchd-level messages (e.g. "script not found").
+    - `cryptofolio` reads its own config/keychain; this plist holds no secrets.
+    - RunAtLoad is false so loading the agent does not trigger an immediate sync.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.cryptofolio.refresh</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>exec "$HOME/.local/share/cryptofolio/portfolio-refresh.sh"</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/cryptofolio-refresh.launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/cryptofolio-refresh.launchd.err.log</string>
+</dict>
+</plist>

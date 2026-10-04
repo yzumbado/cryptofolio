@@ -663,16 +663,29 @@ fn parse_deposit(r: &csv::StringRecord) -> Result<Option<BinanceCsvRow>> {
     }))
 }
 
-/// `Time, Pair, Side, Price, Executed, Amount, Fee`
+/// Spot Trade History (`Time, Pair, Side, Price, Executed, Amount, Fee`).
+///
 /// Executed: "9.434SOL"  Amount: "699.43676USDC"  Fee: "0.00081438BNB"
+///
+/// The column layout is not stable across Binance exports: some prepend an
+/// `Order No` column, shifting every field right by one. Detect the offset
+/// instead of assuming a fixed index — a leading `Order No` is numeric, so the
+/// timestamp only parses once we land on the `Time` column. The probe uses the
+/// same parser as the real timestamp read below, so a row either resolves at
+/// exactly one offset or fails closed into `ParseReport.skipped`.
 fn parse_spot_trade(r: &csv::StringRecord) -> Result<Option<BinanceCsvRow>> {
-    let time_str = field(r, 0)?;
-    let pair = field(r, 1)?;
-    let side = field(r, 2)?;
-    let price_raw = field(r, 3)?;
-    let executed_raw = field(r, 4)?;
-    let amount_raw = field(r, 5)?;
-    let fee_raw = r.get(6).unwrap_or("");
+    let base = if parse_binance_time(field(r, 0).unwrap_or("")).is_ok() {
+        0
+    } else {
+        1
+    };
+    let time_str = field(r, base)?;
+    let pair = field(r, base + 1)?;
+    let side = field(r, base + 2)?;
+    let price_raw = field(r, base + 3)?;
+    let executed_raw = field(r, base + 4)?;
+    let amount_raw = field(r, base + 5)?;
+    let fee_raw = r.get(base + 6).unwrap_or("");
 
     let timestamp = parse_binance_time(time_str)?;
 
@@ -1261,6 +1274,99 @@ mod tests {
         // Sanity: buy of SOL paid in USDC.
         assert_eq!(row.to_asset.as_deref(), Some("SOL"));
         assert_eq!(row.from_asset.as_deref(), Some("USDC"));
+    }
+
+    #[test]
+    fn test_parse_spot_trade_with_leading_order_no_column() {
+        // Some Binance exports prepend `Order No`, shifting every field right
+        // by one. Synthetic layout, built in-memory — never a real export.
+        let csv = "Order No,Time,Pair,Side,Price,Executed,Amount,Fee\n\
+                   12345678901234567890,2025-11-28 13:29:41,SOLUSDC,BUY,74.12,9.434SOL,699.43676USDC,0.00081438BNB\n";
+        let report = parse_bytes(csv.as_bytes()).unwrap();
+        assert!(
+            report.skipped.is_empty(),
+            "offset row should import cleanly, got skips: {:?}",
+            report.skipped
+        );
+        assert_eq!(report.rows.len(), 1);
+        let row = &report.rows[0];
+        // Every field must be read from its shifted position, not index 0..6.
+        assert_eq!(row.timestamp.to_rfc3339(), "2025-11-28T13:29:41+00:00");
+        assert_eq!(row.tx_type, TransactionType::Buy);
+        assert_eq!(row.price, Some(Decimal::from_str("74.12").unwrap()));
+        assert_eq!(row.price_asset.as_deref(), Some("USDC"));
+        assert_eq!(row.from_asset.as_deref(), Some("USDC"));
+        assert_eq!(
+            row.from_quantity,
+            Some(Decimal::from_str("699.43676").unwrap())
+        );
+        assert_eq!(row.to_asset.as_deref(), Some("SOL"));
+        assert_eq!(row.to_quantity, Some(Decimal::from_str("9.434").unwrap()));
+        assert_eq!(row.fee, Some(Decimal::from_str("0.00081438").unwrap()));
+        assert_eq!(row.fee_asset.as_deref(), Some("BNB"));
+    }
+
+    #[test]
+    fn test_spot_trade_offset_variants_share_external_id() {
+        // The same trade exported with and without the leading `Order No`
+        // column must dedup to a single ledger row: identical external_id and
+        // timestamp. The offset probe must not disturb the base layout.
+        let legacy = "Time,Pair,Side,Price,Executed,Amount,Fee\n\
+                      2025-11-28 13:29:41,SOLUSDC,BUY,74.12,9.434SOL,699.43676USDC,0.00081438BNB\n";
+        let offset = "Order No,Time,Pair,Side,Price,Executed,Amount,Fee\n\
+                      12345678901234567890,2025-11-28 13:29:41,SOLUSDC,BUY,74.12,9.434SOL,699.43676USDC,0.00081438BNB\n";
+        let a = parse_bytes(legacy.as_bytes()).unwrap();
+        let b = parse_bytes(offset.as_bytes()).unwrap();
+        assert!(
+            a.skipped.is_empty(),
+            "legacy layout regressed: {:?}",
+            a.skipped
+        );
+        assert!(
+            b.skipped.is_empty(),
+            "offset layout regressed: {:?}",
+            b.skipped
+        );
+        assert_eq!(a.rows.len(), 1);
+        assert_eq!(b.rows.len(), 1);
+        assert_eq!(a.rows[0].timestamp, b.rows[0].timestamp);
+        assert_eq!(a.rows[0].external_id, b.rows[0].external_id);
+    }
+
+    #[test]
+    fn test_parse_spot_trade_blank_order_no_still_offset() {
+        // An empty `Order No` cell must not be mistaken for a base-layout row.
+        let csv = "Order No,Time,Pair,Side,Price,Executed,Amount,Fee\n\
+                   ,2025-11-28 13:29:41,SOLUSDC,SELL,74.12,9.434SOL,699.43676USDC,0.00081438BNB\n";
+        let report = parse_bytes(csv.as_bytes()).unwrap();
+        assert!(
+            report.skipped.is_empty(),
+            "blank Order No should still resolve, got skips: {:?}",
+            report.skipped
+        );
+        assert_eq!(report.rows.len(), 1);
+        let row = &report.rows[0];
+        assert_eq!(row.tx_type, TransactionType::Sell);
+        assert_eq!(row.from_asset.as_deref(), Some("SOL"));
+        assert_eq!(row.to_asset.as_deref(), Some("USDC"));
+        assert_eq!(row.price, Some(Decimal::from_str("74.12").unwrap()));
+        assert_eq!(row.timestamp.to_rfc3339(), "2025-11-28T13:29:41+00:00");
+    }
+
+    #[test]
+    fn test_parse_spot_trade_offset_malformed_row_is_skipped() {
+        // A truncated row in the offset layout still fails closed: surfaced in
+        // `skipped` with its line number, never silently discarded.
+        let csv = "Order No,Time,Pair,Side,Price,Executed,Amount,Fee\n\
+                   12345678901234567890,2025-11-28 13:29:41,SOLUSDC,BUY\n";
+        let report = parse_bytes(csv.as_bytes()).unwrap();
+        assert!(report.rows.is_empty());
+        assert_eq!(report.skipped.len(), 1);
+        assert_eq!(report.skipped[0].line, 2);
+        assert!(
+            !report.skipped[0].reason.is_empty(),
+            "skipped rows must carry a reason"
+        );
     }
 
     #[test]
