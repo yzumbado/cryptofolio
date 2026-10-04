@@ -11,6 +11,7 @@ import {
   buildError,
   toContent,
   handleCliError,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type {
   CliWallet,
@@ -27,7 +28,10 @@ const BLOCKCHAINS = ["bitcoin", "ethereum", "solana", "cardano"] as const;
 export function registerManageWalletTool(server: McpServer): void {
   server.tool(
     "cryptofolio_manage_wallet",
-    'Add, list, show details of, or remove a blockchain wallet. Use action "add" to register a new wallet address or xpub key, "list" to see all wallets, "show" to get details and holdings, or "remove" to delete a wallet.',
+    "Add, list, show, or remove a blockchain wallet address or xpub (add and remove write; list and show only read), auto-creating the account when account_type and category are supplied. " +
+      outputEnvelopeNote(
+        "the wallet add result {wallet, blockchain, network, address|xpub, derived_addresses?} for add, {wallets} for list, the wallet detail {name, addresses, holdings} for show, or {name} for remove"
+      ),
     {
       action: z
         .enum(["add", "list", "show", "remove"])
@@ -36,7 +40,7 @@ export function registerManageWalletTool(server: McpServer): void {
         .string()
         .optional()
         .describe(
-          "Wallet/account name. Required for add, show, remove. The account must already exist (create with cryptofolio_manage_account first)."
+          "Wallet (account) name; required for add, show, and remove, and the account must already exist."
         ),
       blockchain: z
         .enum(BLOCKCHAINS)
@@ -250,7 +254,8 @@ export function registerManageWalletTool(server: McpServer): void {
 export function registerSyncWalletTool(server: McpServer): void {
   server.tool(
     "cryptofolio_sync_wallet",
-    "Sync on-chain balance and transaction history for one or all blockchain wallets. This calls external blockchain APIs (Blockfrost, Etherscan, etc.) and may take up to 2 minutes. Use sync_all=true to sync every wallet at once.",
+    "Sync on-chain balances and optional full transaction history for one wallet or all wallets through external blockchain APIs (write), which can take up to two minutes. " +
+      outputEnvelopeNote("the CLI's sync summary, or {synced: true}"),
     {
       wallet_name: z
         .string()

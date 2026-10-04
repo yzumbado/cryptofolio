@@ -4,7 +4,7 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.6.x   | :white_check_mark: |
+| 0.6.x (current: 0.6.0) | :white_check_mark: |
 | < 0.6.0 | :x:                |
 
 ## Reporting a Vulnerability
@@ -17,9 +17,13 @@ Do **NOT** open a public GitHub issue. Use a
 - **Status update:** within 7 days
 - Reporters are credited unless they prefer to remain anonymous
 
+Please include the affected version, a minimal reproduction, and the impact you
+believe it has. Never include API keys, xpubs, seed phrases, or other secrets in
+the report.
+
 ## Secrets Handling
 
-- All API keys and xpub keys live in the **macOS Keychain**
+- On macOS, all API keys and xpub keys live in the **Keychain**
   (service `com.cryptofolio.api-keys`) — never in `config.toml`, the database,
   logs, or shell history.
 - Use `cryptofolio config set-secret <key>` (hidden input). Never `config set`
@@ -37,8 +41,11 @@ Do **NOT** open a public GitHub issue. Use a
 ## Watch-Only Design
 
 - Private keys and seed phrases are rejected at input
-  (WIF / raw key / BIP-39 detection in `src/blockchain/security.rs`).
+  (Bitcoin WIF, Ethereum raw key, and BIP-39 heuristics in
+  `src/blockchain/security.rs`).
 - No signing, no broadcasting, no withdrawal capability — by design.
+- The MCP server is a local stdio process: it opens no network port and runs
+  with the same filesystem access as the CLI.
 
 ## Known Limitations
 
@@ -50,4 +57,4 @@ Do **NOT** open a public GitHub issue. Use a
 
 ---
 
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04

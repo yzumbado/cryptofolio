@@ -1,5 +1,6 @@
 # Multi-stage build for smaller final image
-FROM rust:1.75-slim as builder
+# Rust version must match rust-toolchain.toml (channel = "1.93.0")
+FROM rust:1.93.0-slim as builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \

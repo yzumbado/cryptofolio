@@ -1,361 +1,166 @@
 # Cryptofolio Roadmap
 
-**Last Updated:** May 2026
+**Last Updated:** October 2026
 **Current Version:** v0.6.0
+**Living queue:** [docs/BACKLOG.md](BACKLOG.md) — authoritative, priority-ordered
+(P1…P7). This roadmap carries direction; the backlog carries tasks and status.
 
 ---
 
 ## Vision
 
 Build a **local-first, privacy-respecting cryptocurrency portfolio manager** that:
-- Works entirely offline with local data
-- Supports multi-currency tracking (fiat + crypto)
-- Provides rich data visualization and insights
-- Integrates with popular portfolio tracking platforms
-- Remains simple, fast, and developer-friendly
+
+- Keeps all data on the user's machine (no cloud sync, no telemetry)
+- Tracks multi-chain and multi-currency holdings with verifiable provenance
+- Is driven conversationally by an **agentic working mode** (DSH) rather than a
+  click-heavy GUI
+- Turns an accurate ledger into **decision support** — scenarios and theses, not
+  trading automation
+- Remains simple, fast, watch-only, and developer-friendly
 
 ---
 
-## v0.2.0 (✅ Released - February 2026)
+## Working Mode (✅ Landed — October 2026)
 
-### Multi-Currency Foundation
+DSH is now the **primary agent tool** for this repo. Claude Code / Kiro sessions
+may still occur, but the working-mode layer is DSH-first:
 
-**Features Delivered:**
-- ✅ Multi-currency support (fiat, crypto, stablecoins)
-- ✅ Database-driven currency model (9 pre-seeded currencies)
-- ✅ Exchange rate management (manual entry + automatic storage)
-- ✅ Bank account type for traditional banking
-- ✅ Multi-currency cost basis tracking
-- ✅ Fiat-to-fiat swap detection
-
-**Security Enhancements:**
-- ✅ Secure secret handling (`config set-secret`)
-- ✅ Shell history protection
-- ✅ Auto file permissions (0600 on Unix)
-- ✅ Multiple input methods (stdin, file, env, interactive)
-
-**Developer Experience:**
-- ✅ JSON output for all query commands
-- ✅ CSV transaction export with filtering
-- ✅ Customizable number formatting
-- ✅ Comprehensive help text
-
-**Testing & Documentation:**
-- ✅ 110+ tests (26 currency-specific)
-- ✅ Complete documentation suite
-- ✅ Validation guide with 11 test scenarios
-- ✅ Multi-currency implementation guide
-
-**Metrics:**
-- 26 files changed
-- 2,405 lines added
-- 100% test pass rate
-- Built with AI pair programming
+- ✅ **AGENTS.md** — auto-loaded orientation layer (read STATE.md, read the backlog,
+  load the working-discipline skill).
+- ✅ **STATE.md** — one-page current truth, including the "things that will make
+  you act wrongly" landmines.
+- ✅ **Skills** (`.dsh/skills/`) — `working-discipline` (rituals/guardrails),
+  `plan-before-build`, `co-author-review`, `cryptofolio-conventions`.
+- ✅ **CLAUDE.md → pointer** — no drifting duplicate instructions.
+- ✅ **DSH MCP bundle** (`integrations/dsh-mcp/`) — connects the 18
+  `cryptofolio_*` tools to the DSH profile via stdio.
+- ✅ **Public/private boundary** — public docs hold engineering facts only;
+  personal figures live in the gitignored `.portfolio_private.md`. Enforced by
+  `scripts/check_leaks.sh` + CI `leak-check.yml`.
 
 ---
 
-## v0.3.1 (✅ Released - March 2026)
+## Released
 
-### Keychain Security & P&L Foundation
+| Version | Date | Highlights |
+|---------|------|------------|
+| **0.6.0** | 2026-05-01 | MCP server (18 tools), `/portfolio` skill, code-quality + CI fixes |
+| **0.5.1** | 2026-05-01 | Taproot xpub, Blockfrost keychain, `PrivacyMode` fix, onboarding bug fixes |
+| **0.5.0** | 2026-04-01 | Multi-chain wallet tracking (BTC, ETH, ADA, SOL), sync audit log |
+| **0.4.0** | 2026-03-28 | Binance deep integration (`sync-history`, full import) |
+| **0.3.1** | 2026-03-01 | Keychain security, P&L foundation (FIFO/LIFO) |
+| **0.2.0** | 2026-02-19 | Multi-currency support, JSON output, CSV export |
+| **0.1.0** | 2026-01-15 | Initial release — portfolio tracking + Binance sync |
 
-**Features Delivered:**
-- ✅ **macOS Keychain Integration**
-  - OS-encrypted storage for API keys and secrets
-  - Touch ID support with three security levels
-  - Automatic migration wizard (`config migrate-to-keychain`)
-  - Session caching (15-minute timeout)
-  - FFI bindings to Security.framework
-- ✅ **P&L Engine Foundation**
-  - Tax lot tracking infrastructure (FIFO/LIFO)
-  - Realized P&L database schema (MIGRATION_003)
-  - TaxLotRepository and RealizedPnLRepository
-  - P&L Calculator module with matching logic
-  - Cost basis method support (FIFO, LIFO)
-- ✅ **Quality Improvements**
-  - Comprehensive test suite (259 tests total)
-  - 175 unit tests (+206% increase)
-  - 84 integration tests
-  - 95-100% coverage on critical code paths
-  - Repository layer tests (71 tests across 6 repos)
-  - Core module tests (18 tests)
-  - CLI output tests (30 tests)
-
-**Technical Achievements:**
-- Database migration 003 (tax_lots, realized_pnl tables)
-- FFI bindings for native macOS security
-- Systematic test coverage improvement
-- 100% test pass rate
-
-**Metrics:**
-- Total tests: 259 (175 unit + 84 integration)
-- Test pass rate: 100%
-- Critical code coverage: 95-100%
-- Development approach: AI pair programming with Claude Code
+Post-0.6.0 work (portfolio reconstruction, chain reconciliation, DePIN mining P&L,
+Multi-chain corrections, leak remediation, DSH layer) is recorded in
+[CHANGELOG.md](../CHANGELOG.md) under **Unreleased**.
 
 ---
 
-## v0.4.0 (✅ Released - March 2026)
+## Next Lanes
 
-### Binance Deep Integration
+Directional order. Each lane maps to a priority in [docs/BACKLOG.md](BACKLOG.md),
+which is the source of truth for individual tasks and status.
 
-**Features Delivered:**
-- ✅ `sync-history` command — full Binance transaction history import
-- ✅ Spot trades, deposits, withdrawals, fiat orders, internal transfers
-- ✅ Incremental sync with watermarks (fetches only new records)
-- ✅ Duplicate detection via `external_id` (safe to re-run)
-- ✅ `--dry-run` preview mode
-- ✅ 44 new integration tests, 341 total tests (100% passing)
-- ✅ Keychain access fix for macOS without code signing
+### 1. Trust foundation — P5 (Trust foundation & MCP fixes)
 
----
+"Trust before acting": the ledger must be provably reliable before it feeds any
+advisor or scenario output.
 
-## v0.5.0 (✅ Released - April 2026)
+- Wire `reconciliation_log` (schema-only today) so reconciliation is a recorded
+  fact, not an assumption.
+- Fix MCP correctness gaps: decimal math in `track_conversion`/unrealized totals,
+  output schemas, missing CLI surface (mining-pnl, sync-history, holdings,
+  `pnl backfill`).
+- Harden secrets handling (no raw signed responses in logs; no secrets via argv).
+- Land the trust-fix batches currently in flight as reviewable PRs.
 
-### Multi-Chain Wallet Tracking
+### 2. Advisor skill design session — P6
 
-**Features Delivered:**
-- ✅ `BlockchainClient` trait — unified async interface for all chain clients
-- ✅ `ProviderRegistry` — health-check-driven provider selection with `PrivacyMode`
-- ✅ `SyncEngine` — parallel sync via `JoinSet`, block-height watermarks
-- ✅ Bitcoin — Blockstream.info, all address types, xpub/zpub HD derivation
-- ✅ Ethereum — Etherscan API, ETH + ERC-20 token detection
-- ✅ Cardano — Blockfrost API, ADA + native tokens, stake delegation
-- ✅ Solana — JSON-RPC, SOL + SPL tokens (Jupiter metadata cache), stake accounts
-- ✅ Private key guard at `wallet add` boundary
-- ✅ xpub stored in macOS Keychain (not plaintext DB)
-- ✅ `sync_audit_log` for tamper-evident sync provenance
-- ✅ `audit sync`, `audit coverage`, `audit errors` commands
+A **design session with the owner first**, before any implementation. Agenda:
+persona and scope, thesis format, plan fields (allocations, entries, exits,
+timeframes), validation/invalidation triggers, honesty rules (no moving
+goalposts; log thesis outcomes), and which tools the skill may call (read-only
+ledger + web research + `TDR/`).
 
----
+Design outputs are personal by nature and land in `.portfolio_private.md` §2 —
+never in tracked files.
 
-## v0.5.1 (✅ Released - May 2026)
+### 3. Decision engine / scenario engine — P3
 
-### Onboarding Bug Fixes
+Productize the TDR prototype into a repeatable projection pipeline:
 
-**Features Delivered:**
-- ✅ Taproot xpub support (P2TR address derivation)
-- ✅ Blockfrost keychain lookup during wallet sync
-- ✅ `PrivacyMode::Balanced` now correctly uses Convenience for public APIs
-- ✅ 10 total bug fixes from real onboarding sessions
+1. **`price_targets` table + `cryptofolio scenario` CLI** — project net worth,
+   P&L-at-target, yield, and Aave health factor under bear / base / bull.
+2. **MCP tool `cryptofolio_project_scenarios`** — expose the same projections to
+   agents with a stable output schema.
+3. **Advisor consumption** — the advisor skill reads live scenarios and drives the
+   per-asset loop: thesis → plan → validation/invalidation triggers → honest review.
 
----
+Later, watchlist alerts and strategy-drift reports build on this.
 
-## v0.6.0 (✅ Released - May 2026)
+### 4. DSH web UI panel — P4
 
-### MCP Server & AI-Native Portfolio Management
+Bring portfolio visualization into the DSH Web GUI as a panel (theme tokens;
+evolve the `prototypes/portfolio-dashboard.html` direction).
 
-**Features Delivered:**
-- ✅ MCP server (`mcp/`) with 18 `cryptofolio_*` tools via stdio protocol
-- ✅ `/portfolio` Claude Code skill — natural language portfolio management
-- ✅ Code quality: removed incomplete `src/ai/` module, xpub panic safety, health check constructors, dead code removal
-- ✅ CI fixes: linux-amd64 + macos-arm64 cross-compile targets only, removed tarpaulin, fixed 6h timeout
-- ✅ Bug fixes: `wallet list --json` trailing commas, `pnl realized` empty output, `sync_exchange` account flag
+- Define the data contract first: the panel reads via the CLI/DB read path.
+- Keep it local-only and read-only — no new network surface.
 
----
+### 5. DSH presets — P2
 
-## v0.7.0 (🎯 Planned - 2026)
-
-### Visual Data Exploration Dashboard
-
-**Focus:** Local-first visual analytics without cloud dependencies
-
-### Dashboard Architecture
-- [ ] **Local Node.js Server**
-  - No external dependencies
-  - Runs on localhost only
-  - Auto-starts/stops with CLI
-  - Reads from local SQLite database
-  - No data transmission
-
-### Visualization Features
-- [ ] **Interactive Portfolio Explorer**
-  - Real-time portfolio view
-  - Drag-to-zoom time ranges
-  - Click-through to transactions
-  - Account/category filtering
-
-- [ ] **Time-Series Analysis**
-  - Historical value charts
-  - P&L over time
-  - Asset performance comparison
-  - Drawdown visualization
-
-- [ ] **Portfolio Composition**
-  - Asset allocation pie charts
-  - Account distribution
-  - Category breakdown
-  - Fiat vs crypto split
-
-- [ ] **Historical Performance**
-  - Total return charts
-  - Per-asset returns
-  - Benchmark comparison
-  - Correlation matrix
-
-### Rich Data Display
-- [ ] **Charts & Graphs**
-  - Line charts (time series)
-  - Pie charts (composition)
-  - Bar charts (comparisons)
-  - Heatmaps (correlations)
-
-- [ ] **Tables**
-  - Sortable columns
-  - Filterable rows
-  - Export to CSV
-  - Copy to clipboard
-
-- [ ] **Summary Cards**
-  - Total value
-  - Today's change
-  - 7-day change
-  - All-time high/low
-
-### Technical Stack
-```
-┌─────────────────────────────────────┐
-│  Browser (localhost:3000)           │
-│  ├─ React/Svelte (TBD)              │
-│  ├─ Chart.js / D3.js                │
-│  └─ Tailwind CSS                    │
-└─────────────────────────────────────┘
-              ↕ HTTP
-┌─────────────────────────────────────┐
-│  Node.js Server (local only)        │
-│  ├─ Express.js                      │
-│  ├─ SQLite reader                   │
-│  └─ Read-only database access       │
-└─────────────────────────────────────┘
-              ↕ SQL
-┌─────────────────────────────────────┐
-│  SQLite Database                    │
-│  ~/.config/cryptofolio/database.db  │
-└─────────────────────────────────────┘
-```
-
-**Commands:**
-```bash
-# Start dashboard
-cryptofolio dashboard start
-# 🚀 Dashboard running at http://localhost:3000
-
-# Open in browser
-cryptofolio dashboard open
-
-# Stop dashboard
-cryptofolio dashboard stop
-```
-
-**Security Guarantees:**
-- ✅ Local-only server (no external network access)
-- ✅ Read-only database access
-- ✅ No data transmission
-- ✅ CORS disabled
-- ✅ Auto-shutdown on inactivity
-
-**Target Metrics:**
-- < 1s dashboard load time
-- < 100ms chart render time
-- < 50MB memory footprint
-- Zero external API calls
+Ship dedicated DSH presets — **Ledger**, **Advisor** (read-only `cryptofolio_*`
+tools only, a structural guarantee), and **Maintainer** — so each working mode has
+its own tool boundary. Also port the ledger-keeper skill and route "no investment
+advice" refusals to the advisor skill.
 
 ---
 
 ## Long-Term Vision (2027+)
 
-### Multi-Chain DeFi Integration
-- Read-only wallet tracking (Ethereum, Solana, etc.)
-- DeFi protocol position tracking
-- NFT portfolio tracking
-- Cross-chain aggregation
-
-### Advanced Analytics
-- AI-powered insights
-- Portfolio optimization suggestions
-- Risk analysis
-- Rebalancing recommendations
-
-### Community Features
-- Plugin system for custom dashboards
-- Shared report templates
-- Community-built integrations
-- Educational resources
-
-### Platform Expansion
-- Linux ARM support (Raspberry Pi)
-- Docker container
-- Homebrew formula
-- Snap package
+- **DeFi & cross-chain depth** — protocol position tracking, NFT portfolio views,
+  cross-chain aggregation on top of the existing watch-only wallet model.
+- **Advanced analytics** — risk analysis and rebalancing *recommendations* (never
+  automated execution) through the decision engine.
+- **Community & distribution** — plugin points for custom panels, shared report
+  templates, Linux ARM builds, Docker, Homebrew.
 
 ---
 
 ## Not Planned (Out of Scope)
 
-**Intentionally NOT included to maintain simplicity and security:**
+Intentionally excluded to keep the tool simple and safe:
 
-❌ **Cloud Sync** - Remains local-first forever
-❌ **Mobile Apps** - CLI-focused tool
-❌ **Trading Capabilities** - Read-only portfolio tracking only
-❌ **Automated Trading** - Too risky, out of scope
-❌ **Windows/Linux Keychain** - macOS only for v0.3
-❌ **Coinbase/Kraken Integration** - Not prioritized
-❌ **Tax Filing Integration** - Too complex, use exports + tax software
-❌ **Price Alerts** - Use other tools for notifications
-❌ **DCA Automation** - Security risk, use manual recording
-
----
-
-## Feature Requests
-
-**Want to suggest a feature?**
-1. Check [GitHub Discussions](https://github.com/yourusername/cryptofolio/discussions)
-2. Search for existing requests
-3. Create a new discussion with:
-   - Use case description
-   - Example workflow
-   - Why it fits Cryptofolio's vision
-
-**Voting:**
-- React with 👍 to upvote features
-- React with 👎 if you disagree
-- Comment with your perspective
+- ❌ **Cloud sync** — remains local-first.
+- ❌ **Trading / signing / broadcasting** — watch-only by design; private keys are
+  rejected at input.
+- ❌ **Automated trading or DCA execution** — too risky.
+- ❌ **Mobile apps** — agent + CLI focused.
+- ❌ **Tax filing integration** — use exports plus dedicated tax software.
+- ❌ **Price-alert notifications** — use other tools; the scenario engine covers
+  forward-looking analysis.
 
 ---
 
 ## Development Philosophy
 
-### Core Principles
-
-1. **Local-First** - All data stays on your machine
-2. **Privacy-Respecting** - No telemetry, no tracking
-3. **Read-Only APIs** - Never request write permissions
-4. **Simple & Fast** - < 200ms command response
-5. **Developer-Friendly** - JSON output, scriptable
-6. **Agentic Development** - Built with AI pair programming
-
-### Quality Standards
-
-- ✅ 100% test pass rate
-- ✅ No breaking changes without major version
-- ✅ Comprehensive documentation
-- ✅ Security-first design
-- ✅ Semantic versioning
-
-### Release Cadence
-
-- **Major (v1.0, v2.0)** - Yearly, with breaking changes
-- **Minor (v0.3, v0.4)** - Quarterly, new features
-- **Patch (v0.2.1, v0.2.2)** - As needed, bug fixes
+1. **Local-first** — all data stays on the user's machine.
+2. **Privacy-respecting** — no telemetry, no tracking; public/private boundary is
+   CI-enforced.
+3. **Read-only APIs** — never request write permissions from providers.
+4. **Verifiable** — claims are backed by a cited source or a passing test; the
+   ledger is append-only and corrections are explicit.
+5. **Agentic development** — DSH-first working mode; built with AI pair programming.
+6. **Semantic versioning** — no breaking changes without a major version.
 
 ---
 
 ## Questions?
 
 - 📖 [Documentation](.)
-- 💬 [Discussions](https://github.com/yourusername/cryptofolio/discussions)
-- 🐛 [Issues](https://github.com/yourusername/cryptofolio/issues)
+- 🐛 [Issues](https://github.com/yzumbado/cryptofolio/issues)
 
----
-
-**Last Updated:** May 2026
-**Next Review:** August 1, 2026
+**Next review:** with the next backlog reprioritization (see
+[docs/BACKLOG.md](BACKLOG.md)).

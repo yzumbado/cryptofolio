@@ -152,12 +152,13 @@ describe("cryptofolio_list_transactions", () => {
     expect(parsed.data.items.map((t) => t.id)).toEqual([3, 4]);
     expect(parsed.data.total_fetched).toBe(3);
     expect(parsed.data.has_more).toBe(false);
-    // First window is offset+limit; it grows once because 3 rows only held 2 matches.
+    // First window is needed+1 (offset+limit+1 = 4); it grows once because 4
+    // rows only held 3 matches, and the 8-row window runs out of data at 5.
     expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(1, [
-      "tx", "list", "--limit", "3",
+      "tx", "list", "--limit", "4",
     ]);
     expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(2, [
-      "tx", "list", "--limit", "6",
+      "tx", "list", "--limit", "8",
     ]);
   });
 
@@ -182,15 +183,15 @@ describe("cryptofolio_list_transactions", () => {
 
     expect(parsed.success).toBe(true);
     expect(parsed.data.items.map((t) => t.id)).toEqual([2, 3]);
-    expect(parsed.data.total_fetched).toBe(3);
-    // The window is exactly offset+limit, so nothing beyond this page was
-    // fetched (pre-existing behaviour, unchanged by the fix).
-    expect(parsed.data.has_more).toBe(false);
-    expect(parsed.data.next_offset).toBeUndefined();
-    // One fetch: the offset+limit window already satisfies the page.
+    // One probe row beyond the page (offset+limit+1 = 4) proves more data exists.
+    expect(parsed.data.total_fetched).toBe(4);
+    expect(parsed.data.has_more).toBe(true);
+    expect(parsed.data.next_offset).toBe(3);
+    // One fetch: needed+1 rows were returned, so the page plus the probe fit
+    // in the first window.
     expect(vi.mocked(runCli)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(1, [
-      "tx", "list", "--limit", "3",
+      "tx", "list", "--limit", "4",
     ]);
   });
 
@@ -220,7 +221,12 @@ describe("cryptofolio_list_transactions", () => {
     expect(parsed.data.items).toEqual([]);
     expect(parsed.data.total_fetched).toBe(2);
     expect(parsed.data.has_more).toBe(false);
-    expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
+    // The first window (offset+limit+1 = 5) already exceeded the 4 rows the CLI
+    // has, so the loop stops after one fetch.
+    expect(vi.mocked(runCli)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(1, [
+      "tx", "list", "--limit", "5",
+    ]);
   });
 });
 
@@ -285,7 +291,7 @@ describe("cryptofolio_record_transaction", () => {
     );
   });
 
-  it("returns MISSING_PARAMS error when buy is missing price", async () => {
+  it("returns MISSING_PARAM error when buy is missing price", async () => {
     const server = makeServer();
     const tool = getTool(server, "cryptofolio_record_transaction");
 
@@ -301,7 +307,7 @@ describe("cryptofolio_record_transaction", () => {
     };
 
     expect(parsed.success).toBe(false);
-    expect(parsed.code).toBe("MISSING_PARAMS");
+    expect(parsed.code).toBe("MISSING_PARAM");
     expect(vi.mocked(runCli)).not.toHaveBeenCalled();
   });
 
@@ -379,7 +385,7 @@ describe("cryptofolio_record_transaction", () => {
     );
   });
 
-  it("returns MISSING_PARAMS when transfer is missing from_account", async () => {
+  it("returns MISSING_PARAM when transfer is missing from_account", async () => {
     const server = makeServer();
     const tool = getTool(server, "cryptofolio_record_transaction");
 
@@ -395,7 +401,7 @@ describe("cryptofolio_record_transaction", () => {
     };
 
     expect(parsed.success).toBe(false);
-    expect(parsed.code).toBe("MISSING_PARAMS");
+    expect(parsed.code).toBe("MISSING_PARAM");
     expect(vi.mocked(runCli)).not.toHaveBeenCalled();
   });
 });
@@ -427,6 +433,68 @@ describe("cryptofolio_track_conversion", () => {
     expect(parsed.data.errors).toHaveLength(0);
     expect(parsed.message).toContain("2/2");
     expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
+  });
+
+  it("computes to_quantity with exact decimal math, not floats", async () => {
+    vi.mocked(runCli).mockResolvedValue(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    await tool!.handler({
+      description: "Large conversion",
+      steps: [{ from: "ABC", to: "XYZ", amount: "100000000", rate: "1.1" }],
+    });
+
+    // (100000000 * 1.1).toFixed(8) === "110000000.00000001" with floats.
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["--to-quantity", "110000000.00000000"])
+    );
+    expect(vi.mocked(runCli)).not.toHaveBeenCalledWith(
+      expect.arrayContaining(["--to-quantity", "110000000.00000001"])
+    );
+  });
+
+  it("emits an 8dp to_quantity for the 0.1 x 0.3 case", async () => {
+    vi.mocked(runCli).mockResolvedValue(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    await tool!.handler({
+      description: "Small conversion",
+      steps: [{ from: "CRC", to: "USD", amount: "0.1", rate: "0.3" }],
+    });
+
+    expect(vi.mocked(runCli)).toHaveBeenCalledWith(
+      expect.arrayContaining(["--to-quantity", "0.03000000"])
+    );
+    const args = vi.mocked(runCli).mock.calls[0]?.[0] ?? [];
+    expect(args.join(" ")).not.toContain("0.030000000000000002");
+  });
+
+  it("keeps to_quantity = amount when rate is absent or empty", async () => {
+    vi.mocked(runCli).mockResolvedValue(null);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_track_conversion");
+
+    await tool!.handler({
+      description: "No rate",
+      steps: [
+        { from: "CRC", to: "USD", amount: "12345.6789" },
+        { from: "USD", to: "USDT", amount: "12.5", rate: "" },
+      ],
+    });
+
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(
+      1,
+      expect.arrayContaining(["--to-quantity", "12345.6789"])
+    );
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(
+      2,
+      expect.arrayContaining(["--to-quantity", "12.5"])
+    );
   });
 
   it("records partial success when one step fails", async () => {

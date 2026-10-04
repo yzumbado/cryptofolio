@@ -15,6 +15,7 @@ import {
   toContent,
   handleCliError,
   buildError,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type { CliAccount } from "../types.js";
 
@@ -25,7 +26,10 @@ import type { CliAccount } from "../types.js";
 export function registerListAccountsTool(server: McpServer): void {
   server.tool(
     "cryptofolio_list_accounts",
-    "List all configured accounts (exchanges, wallets, custodial services). Returns account names, types, categories, and sync status. Call this before referencing an account by name in other tools.",
+    "List every configured account with its name, type, category, and sync flags, so other tools can be called with a valid account name. " +
+      outputEnvelopeNote(
+        "{accounts: [{name, account_type, category, sync_enabled, is_testnet}]}"
+      ),
     {},
     async () => {
       try {
@@ -60,7 +64,10 @@ const ACCOUNT_TYPES = [
 export function registerManageAccountTool(server: McpServer): void {
   server.tool(
     "cryptofolio_manage_account",
-    'Add or remove a portfolio account. Use action "add" to create a new account (exchange, hardware wallet, etc.) or "remove" to archive (deactivate) one. Removal is a soft-delete: the account is hidden from the active portfolio but its transactions and holdings are retained, because the ledger is immutable. This is required during initial setup — create at least one account before recording any transactions.',
+    "Add or archive a portfolio account (write): action=\"add\" creates an account and requires account_type and category, while action=\"remove\" soft-deletes it so it leaves the active portfolio but keeps its transactions and holdings. " +
+      outputEnvelopeNote(
+        "{name, account_type, category, sync_enabled} for add, or {name} for remove"
+      ),
     {
       action: z
         .enum(["add", "remove"])

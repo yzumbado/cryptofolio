@@ -1,5 +1,6 @@
 /**
- * cryptofolio_get_audit_log — view sync history, coverage, and errors
+ * cryptofolio_get_sync_history  — recent blockchain sync operations
+ * cryptofolio_get_audit_log     — view sync history, coverage, and errors
  */
 
 import { z } from "zod";
@@ -10,6 +11,7 @@ import {
   toContent,
   handleCliError,
   paginate,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 import type {
   CliAuditSyncEntry,
@@ -20,13 +22,14 @@ import type {
 export function registerAuditLogTool(server: McpServer): void {
   server.tool(
     "cryptofolio_get_audit_log",
-    "View the sync audit log for blockchain wallets. Use view='sync_history' to see recent sync operations, 'coverage' to see which addresses have been synced and up to which block, or 'errors' to see failed sync attempts.",
+    "Return one view of the wallet sync audit log — recent sync operations, address coverage, or failed syncs — optionally filtered by wallet and chain, using offset/limit pagination. " +
+      outputEnvelopeNote(
+        "{items, total_fetched, offset, limit, has_more, next_offset?}"
+      ),
     {
       view: z
         .enum(["sync_history", "coverage", "errors"])
-        .describe(
-          '"sync_history" — recent sync operations | "coverage" — address sync coverage | "errors" — failed syncs'
-        ),
+        .describe("Which audit view to return"),
       wallet: z
         .string()
         .optional()
@@ -125,6 +128,73 @@ export function registerAuditLogTool(server: McpServer): void {
         }
       } catch (err) {
         return toContent(handleCliError(err, "cryptofolio_get_audit_log"));
+      }
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// cryptofolio_get_sync_history
+// ---------------------------------------------------------------------------
+
+export function registerGetSyncHistoryTool(server: McpServer): void {
+  server.tool(
+    "cryptofolio_get_sync_history",
+    "List recent wallet sync operations from the audit log, newest first, showing the outcome, records pulled, and duration, optionally filtered by wallet and chain. " +
+      outputEnvelopeNote(
+        "{items, total_fetched, offset, limit, has_more, next_offset?}"
+      ),
+    {
+      wallet: z
+        .string()
+        .optional()
+        .describe("Filter to a specific wallet name"),
+      chain: z
+        .string()
+        .optional()
+        .describe(
+          'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+        ),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(200)
+        .default(50)
+        .describe("Number of entries to return (default: 50)"),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .default(0)
+        .describe("Entries to skip for pagination (default: 0)"),
+    },
+    async ({ wallet, chain, limit, offset }) => {
+      try {
+        const fetchLimit = offset + limit;
+        const args = ["audit", "sync", "--limit", String(fetchLimit)];
+        if (wallet) args.push("--wallet", wallet);
+        if (chain) args.push("--chain", chain);
+
+        const raw = await runCli(args);
+        const entries = (raw as CliAuditSyncEntry[]) ?? [];
+        const page = paginate(entries, offset, limit);
+
+        const errorCount = page.items.filter((e) => e.error).length;
+
+        return toContent(
+          buildSuccess(
+            page,
+            `${page.items.length} sync event(s).` +
+              (errorCount > 0
+                ? ` ${errorCount} with errors — use cryptofolio_get_audit_log view='errors' for details.`
+                : "")
+          )
+        );
+      } catch (err) {
+        return toContent(
+          handleCliError(err, "cryptofolio_get_sync_history")
+        );
       }
     }
   );

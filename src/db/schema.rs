@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 
     notes      TEXT,
     timestamp  DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_timestamp     ON transactions(timestamp DESC);

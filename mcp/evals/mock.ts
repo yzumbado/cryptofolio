@@ -9,25 +9,31 @@
 import type { Model, ModelContext, ModelTurn, Tools } from "./harness.js";
 import type { ToolCall, ToolDef, ToolResult } from "./types.js";
 
+// Must match the tools registered in src/index.ts, in registration order (23).
 const TOOL_NAMES = [
   "cryptofolio_get_system_status",
   "cryptofolio_list_accounts",
-  "cryptofolio_manage_account",
   "cryptofolio_get_portfolio",
   "cryptofolio_get_prices",
-  "cryptofolio_get_market_data",
   "cryptofolio_list_transactions",
   "cryptofolio_record_transaction",
-  "cryptofolio_track_conversion",
-  "cryptofolio_export_transactions",
+  "cryptofolio_manage_account",
   "cryptofolio_manage_wallet",
   "cryptofolio_sync_wallet",
   "cryptofolio_sync_exchange",
+  "cryptofolio_track_conversion",
   "cryptofolio_get_pnl_summary",
   "cryptofolio_get_realized_pnl",
   "cryptofolio_get_unrealized_pnl",
   "cryptofolio_analyze_asset",
+  "cryptofolio_export_transactions",
   "cryptofolio_get_audit_log",
+  "cryptofolio_get_market_data",
+  "cryptofolio_get_sync_history",
+  "cryptofolio_list_holdings",
+  "cryptofolio_get_mining_pnl",
+  "cryptofolio_pnl_backfill",
+  "cryptofolio_import_binance",
 ];
 
 export class MockTools implements Tools {

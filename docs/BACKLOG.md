@@ -19,6 +19,27 @@ never design ahead.**
 
 ## ✅ Done (recent → older)
 
+### Session 2026-10-04 (DSH, trust-fix batch 2 + P7 docs)
+- **T6** exact decimal-string math in MCP (BigInt, half-up like rust_decimal): track_conversion
+  multiply, unrealized-total summation; `MISSING_PARAM` code unified; runCli/runCliRaw
+  hardening incl. dead execa ENOENT path (exit 127 + binary hint). +37 tests.
+- **T7** all 23 tool descriptions tightened with envelope contract; outputSchema deferred
+  (SDK `server.tool()` cannot carry it — hard-throw on missing structuredContent, documented
+  per-tool instead); evals TOOL_NAMES + README counts → 23.
+- **T8** MCP exposes mining-pnl, sync-history, holdings list, pnl backfill (--yes), import-binance
+  → 23 tools total. +16 tests.
+- **T13** daily-refresh cron artifacts: scripts/portfolio-refresh.sh + launchd plist (in-repo,
+  NOT installed).
+- **T14** already present at HEAD — consolidated cost-basis/P&L lines into one tested headline.
+- **T15** Binance "Order No" column-offset fix RESCUED from stash@{0} (sole copy), ported + 4 tests.
+- **T16** `transactions.created_at` default → RFC 3339 (fresh DBs); tolerant parser kept for
+  legacy live-ledger rows.
+- **T18** MCP list_transactions `has_more` honest on both paths (needed+1 probe).
+- **T19** (new, found by T7) `cryptofolio_analyze_asset` was effectively broken — `pnl by-asset`
+  now has a `--json` branch (AssetPnlOutput) + serde test.
+- **P7** docs refresh: ARCHITECTURE, DATA_MODEL, CHANGELOG Unreleased (#31–#46), ROADMAP,
+  SECURITY, Dockerfile rust 1.93.0; dsh-mcp bundle tool count → 23.
+
 ### Session 2026-10-04 (DSH, trust-fix batch 1)
 - **T2** timestamp parse: silent `Utc::now()` fallback → `DateParse` error; `created_at`
   accepts SQLite `CURRENT_TIMESTAMP` format via two-format parser (malformed still errors).
@@ -118,19 +139,24 @@ never design ahead.**
 | T3 | Fix blockchain sync: EXISTS-before-INSERT + swallowed errors (.ok()) | ✅ done 2026-10-04 | S |
 | T4 | `status --json` support (only command without it) | ✅ done 2026-10-04 | S |
 | T5 | MCP: fix list_transactions double-applied offset on asset filter | ✅ done 2026-10-04 | S |
-| T6 | MCP: float math → Decimal in track_conversion / unrealized totals; MISSING_PARAM(S) consistency; runCli {message} fallback hardening | 🤖 | M |
-| T7 | MCP: add output schemas + tighten tool descriptions (agent-experience standards); rewrite docs/mcp API reference against reality | 🤖 | M |
-| T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | 🤖 | M |
+| T6 | MCP: float math → Decimal in track_conversion / unrealized totals; MISSING_PARAM(S) consistency; runCli {message} fallback hardening | ✅ done 2026-10-04 | M |
+| T7 | MCP: add output schemas + tighten tool descriptions (agent-experience standards); rewrite docs/mcp API reference against reality | ✅ done 2026-10-04 (outputSchema deferred — SDK `server.tool()` can't carry it; envelope documented per-tool instead, see T21) | M |
+| T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | ✅ done 2026-10-04 (23 tools) | M |
 | T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | ✅ done 2026-10-04 | S |
 | T10 | Binance client: stop eprintln-ing raw signed responses; keychain backend: stop passing secrets as argv | 🧠 | S |
 | T11 | Wire dated on-chain reward income (Solana token-account daily pulls) into mining-pnl | 🤖 | M |
 | T12 | Filter scam airdrop tokens from holdings display (token list lives in private notebook §2) | 🤖 | S |
-| T13 | Daily portfolio-refresh cron (sync wallets + prices) | 🤖 | S |
-| T14 | Show cost basis / unrealized P&L headline in portfolio summary top-line | 🤖 | S |
-| T15 | Rescue stashed Binance spot-trade fix: "Order No" column-offset detection (stash@{1}) — verify vs real exports, add tests | 🤖 | S |
-| T16 | Schema: `created_at` default → RFC 3339 (`strftime('%Y-%m-%dT%H:%M:%SZ','now')`), then strict parse in transactions repo and delete `parse_db_timestamp` two-format parser. Needs dev-DB reset (no migrations) | 🤖 | S |
+| T13 | Daily portfolio-refresh cron (sync wallets + prices) | ✅ done 2026-10-04 (script + plist in scripts/; NOT installed — install is a user step) | S |
+| T14 | Show cost basis / unrealized P&L headline in portfolio summary top-line | ✅ done 2026-10-04 (was already at HEAD; consolidated to one line + tests) | S |
+| T15 | Rescue stashed Binance spot-trade fix: "Order No" column-offset detection (stash@{1}) — verify vs real exports, add tests | ✅ done 2026-10-04 (found in stash@{0}, ported + 4 tests) | S |
+| T16 | Schema: `created_at` default → RFC 3339 (`strftime('%Y-%m-%dT%H:%M:%SZ','now')`), then strict parse in transactions repo and delete `parse_db_timestamp` two-format parser. Needs dev-DB reset (no migrations) | ✅ done 2026-10-04 (default changed; parser KEPT — live ledger still has legacy rows and there is no migration mechanism, see T22) | S |
 | T17 | Blockchain sync: wrap per-address persist + watermark in one DB transaction (per-address atomicity; today a mid-batch failure leaves earlier rows committed) | 🧠 | M |
-| T18 | MCP list_transactions: `has_more` is always false on the unfiltered path (fetch window == offset+limit); fetch `needed+1` so the "call again" hint actually fires | 🤖 | S |
+| T18 | MCP list_transactions: `has_more` is always false on the unfiltered path (fetch window == offset+limit); fetch `needed+1` so the "call again" hint actually fires | ✅ done 2026-10-04 | S |
+| T19 | `cryptofolio_analyze_asset` was returning a "no structured output" marker (pnl by-asset had no `--json` branch) | ✅ fixed 2026-10-04 (AssetPnlOutput JSON branch + serde test) | S |
+| T20 | MCP display formatters (`formatters/numbers.ts`) still use parseFloat for USD/pct/quantity — display-only, but the header claim "never floats" is now wrong | 🤖 | S |
+| T21 | Real MCP outputSchema: migrate tools to `registerTool` + emit `structuredContent` in toContent, permissive object schema, in-process server test (unit tests bypass validation — see T7 note) | 🧠 | M |
+| T22 | Live-DB `created_at` default is still legacy (schema is IF NOT EXISTS, no migrations). Decide: table-rebuild migration vs accept both formats forever (parser already accepts both) | 👤 | S |
+| T23 | Drop unused `security-framework` / `core-foundation` macOS deps from Cargo.toml (keychain now shells out to the `security` CLI) | 🤖 | S |
 
 ### P6 — Advisor skill design session (with user)
 Agenda: persona & scope (professional trader + long-term investor equivalent);
@@ -139,7 +165,7 @@ invalidation triggers; honesty rules (no moving goalposts, log thesis outcomes);
 which tools it may call (read-only ledger + web research + TDR/).
 **Design outputs are personal → they land in `.portfolio_private.md` §2, never in tracked files.**
 
-### P7 — Documentation refresh
+### P7 — Documentation refresh — ✅ DONE 2026-10-04
 U3 ARCHITECTURE.md → v0.6 reality · U4 DATA_MODEL.md (tx_type enum, migrations refs) ·
 U5 CHANGELOG Unreleased (PRs #31–44) · U6 ROADMAP.md (DSH + advisor direction) ·
 U8 SECURITY.md (versions, contact) · U9 Dockerfile rust 1.93. All 🤖-friendly.

@@ -9,12 +9,14 @@ import {
   buildSuccess,
   toContent,
   handleCliError,
+  outputEnvelopeNote,
 } from "../formatters/response.js";
 
 export function registerSyncExchangeTool(server: McpServer): void {
   server.tool(
     "cryptofolio_sync_exchange",
-    "Pull current balances from a Binance exchange account via API. Requires Binance API keys to be configured (run cryptofolio config set-secret binance.api_key in your terminal first).",
+    "Pull current spot balances and recent history from a Binance exchange account into the ledger (write), requiring Binance API keys configured outside the MCP server. " +
+      outputEnvelopeNote("{output}"),
     {
       account: z
         .string()

@@ -190,13 +190,8 @@ pub async fn handle_portfolio_command(
         format_usd(portfolio.total_value_usd).bold()
     );
     println!(
-        "  Cost Basis:      {}",
-        format_usd(portfolio.total_cost_basis)
-    );
-    println!(
-        "  Unrealized P&L:  {} ({})",
-        format_pnl(portfolio.unrealized_pnl, config.display.color),
-        format_pnl_percent(portfolio.unrealized_pnl_percent, config.display.color)
+        "{}",
+        format_cost_basis_headline(&portfolio, config.display.color)
     );
     println!();
 
@@ -313,6 +308,23 @@ pub async fn handle_portfolio_command(
     Ok(())
 }
 
+/// Render the cost-basis / unrealized-P&L headline shown above the holdings
+/// table. Pure (no I/O) so it can be unit-tested; `color` mirrors
+/// `config.display.color` and is passed through to the P&L helpers.
+///
+/// The percentage is division-by-zero safe: `Portfolio::from_entries` already
+/// computes `unrealized_pnl_percent` as `Decimal::ZERO` when
+/// `total_cost_basis <= 0`, so a zero basis renders as `+0.00%` rather than
+/// panicking or producing NaN.
+fn format_cost_basis_headline(portfolio: &Portfolio, color: bool) -> String {
+    format!(
+        "  Cost Basis:      {}  |  Unrealized P&L:  {} ({})",
+        format_usd(portfolio.total_cost_basis),
+        format_pnl(portfolio.unrealized_pnl, color),
+        format_pnl_percent(portfolio.unrealized_pnl_percent, color)
+    )
+}
+
 fn print_holding(h: &HoldingWithPrice, config: &AppConfig, indent: usize) {
     let spaces = " ".repeat(indent);
 
@@ -340,4 +352,80 @@ fn print_holding(h: &HoldingWithPrice, config: &AppConfig, indent: usize) {
         value_str,
         pnl_str
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::defi::DefiKind;
+    use crate::core::holdings::Holding;
+    use chrono::Utc;
+    use rust_decimal::Decimal;
+
+    /// Build a single-holding portfolio. `cost_basis` is `None` to model a
+    /// holding with unknown basis (contributes 0 to the portfolio cost basis).
+    fn portfolio_with(cost_basis: Option<Decimal>, current_value: Decimal) -> Portfolio {
+        let quantity = Decimal::ONE;
+        let holding = Holding {
+            id: 1,
+            account_id: "acc".to_string(),
+            asset: "BTC".to_string(),
+            quantity,
+            avg_cost_basis: cost_basis,
+            cost_basis_currency: Some("USD".to_string()),
+            avg_cost_basis_base: cost_basis,
+            updated_at: Utc::now(),
+        };
+        let holding_with_price = HoldingWithPrice {
+            holding,
+            current_price: Some(current_value),
+            current_value: Some(current_value),
+            unrealized_pnl: cost_basis.map(|c| current_value - c * quantity),
+            unrealized_pnl_percent: cost_basis
+                .filter(|c| *c > Decimal::ZERO)
+                .map(|c| ((current_value - c * quantity) / (c * quantity)) * Decimal::from(100)),
+            defi_kind: DefiKind::Plain,
+        };
+        Portfolio::from_entries(vec![PortfolioEntry {
+            account_id: "acc".to_string(),
+            account_name: "Acc".to_string(),
+            category_id: "cat".to_string(),
+            category_name: "Cat".to_string(),
+            holdings: vec![holding_with_price],
+        }])
+    }
+
+    #[test]
+    fn headline_includes_cost_basis_and_signed_unrealized_pnl() {
+        let portfolio = portfolio_with(Some(Decimal::from(100)), Decimal::from(150));
+        let line = format_cost_basis_headline(&portfolio, false);
+        assert_eq!(
+            line,
+            "  Cost Basis:      $100.00  |  Unrealized P&L:  +$50.00 (+50.00%)"
+        );
+    }
+
+    #[test]
+    fn headline_negative_pnl_has_no_plus_sign() {
+        let portfolio = portfolio_with(Some(Decimal::from(200)), Decimal::from(150));
+        let line = format_cost_basis_headline(&portfolio, false);
+        assert_eq!(
+            line,
+            "  Cost Basis:      $200.00  |  Unrealized P&L:  $-50.00 (-25.00%)"
+        );
+    }
+
+    #[test]
+    fn headline_zero_cost_basis_shows_zero_percent_not_a_panic() {
+        // No cost basis -> `Portfolio::from_entries` guards the division and
+        // stores `unrealized_pnl_percent = 0`; the headline must render that.
+        let portfolio = portfolio_with(None, Decimal::from(150));
+        assert_eq!(portfolio.total_cost_basis, Decimal::ZERO);
+        assert_eq!(portfolio.unrealized_pnl_percent, Decimal::ZERO);
+        let line = format_cost_basis_headline(&portfolio, false);
+        assert_eq!(
+            line,
+            "  Cost Basis:      $0.00  |  Unrealized P&L:  +$150.00 (+0.00%)"
+        );
+    }
 }

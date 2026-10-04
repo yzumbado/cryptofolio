@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Portfolio Reconstruction & P&L Engine
+- Trustworthy portfolio: valuation, all-chain sync, phantom-holding fixes,
+  transfer/correction-aware P&L (#31)
+- Ledger reconciled against chain: backfill round-trip, scam-token filter,
+  Token-2022 support (#34)
+- Binance export parsing: 4-digit-year timestamps + full operation mapping (#33)
+- Binance Transaction-History trade legs paired into priced buys/sells (#38)
+- Binance Convert legs paired into priced buys/sells (#40)
+
+### Multi-Chain & Asset Correctness
+- Bittensor (TAO) watch-only sync via Taostats (#32)
+- Solana: staked SOL included in balance; corrected Stake program id (#41)
+- DeFi receipt tokens displayed as their underlying asset (#42)
+- DePIN mining P&L: zero-cost token revenue + depreciating hardware (#43)
+
+### CI & Tests
+- `release.yml` fixed (invalid secrets `if`-expression + deprecated actions) (#36)
+- Stale seeded-currency count test corrected (9 → 11) (#35)
+- `cargo fmt` fix for the currency test array (fmt-check on master) (#37)
+
+### Docs, Privacy & Working Mode
+- Public-repo leak remediation (Phase 0), repo hygiene, and the DSH MCP bundle
+  (Phase 1: `integrations/dsh-mcp/`) (#45)
+- Public development backlog added for cross-session continuity (#44)
+- DSH working-mode layer: AGENTS.md, STATE.md, `.dsh/skills/*`, CLAUDE.md → pointer
+  (direct-to-master commits `7594924`, `a758717`, `b6382f1`)
+
+### Trust Fixes
+- Trust-fix batch: strict timestamp parsing (silent `Utc::now()` fallback removed),
+  blockchain-sync error propagation + constraint-based dedup, `status --json`,
+  MCP offset/deps fixes (#46)
+
 ### Planned for Future Releases
 - CoinGecko portfolio import
 - CoinMarketCap portfolio import

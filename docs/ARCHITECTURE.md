@@ -1,9 +1,10 @@
 # Cryptofolio Architecture
 
-**Version:** 0.5.0  
-**Last Updated:** May 2026
+**Version:** 0.6.0  
+**Last Updated:** October 2026
 
-This document describes the technical architecture of Cryptofolio, a local-first cryptocurrency portfolio manager built with Rust.
+This document describes the technical architecture of Cryptofolio, a local-first,
+watch-only cryptocurrency portfolio manager built with Rust.
 
 ---
 
@@ -11,11 +12,13 @@ This document describes the technical architecture of Cryptofolio, a local-first
 
 - [Overview](#overview)
 - [System Layers](#system-layers)
-- [Blockchain Wallet Architecture](#blockchain-wallet-architecture)
+- [Command Surface](#command-surface)
+- [Core Domain Layer](#core-domain-layer)
+- [Blockchain Layer](#blockchain-layer)
 - [Data Flow](#data-flow)
-- [Database Schema](#database-schema)
+- [Persistence](#persistence)
 - [MCP Server](#mcp-server)
-- [AI Interface Layer](#ai-interface-layer)
+- [Agent Integration](#agent-integration)
 - [Security Architecture](#security-architecture)
 - [Module Structure](#module-structure)
 - [Technology Stack](#technology-stack)
@@ -27,42 +30,47 @@ This document describes the technical architecture of Cryptofolio, a local-first
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│                        AI INTERFACE LAYER                             │
-│   Claude Code skill (/portfolio)    Cowork session                    │
+│                         AGENT LAYER                                   │
+│   DSH workspace (AGENTS.md + .dsh/skills/)  ·  /portfolio skill       │
 │   ─────────────────────────────────────────────────────────────────   │
-│                    MCP Server (TypeScript, stdio)                     │
-│                  cryptofolio_* tools (18 tools)                       │
+│                MCP Server (TypeScript, stdio)                         │
+│              cryptofolio_* tools (23 tools)                           │
 └───────────────────────────────────────────────────────────────────────┘
-                                  │
+                                  │  spawns
                                   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │                         USER INTERFACE                                │
 │              CLI (clap)  —  cryptofolio <command> [args]              │
+│              + interactive shell (cryptofolio shell)                  │
 └───────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │                       COMMAND HANDLERS                                │
-│  account │ wallet │ tx │ portfolio │ pnl │ sync │ audit │ config ...  │
+│  price │ market │ account │ category │ holdings │ portfolio │ tx      │
+│  mining-pnl │ sync │ sync-history │ import │ import-binance │ config  │
+│  currency │ pnl │ wallet │ audit │ shell │ status                     │
 └───────────────────────────────────────────────────────────────────────┘
                                   │
               ┌───────────────────┼───────────────────┐
               ▼                   ▼                   ▼
 ┌─────────────────────┐ ┌─────────────────┐ ┌─────────────────────────┐
-│    CORE DOMAIN      │ │  BLOCKCHAIN      │ │    EXCHANGE             │
+│    CORE DOMAIN      │ │   BLOCKCHAIN     │ │    EXCHANGE             │
 │  Account / Holding  │ │  ProviderRegistry│ │  Binance (Spot+Alpha)   │
 │  Transaction        │ │  SyncEngine      │ │                         │
 │  P&L / Tax Lots     │ │  BlockchainClient│ │                         │
-│  Portfolio          │ │  Bitcoin/ETH/ADA │ │                         │
-└─────────────────────┘ │  Solana clients  │ └─────────────────────────┘
-              │         └─────────────────┘           │
-              └───────────────────┬───────────────────┘
+│  Mining / Portfolio │ │  BTC/ETH/ADA/SOL │ │                         │
+│                     │ │  /TAO clients    │ │                         │
+└─────────────────────┘ └─────────────────┘ └─────────────────────────┘
+              │                   │                   │
+              └───────────────────┼───────────────────┘
                                   ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │                         PERSISTENCE                                   │
-│          SQLite  (~/.config/cryptofolio/database.sqlite)              │
+│     SQLite via sqlx (default: <config dir>/database.sqlite)           │
 │  accounts │ holdings │ transactions │ tax_lots │ realized_pnl         │
-│  wallet_addresses │ sync_audit_log │ blockchain_sync_state            │
+│  wallet_addresses │ wallet_sync_state │ binance_sync_state            │
+│  sync_audit_log │ + supporting tables (see DATA_MODEL.md)             │
 └───────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
@@ -76,230 +84,230 @@ This document describes the technical architecture of Cryptofolio, a local-first
 
 ## System Layers
 
-### 1. AI Interface Layer
+### 1. Agent Layer
 
-Added in v0.5.x. Two components:
+The agent layer reaches Cryptofolio through the CLI — directly, or via the MCP
+server which shells out to it:
 
-**MCP Server** (`mcp/`) — TypeScript process connected to Claude via stdio transport. Exposes 18 `cryptofolio_*` tools that wrap CLI commands. Claude calls tools; the MCP server shells out to the installed `cryptofolio` binary and returns structured JSON responses.
+- **DSH workspace** — `AGENTS.md` is auto-loaded each session and points at
+  `STATE.md` and the skills under `.dsh/skills/` (`working-discipline`,
+  `plan-before-build`, `co-author-review`, `cryptofolio-conventions`). DSH is the
+  primary working mode; Claude Code / Kiro sessions may still occur.
+- **MCP server** (`mcp/`) — a TypeScript process connected over stdio. It exposes
+  23 `cryptofolio_*` tools that shell out to the configured `cryptofolio` binary
+  (`CRYPTOFOLIO_BIN`, falling back to `PATH`) and return structured JSON.
+- **`/portfolio` skill** (`.claude/skills/portfolio/SKILL.md`) — legacy Claude
+  Code / Cowork entry point; bootstraps via the same MCP tools.
 
-**Portfolio Skill** (`.claude/skills/portfolio/SKILL.md`) — A Claude Code / Cowork skill invoked with `/portfolio`. On invocation it bootstraps portfolio context via parallel MCP calls, then acts as an expert data agent. See [AI Interface Layer](#ai-interface-layer) section below.
+See [MCP Server](#mcp-server) and [Agent Integration](#agent-integration).
 
 ### 2. CLI Layer
 
-Built with `clap` v4 derive macros. Subcommands:
-
-| Command | Description |
-|---|---|
-| `account` | Manage accounts (exchanges, wallets) |
-| `wallet` | Manage blockchain wallet addresses, sync |
-| `tx` | Record transactions (buy/sell/transfer/swap) |
-| `portfolio` | Aggregated holdings view with P&L |
-| `pnl` | Realized / unrealized P&L detail |
-| `holdings` | Per-account holdings management |
-| `sync` | Exchange sync (Binance) |
-| `audit` | Sync audit log, coverage, errors |
-| `price` / `market` | Real-time prices |
-| `config` | Configuration and secret management |
-| `import` | CSV import |
-| `status` | System diagnostics |
+Built with `clap` v4 derive macros (`src/cli/mod.rs`). `src/main.rs` parses the
+command, initializes the SQLite pool, and dispatches to a handler. Global flags
+apply to every command: `--no-color`, `--testnet`, `--json`, `--quiet`,
+`--verbose`. `--testnet` is also set by the `CRYPTOFOLIO_TESTNET` env var.
 
 ### 3. Core Domain Layer
 
-**Account** — Exchange, hardware wallet, software wallet, custodial service, or bank. Each account has a `sync_enabled` flag and belongs to a category.
-
-**Holding** — Asset position: `(account_id, asset) → (quantity, avg_cost_basis)`. Quantity is the **source of truth from the last sync** for synced accounts. For manual accounts, quantity is maintained by transaction recording.
-
-**Transaction** — Immutable record of a financial event. Types: `Buy`, `Sell`, `Transfer In`, `Transfer Out`, `Transfer Internal`, `Swap`, `Receive`, `Fee`. Every transaction is timestamped with the actual event date (not insertion time).
-
-**Tax Lot** — Created on every acquisition (Buy, Receive, Transfer In). Tracks `quantity`, `cost_per_unit`, `acquisition_date`, `remaining_quantity`, `fully_disposed`. FIFO disposal walks lots in acquisition-date order.
-
-**P&L Calculator** — `process_acquisition()` creates tax lots; `process_disposal()` walks FIFO lots, records realized gains in `realized_pnl`, and updates `remaining_quantity` on consumed lots.
+- **Account** — Exchange, hardware wallet, software wallet, custodial service, or
+  bank. Belongs to a category; carries a `sync_enabled` flag and an `archived`
+  soft-delete flag. Removal archives, never deletes.
+- **Holding** — Asset position `(account_id, asset) → (quantity, avg_cost_basis)`.
+  For synced accounts the quantity is set by sync; for manual accounts it is
+  maintained by transaction recording.
+- **Transaction** — Immutable row in an append-only ledger. 13 `tx_type` values
+  including `correction`; see DATA_MODEL.md for the full list.
+- **Tax Lot** — Created per acquisition; tracks `remaining_quantity` and
+  `cost_basis_method` (lowercase: `fifo`, `lifo`, `average`). Disposal walks lots
+  in acquisition-date order (FIFO).
+- **P&L Calculator** — `process_acquisition()` creates lots; `process_disposal()`
+  consumes FIFO lots and records rows in `realized_pnl`.
+- **Mining** — `mining-pnl` models DePIN token revenue and hardware depreciation
+  (see `docs/MINING_ASSET_ACCOUNTING.md`).
 
 ### 4. Blockchain Layer
 
-See [Blockchain Wallet Architecture](#blockchain-wallet-architecture) below.
+See [Blockchain Layer](#blockchain-layer).
 
 ### 5. Persistence Layer
 
-SQLite via `sqlx`. All queries use parameterized statements (no SQL injection risk). Schema migrations are inline in `src/db/migrations.rs` using a `_migrations` table for versioning.
+SQLite via `sqlx`. All queries are parameterized. The schema is defined inline in
+`src/db/schema.rs` and applied with `CREATE TABLE IF NOT EXISTS` on every startup.
+There is no migration system (see [Persistence](#persistence)).
 
 ### 6. Configuration Layer
 
-- `~/.config/cryptofolio/config.toml` — user preferences, non-secret settings
-- macOS Keychain — API keys, extended public keys (xpub), any sensitive values
-- Environment variables — fallback for CI/headless environments
+- `config.toml` in the OS config directory (`AppConfig::config_path()`) — user
+  preferences and non-secret settings, including `ai.*` provider config.
+- macOS Keychain — API keys, extended public keys (xpub), and secrets.
+- Environment variables — documented fallback for CI/headless use.
 
 ---
 
-## Blockchain Wallet Architecture
+## Command Surface
 
-### BlockchainClient Trait
+Top-level commands (`src/cli/mod.rs`, dispatched in `src/main.rs`):
 
-All four chains implement a unified trait:
+| Command | Description |
+|---|---|
+| `price <symbols...>` | Current spot prices |
+| `market <symbol> [--24h]` | Detailed market data, optional 24h stats |
+| `account` | `list` / `add` / `remove` / `show` / `address` |
+| `category` | `list` / `add` / `rename` / `remove` |
+| `holdings` | `list` / `add` / `remove` / `set` / `move` |
+| `portfolio` | Holdings with P&L; `--by-account`, `--by-category`, `--account`, `--category` |
+| `tx` | `list` / `buy` / `sell` / `transfer` / `swap` / `export` |
+| `mining-pnl` | DePIN mining P&L statement |
+| `sync [--account]` | Exchange balance/trade sync (Binance) |
+| `sync-history --account` | Full Binance history import (trades, deposits, withdrawals, fiat, transfers) |
+| `import <file> --account` | CSV import |
+| `import-binance <file> --account` | Binance CSV/ZIP export import |
+| `config` | `show` / `set` / `set-secret` / `use-testnet` / `use-mainnet` / keychain management |
+| `currency` | `list` / `show` / `add` / `remove` / `toggle` / `set-rate` / `show-rate` |
+| `pnl` | `summary` / `realized` / `unrealized` / `by-asset` / `backfill` |
+| `wallet` | `add` / `list` / `show` / `sync` / `remove` |
+| `audit` | `sync` / `coverage` / `errors` |
+| `shell` | Interactive shell (history, tab-completion) |
+| `status [--check]` | System diagnostics |
 
-```rust
-trait BlockchainClient {
-    fn provider_name(&self) -> &str;
-    async fn health_check(&self) -> Result<HealthStatus>;
-    async fn get_address_summary(&self, address: &str) -> Result<AddressSummary>;
-    async fn get_transactions(&self, address: &str, since_block: Option<u64>) -> Result<Vec<WalletTransaction>>;
-    async fn get_chain_extras(&self, address: &str) -> Result<Option<ChainExtras>>;
-}
-```
+Account types (`AccountTypeArg`): `exchange`, `hardware_wallet`,
+`software_wallet`, `custodial_service`, `bank`.
 
-Implementations:
+---
 
-| Chain | Client | Provider | Notes |
-|---|---|---|---|
-| Bitcoin | `BlockstreamClient` | Blockstream API | No API key required |
-| Ethereum | `EtherscanClient` | Etherscan V2 API | Optional API key (higher rate limits) |
-| Cardano | `BlockfrostClient` | Blockfrost API | API key required for metadata |
-| Solana | `SolanaRpcClient` | JSON-RPC (Helius) | RPC URL required |
+## Core Domain Layer
+
+### Transaction types
+
+`TransactionType` (Rust) and the `tx_type` CHECK constraint agree on 13 values:
+
+`buy`, `sell`, `transfer_in`, `transfer_out`, `transfer_internal`, `swap`,
+`stake`, `unstake`, `earn`, `receive`, `fee`, `airdrop`, `correction`.
+
+`from_str` accepts aliases (`deposit → transfer_in`, `withdrawal`/`send →
+transfer_out`, `transfer → transfer_internal`, `trade → swap`, `reward`/
+`interest → earn`, `incoming → receive`), but only the canonical 13 are stored.
+
+### FIFO cost basis
+
+Every acquisition creates a tax lot. Disposals (`sell`, `transfer_out`, `fee`,
+`unstake`) walk open lots ordered by `acquisition_date` ASC, decrement
+`remaining_quantity`, set `fully_disposed`, and insert a `realized_pnl` row per
+consumed lot. `cost_basis_method` is stored lowercase.
+
+### Append-only ledger
+
+`transactions` rows are never updated or deleted — two SQLite triggers
+(`trg_transactions_no_update`, `trg_transactions_no_delete`) abort either
+operation. Corrections are new rows with `tx_type = 'correction'`. Accounts are
+archived instead of deleted. See DATA_MODEL.md for the correction pattern.
+
+---
+
+## Blockchain Layer
+
+### BlockchainClient trait
+
+All chains implement one trait (`src/blockchain/trait_def.rs`):
+`provider_name()`, `health_check()`, `get_address_summary()`,
+`get_transactions()`, and an optional `get_chain_extras()`.
+
+| Chain | Client | Provider |
+|---|---|---|
+| Bitcoin | `BlockstreamClient` | Blockstream API |
+| Ethereum | `EtherscanClient` | Etherscan V2 API |
+| Cardano | `BlockfrostClient` | Blockfrost API |
+| Solana | `SolanaRpcClient` | JSON-RPC |
+| Bittensor | Taostats-backed client | Taostats API (`free + staked` TAO) |
 
 ### ProviderRegistry
 
-Routes sync requests to the correct client based on chain and privacy mode:
+Routes sync requests to an eligible provider tier (`src/blockchain/provider.rs`):
 
 ```
-PrivacyMode::Convenience → allows Public-tier providers (Blockstream, Etherscan)
-PrivacyMode::Balanced    → requires at least Custom-tier (API key)
-PrivacyMode::Maximum     → local nodes only
+PrivacyMode::Strict      → Local only
+PrivacyMode::Balanced    → Local → Custom (no public API)
+PrivacyMode::Convenience → Local → Custom → Public
 ```
+
+Tiers are ordered `Local (0) → Custom (1) → Public (2)`; results are cached for
+60 seconds.
 
 ### SyncEngine
 
-Orchestrates parallel wallet sync across all addresses using `tokio::task::JoinSet`. For each address:
-1. Calls `get_address_summary()` → updates `holdings` table with current balances
-2. Optionally calls `get_transactions()` → imports transaction history
-3. Records to `sync_audit_log` for tamper-evident provenance
+Orchestrates parallel wallet sync across all addresses with
+`tokio::task::JoinSet`. For each address it fetches an address summary, updates
+`holdings`, optionally imports transaction history, advances the
+`wallet_sync_state` watermark, and records to `sync_audit_log`. Deduplication is
+enforced by the `UNIQUE(tx_hash)` / `UNIQUE(external_id)` constraints rather than
+an EXISTS pre-check.
 
-### Wallet Sync Data Flow
+### HD wallet (xpub) derivation
 
-```
-cryptofolio wallet sync <name>
-        │
-        ▼
-   wallet.rs reads API keys from config/keychain (fallback: env vars)
-        │
-        ▼
-   ProviderRegistry selects healthy client for each chain
-        │
-        ▼
-   SyncEngine runs JoinSet across all wallet addresses (parallel)
-        │
-        ├─▶ get_address_summary()
-        │       │
-        │       ├─▶ [BTC]  Blockstream: /address/{addr}
-        │       ├─▶ [ETH]  Etherscan V2: action=balance + tokentx
-        │       ├─▶ [ADA]  Blockfrost: /addresses/{addr} + /assets/{unit}
-        │       └─▶ [SOL]  getBalance + getTokenAccountsByOwner
-        │
-        ▼
-   holdings.set_quantity()  — overwrites balance with latest on-chain value
-        │
-        ▼
-   sync_audit_log insert — timestamp, provider, records_in, records_new
-```
+BIP32 external-chain derivation from xpub/ypub/zpub, plus Taproot:
 
-### HD Wallet (xpub) Derivation
-
-BIP32 external-chain address derivation from xpub/ypub/zpub:
-
-| Prefix | Path | Address Type |
+| Prefix | Path | Address type |
 |---|---|---|
-| `xpub` | BIP44 `m/44'/0'/0'` | Legacy P2PKH (`1...`) |
-| `ypub` | BIP49 `m/49'/0'/0'` | Wrapped SegWit P2SH-P2WPKH (`3...`) |
-| `zpub` | BIP84 `m/84'/0'/0'` | Native SegWit P2WPKH (`bc1q...`) |
-| `xpub` + `--address-type taproot` | BIP86 `m/86'/0'/0'` | Taproot P2TR (`bc1p...`) |
-
-xpub keys are stored in macOS Keychain (never in config.toml or the database).
-
-### Cardano Token Handling
-
-Blockfrost returns native token balances as raw integer amounts. The client:
-1. Fetches `GET /assets/{unit}` for each token to get `metadata.decimals`
-2. Divides raw quantity by `10^decimals` to get human-readable balance
-3. Uses `metadata.ticker` or `metadata.name` as the display symbol
-
-If the metadata fetch fails (no API key, rate limit), the token is **skipped with a warning** rather than stored with 0 decimals, to prevent phantom valuations.
+| `xpub` | BIP44 `m/44'/0'/0'` | Legacy P2PKH |
+| `ypub` | BIP49 `m/49'/0'/0'` | Wrapped SegWit P2SH-P2WPKH |
+| `zpub` | BIP84 `m/84'/0'/0'` | Native SegWit P2WPKH |
+| `xpub` + `--address-type taproot` | BIP86 `m/86'/0'/0'` | Taproot P2TR |
 
 ---
 
 ## Data Flow
 
-### Transaction Recording (Manual)
+### Manual transaction recording
 
 ```
 tx buy BTC 0.1 --account Binance --price 95000 --date 2025-12-25
         │
-        ├─▶ Validate account exists
-        ├─▶ Parse date → historical timestamp (not Utc::now())
-        │
-        ├─▶ [if NOT --cost-basis-only]
-        │       holdings.add_quantity(account, BTC, 0.1, price)
-        │
-        ├─▶ transactions.insert(Buy, BTC, 0.1, $95k, timestamp=2025-12-25)
-        │
-        └─▶ pnl.process_acquisition(tx_id, BTC, 0.1, $95k, 2025-12-25, FIFO)
-                └─▶ tax_lots.insert(qty=0.1, cost=$95k, acquired=2025-12-25)
+        ├─▶ validate account exists
+        ├─▶ parse date → event timestamp (not Utc::now())
+        ├─▶ [unless --cost-basis-only] holdings.add_quantity(...)
+        ├─▶ transactions.insert(Buy, ..., timestamp=2025-12-25)
+        └─▶ pnl.process_acquisition(...) → tax_lots row
 ```
 
-**Important:** On synced accounts (accounts with blockchain wallet addresses), use `--cost-basis-only` when recording historical purchases. This creates the tax lot without inflating the holdings quantity, which is already managed by wallet sync.
+**Important:** on synced accounts (those with wallet addresses), use
+`--cost-basis-only` when recording historical purchases. It creates the tax lot
+without inflating the holdings quantity that sync already manages.
 
-### Wallet Sync vs Manual Holdings
+### Wallet sync vs manual holdings
 
-| Account type | Holdings quantity managed by | Use `tx buy` for |
+| Account kind | Holdings quantity managed by | Use `tx buy` for |
 |---|---|---|
-| **Synced** (has wallet address) | `wallet sync` (overwrites from chain) | Cost basis only (`--cost-basis-only`) |
-| **Manual** (no wallet address) | Transaction history (add/remove) | Full balance tracking |
+| **Synced** (has wallet address) | `wallet sync` (overwrites from chain) | Cost basis only |
+| **Manual** (no wallet address) | Transaction history | Full balance tracking |
 
-### P&L Disposal Flow
+### P&L disposal
 
-```
-tx sell BTC 0.05 --account Binance --price 100000
-        │
-        ├─▶ transactions.insert(Sell, BTC, 0.05, $100k)
-        │
-        ├─▶ pnl.process_disposal(tx_id, BTC, 0.05, $100k, FIFO)
-        │       │
-        │       └─▶ Walk tax_lots ordered by acquisition_date ASC
-        │               ├─▶ Lot 1: acquired 2025-12-25 @ $95k, qty 0.05
-        │               │       → consume 0.05, gain = (100k-95k)*0.05 = $250
-        │               │       → tax_lots.set remaining_qty=0, fully_disposed=true
-        │               └─▶ realized_pnl.insert(gain=$250, method=FIFO)
-        │
-        └─▶ holdings.remove_quantity(account, BTC, 0.05)
-```
+`tx sell` inserts the transaction, calls `process_disposal()` to walk open FIFO
+lots and write `realized_pnl` rows, then calls `holdings.remove_quantity()`.
 
 ---
 
-## Database Schema
+## Persistence
 
-### Core Tables
+Default database path is `<config dir>/database.sqlite`
+(`AppConfig::database_path()`); the `CRYPTOFOLIO_DB` env var overrides it. The
+live machine-specific path is not published. A second, stale
+`~/.config/cryptofolio` copy may exist on a given machine — always confirm which
+database you are touching before a destructive operation.
 
-```
-categories ──< accounts ──< holdings        (account owns asset positions)
-                    │
-                    ├──< transactions        (financial events)
-                    ├──< tax_lots            (acquisition records for FIFO)
-                    ├──< realized_pnl        (disposed lot records)
-                    └──< sync_audit_log      (tamper-evident sync history)
+`src/db/schema.rs` is the single source of truth. Every statement is
+`IF NOT EXISTS`, so `schema::create()` is idempotent. There are **no versioned
+migrations** and no `_migrations` table: to reset the schema during development,
+delete the database file and restart (or point `CRYPTOFOLIO_DB` at a throwaway
+file). Versioned migrations are planned for v1.0.
 
-accounts ──< wallet_addresses ──< blockchain_sync_state
-                                        (per-address sync cursor)
-```
-
-### Key Constraints
-
-- `holdings`: `UNIQUE(account_id, asset)` — one row per (account, asset)
-- `tax_lots`: sorted by `acquisition_date` for FIFO ordering
-- `sync_audit_log.account_id`: `REFERENCES accounts(id) ON DELETE CASCADE`
-- `blockchain_sync_state.wallet_address_id`: `REFERENCES wallet_addresses(id) ON DELETE CASCADE`
-- `wallet_sync_state`: keyed by raw address string (chain-agnostic cursor)
-
-### Migration System
-
-Migrations are versioned inline in `src/db/migrations.rs`. Each migration is guarded by a check against the `_migrations` table. The current schema version is checked and applied at startup — no external migration tool required.
+The schema enables `PRAGMA journal_mode=WAL` and `PRAGMA foreign_keys=ON`. Eight
+tables carry CHECK-constrained enums: `currencies.asset_type`, `transactions`
+(`tx_type`, `source`, `trust_level`), `tax_lots.cost_basis_method`,
+`address_registry.classification`/`classified_by`, `discovery_queue.status`,
+`reconciliation_log.status`, `keychain_keys.storage_type`/`security_level`, and
+`blockchain_nodes.node_type`. See DATA_MODEL.md for every table and column.
 
 ---
 
@@ -307,86 +315,98 @@ Migrations are versioned inline in `src/db/migrations.rs`. Each migration is gua
 
 Located in `mcp/`. TypeScript, built with `@modelcontextprotocol/sdk`.
 
-**Transport:** stdio (Claude spawns the process directly)
+**Transport:** stdio.
 
-**Tool inventory:**
+**Binary resolution:** `CRYPTOFOLIO_BIN`, else `cryptofolio` on `PATH`.
+`runCli()` appends `--json --quiet`; `runCliRaw()` appends `--quiet` only.
+
+**Tool inventory (23):**
 
 | Tool | Underlying CLI command |
 |---|---|
-| `cryptofolio_list_accounts` | `account list --json` |
-| `cryptofolio_manage_account` | `account add/remove` |
-| `cryptofolio_get_portfolio` | `portfolio --json` |
-| `cryptofolio_get_pnl_summary` | `pnl summary --json` |
-| `cryptofolio_get_unrealized_pnl` | `pnl unrealized --json` |
-| `cryptofolio_get_realized_pnl` | `pnl realized --json` |
-| `cryptofolio_analyze_asset` | `pnl asset <sym> --json` |
-| `cryptofolio_list_transactions` | `tx list --json` |
-| `cryptofolio_record_transaction` | `tx buy/sell/transfer` |
-| `cryptofolio_track_conversion` | `tx swap` |
+| `cryptofolio_get_system_status` | `config show` + `account list` |
+| `cryptofolio_list_accounts` | `account list` |
+| `cryptofolio_manage_account` | `account add` / `account remove` (+ `category add`) |
+| `cryptofolio_get_portfolio` | `portfolio` |
+| `cryptofolio_get_pnl_summary` | `pnl summary` |
+| `cryptofolio_get_realized_pnl` | `pnl realized` |
+| `cryptofolio_get_unrealized_pnl` | `pnl unrealized` |
+| `cryptofolio_analyze_asset` | `pnl by-asset` |
+| `cryptofolio_list_transactions` | `tx list` |
+| `cryptofolio_record_transaction` | `tx buy` / `tx sell` / `tx transfer` / `tx swap` |
+| `cryptofolio_track_conversion` | `tx swap` (one per step) |
 | `cryptofolio_export_transactions` | `tx export` |
-| `cryptofolio_manage_wallet` | `wallet add/remove` |
+| `cryptofolio_manage_wallet` | `wallet add` / `list` / `show` / `remove` |
 | `cryptofolio_sync_wallet` | `wallet sync` |
-| `cryptofolio_sync_exchange` | `sync binance` |
-| `cryptofolio_get_prices` | `price <symbols> --json` |
-| `cryptofolio_get_market_data` | `market <symbol> --json` |
-| `cryptofolio_get_system_status` | `status --json` |
-| `cryptofolio_get_audit_log` | `audit sync --json` |
+| `cryptofolio_sync_exchange` | `sync` |
+| `cryptofolio_get_prices` | `price` |
+| `cryptofolio_get_market_data` | `market` |
+| `cryptofolio_get_audit_log` | `audit sync` / `coverage` / `errors` |
+| `cryptofolio_get_sync_history` | `audit sync` |
+| `cryptofolio_list_holdings` | `holdings list` |
+| `cryptofolio_get_mining_pnl` | `mining-pnl` |
+| `cryptofolio_pnl_backfill` | `pnl backfill --yes` |
+| `cryptofolio_import_binance` | `import-binance` |
 
-**Installation:** See `mcp/README.md`. The MCP server binary path and `CRYPTOFOLIO_BIN` env var are configured in `~/Library/Application Support/Claude/claude_desktop_config.json`.
+Rebuild `mcp/dist/` with `npm run build` after changing `mcp/src/`.
 
 ---
 
-## AI Interface Layer
+## Agent Integration
 
-### Portfolio Skill
+**DSH (primary).** `AGENTS.md` auto-loads each session and directs the agent to
+`STATE.md` and the `.dsh/skills/` catalog. The `integrations/dsh-mcp/` bundle is a
+configuration-only connector that wires the MCP server into a DSH profile over
+stdio; tools then surface as `mcp__cryptofolio__*`. Its local patch file
+(`cordis.patch.yml`) is gitignored because it contains machine paths.
 
-`.claude/skills/portfolio/SKILL.md` — invoked with `/portfolio` in Claude Code or Cowork.
+**`/portfolio` skill.** `.claude/skills/portfolio/SKILL.md` remains for Claude
+Code / Cowork. On invocation it calls `cryptofolio_list_accounts` and
+`cryptofolio_get_portfolio` in parallel, then acts as a data-management expert:
+cost basis always shown with value, data freshness checked before quoting,
+context refreshed after mutations, and `cost_basis_only: true` enforced for buys
+on synced accounts. It does not give investment advice.
 
-**Bootstrap sequence** (parallel on invocation):
-1. `cryptofolio_list_accounts` → which wallets/exchanges exist
-2. `cryptofolio_get_portfolio` → current balances
-
-**Expert behaviors:**
-- Always shows cost basis alongside current value
-- Flags stale wallet data before quoting numbers
-- Refreshes context after any mutation (sync, tx, wallet add)
-- Surfaces realized P&L on every sale
-- Scope: data management only — no investment advice
-
-**Onboarding:** If no accounts exist, walks the user through adding wallets conversationally.
-
-### Companion Agent Pattern
-
-The portfolio skill is the **data layer** for future companion agents (trader, portfolio manager). Consumer agents call MCP tools directly — the same `cryptofolio_*` interface. The portfolio skill adds judgment and synthesis on top of raw data. A formal snapshot schema (JSON contract for consumer agents) will be designed when the first companion agent is built.
+**AI provider config.** `config.toml` supports an `ai` section (mode
+`online` / `offline` / `hybrid` / `disabled`, Claude and Ollama settings). This is
+diagnostic only: `status` reports provider availability, but there is no
+AI-driven CLI command or Rust AI module.
 
 ---
 
 ## Security Architecture
 
-### Credential Storage
+### Credential storage
 
-| Credential | Storage | Never stored in |
-|---|---|---|
-| Etherscan API key | macOS Keychain | config.toml, DB, env |
-| Blockfrost API key | macOS Keychain | config.toml, DB, env |
-| Solana RPC URL | macOS Keychain | config.toml, DB, env |
-| Binance API key | macOS Keychain | config.toml, DB, env |
-| xpub / extended keys | macOS Keychain | config.toml, DB, env |
+| Credential | Storage |
+|---|---|
+| Binance API key / secret | macOS Keychain (TOML fallback on other platforms) |
+| Etherscan / Blockfrost / Solana / Taostats keys | macOS Keychain |
+| Extended public keys (xpub) | macOS Keychain |
 
-Fallback for CI/headless: environment variables (`ETHERSCAN_API_KEY`, `BLOCKFROST_API_KEY`, `SOLANA_RPC_URL`).
+The macOS backend shells out to the system `security` tool
+(`src/config/keychain_security_cli.rs`) rather than linking Security.framework
+FFI directly, so it needs no code-signing entitlement. `src/config/keychain.rs`
+holds the platform-independent abstraction. `keychain_keys` stores metadata only
+— never the secret value.
 
-### Private Key Detection
+### Private key detection
 
-The security module (`src/blockchain/security.rs`) scans all user input for private key patterns (WIF, hex, mnemonic). Private keys are rejected before storage with a clear error.
+`src/blockchain/security.rs` scans user input for private-key patterns (WIF, hex,
+mnemonic) and rejects them before storage. Cryptofolio is watch-only: no signing,
+no broadcasting.
 
-### Sync Audit Log
+### Sync audit log
 
-Every sync operation is recorded in `sync_audit_log` with: timestamp, account, address (truncated), chain, provider, action, records_in, records_new, error, duration_ms. Audit records cascade-delete with the account — they are never orphaned.
+Every sync operation is recorded in `sync_audit_log` (timestamp, account,
+address, chain, provider, action, records_in, records_new, error, duration_ms).
+Rows reference `accounts(id)` and are retained because accounts are archived, not
+deleted.
 
 ### Network
 
-- HTTPS only for all external API calls
-- HMAC-SHA256 for Binance API authentication
+- HTTPS only for external API calls
+- HMAC-SHA256 for Binance authentication
 - No telemetry, no cloud storage, no third-party analytics
 
 ---
@@ -395,135 +415,133 @@ Every sync operation is recorded in `sync_audit_log` with: timestamp, account, a
 
 ```
 src/
-├── blockchain/              # On-chain data (v0.5)
-│   ├── bitcoin/
-│   │   ├── client.rs       # Blockstream API client
-│   │   ├── xpub.rs         # BIP32 HD address derivation (xpub/ypub/zpub/taproot)
-│   │   └── address.rs
-│   ├── ethereum/
-│   │   ├── client.rs       # Etherscan V2 client
-│   │   └── address.rs
-│   ├── cardano/
-│   │   ├── client.rs       # Blockfrost client (balance + native tokens + metadata)
-│   │   └── address.rs
-│   ├── solana/
-│   │   ├── client.rs       # Solana JSON-RPC client (Helius)
-│   │   └── address.rs
-│   ├── trait_def.rs        # BlockchainClient trait
-│   ├── types.rs            # AddressSummary, WalletTransaction, WalletBalance, Chain
-│   ├── provider.rs         # ProviderRegistry, PrivacyMode routing
-│   ├── sync.rs             # SyncEngine (JoinSet parallel sync)
-│   └── security.rs         # Private key detection
+├── blockchain/              # On-chain data
+│   ├── bitcoin/             # Blockstream client, xpub derivation, address
+│   ├── ethereum/            # Etherscan V2 client, address
+│   ├── cardano/             # Blockfrost client, address
+│   ├── solana/              # JSON-RPC client, address
+│   ├── bittensor/           # Taostats client (staked + free TAO)
+│   ├── trait_def.rs         # BlockchainClient trait
+│   ├── types.rs             # Chain, AddressSummary, WalletTransaction, ...
+│   ├── provider.rs          # ProviderRegistry, PrivacyMode/PrivacyLevel
+│   ├── sync.rs              # SyncEngine (JoinSet parallel sync)
+│   └── security.rs          # Private key detection
 │
-├── cli/                    # Command-line interface
-│   ├── commands/
-│   │   ├── account.rs      # account add/remove/show/list
-│   │   ├── wallet.rs       # wallet add/remove/sync + API key setup
-│   │   ├── tx.rs           # tx buy/sell/transfer/swap/list/export
-│   │   ├── portfolio.rs    # portfolio view
-│   │   ├── pnl.rs          # realized/unrealized P&L
-│   │   ├── holdings.rs     # holdings management
-│   │   ├── audit.rs        # audit sync/coverage/errors
-│   │   ├── sync.rs         # exchange sync (Binance)
-│   │   ├── import.rs       # CSV import
-│   │   ├── config.rs       # config management + keychain
-│   │   ├── status.rs       # system diagnostics
-│   │   └── ...
-│   ├── mod.rs              # CLI structure, clap definitions, AccountTypeArg
-│   └── output.rs           # Formatting utilities
+├── cli/                     # Command-line interface
+│   ├── commands/            # One module per command group
+│   ├── mod.rs               # clap definitions, Commands enum, AccountTypeArg
+│   ├── notifications.rs     # SystemStatus / ProviderStatus
+│   └── output.rs            # Formatting utilities
 │
-├── core/                   # Domain models
-│   ├── account.rs          # Account, AccountType, AccountConfig
-│   ├── holdings.rs         # Holding model
-│   ├── transaction.rs      # Transaction, TransactionType
-│   ├── currency.rs         # Currency, ExchangeRate
-│   ├── portfolio.rs        # Portfolio aggregation
-│   └── pnl/
-│       ├── calculator.rs   # PnLCalculator (FIFO process_acquisition/disposal)
-│       └── mod.rs
+├── core/                    # Domain models
+│   ├── account.rs           # Account, AccountType
+│   ├── holdings.rs          # Holding model
+│   ├── transaction.rs       # Transaction, TransactionType (13 values)
+│   ├── currency.rs          # Currency, ExchangeRate
+│   ├── portfolio.rs         # Portfolio aggregation
+│   ├── mining.rs            # DePIN mining P&L model
+│   ├── defi.rs / dexscreener.rs / pricing.rs
+│   └── pnl/                 # PnLCalculator (FIFO acquisition/disposal)
 │
-├── db/                     # Persistence
-│   ├── migrations.rs       # Inline schema migrations (versioned)
-│   ├── accounts.rs         # AccountRepository
-│   ├── holdings.rs         # HoldingRepository (set_quantity, add_quantity)
-│   ├── transactions.rs     # TransactionRepository
-│   ├── tax_lots.rs         # TaxLotRepository
-│   ├── realized_pnl.rs     # RealizedPnlRepository
-│   ├── sync_state.rs       # SyncState repository
-│   └── ...
+├── db/                      # Persistence
+│   ├── schema.rs            # Inline schema (single source of truth)
+│   ├── accounts.rs          # AccountRepository (incl. archive)
+│   ├── holdings.rs          # HoldingRepository (set/add/remove_quantity)
+│   ├── transactions.rs      # TransactionRepository
+│   ├── tax_lots.rs          # TaxLotRepository
+│   ├── realized_pnl.rs      # RealizedPnLRepository
+│   ├── sync_state.rs        # Binance + wallet watermark repositories
+│   ├── address_registry.rs / discovery_queue.rs / currencies.rs / keychain.rs
+│   └── SPEC.md
 │
-├── exchange/               # Exchange integrations
-│   └── binance/
-│       ├── client.rs       # REST + WebSocket client
-│       ├── sync.rs         # Balance + trade sync
-│       └── import.rs       # CSV trade history import
+├── exchange/                # Exchange integrations
+│   └── binance/             # client, sync, CSV import, endpoints, alpha
 │
-├── config/                 # Configuration
-│   ├── settings.rs         # config.toml parsing
-│   ├── secrets.rs          # Secret key detection/validation
-│   ├── keychain.rs         # Keychain abstraction
-│   └── keychain_macos.rs   # macOS Security framework integration
+├── config/                  # Configuration
+│   ├── settings.rs          # config.toml parsing, paths, AiConfig
+│   ├── secrets.rs           # secret detection/validation
+│   ├── keychain.rs          # Keychain storage abstraction
+│   ├── keychain_security_cli.rs  # macOS backend (system `security` tool)
+│   └── migration.rs         # TOML → Keychain migration
 │
-├── error.rs                # CryptofolioError enum
-├── lib.rs                  # Library entry point (pub re-exports)
-└── main.rs                 # Binary entry point
+├── shell/                   # Interactive shell (completer, shortcuts, context)
+├── error.rs                 # CryptofolioError enum
+├── lib.rs                   # Module map / re-exports
+└── main.rs                  # Binary entry point and dispatch
 
-mcp/                        # MCP server (TypeScript)
-├── src/
-│   ├── index.ts            # Server entry, tool registration
-│   └── tools/              # One file per tool group
-└── dist/                   # Built output (node dist/index.js)
+mcp/                         # MCP server (TypeScript)
+├── src/index.ts             # Server entry, registers 23 tools
+├── src/tools/               # One module per tool group
+├── src/cli.ts               # CLI wrapper (CRYPTOFOLIO_BIN, --json/--quiet)
+├── tests/ · evals/          # Vitest tests and evals
+└── dist/                    # Built output
 
-.claude/
-└── skills/
-    └── portfolio/
-        └── SKILL.md        # /portfolio Claude Code + Cowork skill
+integrations/dsh-mcp/        # DSH MCP bundle (config-only, stdio)
+
+.dsh/skills/                 # DSH skills (working-discipline, plan-before-build, ...)
+.claude/skills/portfolio/    # /portfolio skill
+AGENTS.md · STATE.md         # Auto-loaded workspace instructions and current facts
 ```
 
 ---
 
 ## Technology Stack
 
-| Component | Technology | Version | Rationale |
-|---|---|---|---|
-| Language | Rust | 1.93.0 (pinned) | Memory safety, single binary, performance |
-| CLI | clap | 4.x | Derive macros, subcommands |
-| Async | Tokio | 1.x | JoinSet for parallel sync |
-| HTTP | reqwest | 0.11.x | Async, TLS |
-| Database | SQLite + sqlx | 0.7.x | Embedded, compile-time queries |
-| Decimals | rust_decimal | 1.x | Financial precision |
-| Bitcoin | bitcoin crate | 0.31.x | BIP32 derivation, address types |
-| Crypto | blake2 + bech32 | - | Cardano CIP-14 fingerprints |
-| MCP Server | TypeScript + @modelcontextprotocol/sdk | - | Stdio transport |
-| Serialization | serde / serde_json | 1.x | JSON output |
-| Datetime | chrono | 0.4.x | Timezone-aware timestamps |
-| Keychain | Security.framework | - | macOS native credential store |
+From `Cargo.toml` (package version 0.6.0) and `mcp/package.json`:
+
+| Component | Technology | Version |
+|---|---|---|
+| Language | Rust | edition 2021 |
+| CLI | clap (derive) | 4.x |
+| Async | Tokio | 1.x |
+| HTTP | reqwest | 0.12 |
+| Database | SQLite + sqlx | 0.8 |
+| Decimals | rust_decimal | 1.x |
+| Bitcoin | bitcoin crate | 0.32 |
+| Crypto | blake2 + bech32 | - |
+| Errors | thiserror | 2.x |
+| Serialization | serde / serde_json / toml | 1.x / 1.x / 0.8 |
+| Datetime | chrono | 0.4.x |
+| MCP server | TypeScript + @modelcontextprotocol/sdk | - |
 
 ---
 
 ## Design Decisions
 
-### Holdings Ownership: Sync vs Manual
+### Holdings ownership: sync vs manual
 
-Synced accounts (those with blockchain wallet addresses) have their holdings quantity managed entirely by `wallet sync`. Manually recording a `tx buy` on a synced account for cost basis purposes must use `--cost-basis-only` to avoid double-counting. Manual accounts (no wallet address) derive quantity from cumulative transaction history.
+Synced accounts have their holdings quantity managed by `wallet sync`. Recording
+a `tx buy` on a synced account for cost-basis purposes must use
+`--cost-basis-only` to avoid double-counting. Manual accounts derive quantity from
+cumulative transaction history.
 
-### FIFO Tax Lots
+### FIFO tax lots
 
-Every acquisition creates a tax lot. Disposals (Sell, Transfer Out) walk lots in acquisition-date order, reducing `remaining_quantity` and recording realized P&L. This enables accurate capital gains tracking including short-term vs long-term classification.
+Every acquisition creates a tax lot; disposals walk lots in acquisition-date
+order, reducing `remaining_quantity` and recording realized P&L. `cost_basis_method`
+is stored lowercase.
 
-### Local-First
+### Append-only ledger
 
-All data lives in SQLite at `~/.config/cryptofolio/database.sqlite`. No cloud sync, no telemetry. The user owns their data.
+The ledger is immutable at the engine level (SQLite triggers on `transactions`).
+Corrections are new `tx_type='correction'` rows; accounts are archived rather than
+deleted.
 
-### Read-Only Exchange Access
+### Local-first
 
-Binance integration is read-only (balances, trade history). No trading or withdrawal capability — scoped to portfolio tracking only.
+All data lives in a local SQLite file. No cloud sync, no telemetry.
 
-### Secrets in Keychain, Never in Files
+### Read-only exchange access
 
-API keys and extended public keys are stored in macOS Keychain. Config files and the database never contain credentials. Environment variables are an explicit fallback for CI environments only.
+Binance integration is read-only (balances, trades, history). No trading or
+withdrawal capability — watch-only by design.
+
+### Secrets in Keychain, never in files
+
+API keys and extended public keys live in macOS Keychain (with a TOML fallback on
+other platforms). Config files and the database never contain credentials.
 
 ---
 
 *For the data model detail, see [DATA_MODEL.md](DATA_MODEL.md).*  
-*For the wallet sync architecture detail, see [WALLET_ARCHITECTURE_v0.5.0.md](WALLET_ARCHITECTURE_v0.5.0.md).*
+*For v0.5-era wallet sync background, see [WALLET_ARCHITECTURE_v0.5.0.md](WALLET_ARCHITECTURE_v0.5.0.md).*
