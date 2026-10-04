@@ -12,14 +12,18 @@ use reqwest::Client;
 use std::time::Duration;
 
 use crate::cli::notifications::{ProviderStatus, SystemStatus};
-use crate::cli::output::colors_enabled;
+use crate::cli::output::{colors_enabled, print_json};
 use crate::config::AppConfig;
 use crate::error::Result;
 
 /// Run the status command
-pub async fn run(check: bool) -> Result<()> {
+pub async fn run(check: bool, json: bool) -> Result<()> {
     let status = collect_status(check).await?;
-    println!("{}", status.format());
+    if json {
+        print_json(&status)?;
+    } else {
+        println!("{}", status.format());
+    }
     Ok(())
 }
 
@@ -374,6 +378,26 @@ mod tests {
             determine_effective_provider("none", &claude_ok, &ollama_ok),
             "Disabled"
         );
+    }
+
+    #[test]
+    fn test_system_status_serializes_to_json() {
+        let status = SystemStatus {
+            config_path: Some("/tmp/config.toml".to_string()),
+            db_path: Some("/tmp/cryptofolio.db".to_string()),
+            testnet_mode: true,
+            claude_status: ProviderStatus::available(
+                "Claude",
+                "claude-sonnet-4-20250514".to_string(),
+            ),
+            ollama_status: ProviderStatus::unavailable("Ollama", "Not running"),
+            ai_mode: "Hybrid (Local + Cloud)".to_string(),
+            effective_provider: "Claude only (claude-sonnet-4-20250514)".to_string(),
+        };
+
+        let json = serde_json::to_string(&status).expect("SystemStatus should serialize");
+        assert!(json.contains("\"testnet_mode\":true"));
+        assert!(json.contains("\"effective_provider\""));
     }
 
     #[test]

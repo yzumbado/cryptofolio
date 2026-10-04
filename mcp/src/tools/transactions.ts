@@ -53,22 +53,41 @@ export function registerListTransactionsTool(server: McpServer): void {
     },
     async ({ account, asset, limit, offset }) => {
       try {
-        // Fetch enough rows to support pagination: offset + limit
-        const fetchLimit = offset + limit;
-        const args = ["tx", "list", "--limit", String(fetchLimit)];
-        if (account) args.push("--account", account);
+        // `tx list` supports only --account and --limit, so asset filtering and
+        // pagination happen here. Fetch a window of raw rows, filter it by asset,
+        // and grow the window until it holds enough MATCHING rows. `offset` is
+        // applied exactly once, by paginate() below, against the filtered set:
+        // offset = number of matching transactions to skip.
+        const MAX_FETCH_WINDOW = 5000;
+        const needed = offset + limit;
+        const sym = asset?.toUpperCase();
 
-        const raw = await runCli(args);
-        let transactions = (raw as CliTransaction[]) ?? [];
+        let transactions: CliTransaction[] = [];
+        let window = needed;
 
-        // Filter by asset client-side (CLI has no --asset flag for tx list)
-        if (asset) {
-          const sym = asset.toUpperCase();
-          transactions = transactions.filter(
-            (t) =>
-              t.from_asset?.toUpperCase() === sym ||
-              t.to_asset?.toUpperCase() === sym
-          );
+        for (;;) {
+          const args = ["tx", "list", "--limit", String(window)];
+          if (account) args.push("--account", account);
+
+          const rows = ((await runCli(args)) as CliTransaction[]) ?? [];
+          transactions = sym
+            ? rows.filter(
+                (t) =>
+                  t.from_asset?.toUpperCase() === sym ||
+                  t.to_asset?.toUpperCase() === sym
+              )
+            : rows;
+
+          // Stop when the window holds enough matching rows, the CLI ran out of
+          // data (fewer rows than requested), or the guard cap is reached.
+          if (
+            transactions.length >= needed ||
+            rows.length < window ||
+            window >= MAX_FETCH_WINDOW
+          ) {
+            break;
+          }
+          window = Math.min(window * 2, MAX_FETCH_WINDOW);
         }
 
         const page = paginate(transactions, offset, limit);

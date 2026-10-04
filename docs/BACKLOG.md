@@ -8,7 +8,7 @@ figures, addresses, keys, or investment plans. That material lives in the
 §2 portfolio-management backlog, §3 privacy/clean-up log. The leak gate
 (`scripts/check_leaks.sh` + CI `leak-check.yml`) enforces the boundary.
 
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 **Tier legend:** 🤖 = delegable to a subagent (cheap model) · 🧠 = main agent ·
 👤 = needs user design/approval. Estimate: S < 15 min, M < 1 h, L multi-session.
@@ -18,6 +18,18 @@ never design ahead.**
 ---
 
 ## ✅ Done (recent → older)
+
+### Session 2026-10-04 (DSH, trust-fix batch 1)
+- **T2** timestamp parse: silent `Utc::now()` fallback → `DateParse` error; `created_at`
+  accepts SQLite `CURRENT_TIMESTAMP` format via two-format parser (malformed still errors).
+- **T3** blockchain sync: removed EXISTS pre-check (dedup now via `UNIQUE(external_id)` +
+  `is_unique_violation()`); `.ok()` swallows on watermark/balances/tx writes now propagate
+  as `SyncError`; `write_audit_log` stays fire-and-forget (documented). +4 DB tests.
+- **T4** `status --json` via global flag + `print_json`; `SystemStatus`/`ProviderStatus`
+  now `Serialize`; both dispatch sites (main + shell) threaded.
+- **T5** MCP list_transactions: offset applied once to the asset-filtered set via
+  window-growth fetch loop (cap 5000); +3 regression tests.
+- **T9** `@anthropic-ai/sdk` → devDependencies (evals-only); lockfile updated.
 
 ### Session 2026-10-03 (DSH)
 - **Working-mode layer (trimmed inferenceFlow adoption)**: AGENTS.md + STATE.md,
@@ -102,20 +114,23 @@ never design ahead.**
 | ID | Action | Tier | Size |
 |---|---|---|---|
 | T1 | Wire reconciliation_log (schema-only today; no writer) — "trust before acting" needs data | 🧠 | M |
-| T2 | Fix timestamp parse silent fallback to Utc::now() in transactions repo | 🤖 | S |
-| T3 | Fix blockchain sync: EXISTS-before-INSERT + swallowed errors (.ok()) | 🤖 | S |
-| T4 | `status --json` support (only command without it) | 🤖 | S |
-| T5 | MCP: fix list_transactions double-applied offset on asset filter | 🤖 | S |
+| T2 | Fix timestamp parse silent fallback to Utc::now() in transactions repo | ✅ done 2026-10-04 | S |
+| T3 | Fix blockchain sync: EXISTS-before-INSERT + swallowed errors (.ok()) | ✅ done 2026-10-04 | S |
+| T4 | `status --json` support (only command without it) | ✅ done 2026-10-04 | S |
+| T5 | MCP: fix list_transactions double-applied offset on asset filter | ✅ done 2026-10-04 | S |
 | T6 | MCP: float math → Decimal in track_conversion / unrealized totals; MISSING_PARAM(S) consistency; runCli {message} fallback hardening | 🤖 | M |
 | T7 | MCP: add output schemas + tighten tool descriptions (agent-experience standards); rewrite docs/mcp API reference against reality | 🤖 | M |
 | T8 | MCP: expose missing CLI surface — mining-pnl, sync-history, import-binance, holdings, pnl backfill | 🤖 | M |
-| T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | 🤖 | S |
+| T9 | Move @anthropic-ai/sdk to devDependencies (evals-only) | ✅ done 2026-10-04 | S |
 | T10 | Binance client: stop eprintln-ing raw signed responses; keychain backend: stop passing secrets as argv | 🧠 | S |
 | T11 | Wire dated on-chain reward income (Solana token-account daily pulls) into mining-pnl | 🤖 | M |
 | T12 | Filter scam airdrop tokens from holdings display (token list lives in private notebook §2) | 🤖 | S |
 | T13 | Daily portfolio-refresh cron (sync wallets + prices) | 🤖 | S |
 | T14 | Show cost basis / unrealized P&L headline in portfolio summary top-line | 🤖 | S |
 | T15 | Rescue stashed Binance spot-trade fix: "Order No" column-offset detection (stash@{1}) — verify vs real exports, add tests | 🤖 | S |
+| T16 | Schema: `created_at` default → RFC 3339 (`strftime('%Y-%m-%dT%H:%M:%SZ','now')`), then strict parse in transactions repo and delete `parse_db_timestamp` two-format parser. Needs dev-DB reset (no migrations) | 🤖 | S |
+| T17 | Blockchain sync: wrap per-address persist + watermark in one DB transaction (per-address atomicity; today a mid-batch failure leaves earlier rows committed) | 🧠 | M |
+| T18 | MCP list_transactions: `has_more` is always false on the unfiltered path (fetch window == offset+limit); fetch `needed+1` so the "call again" hint actually fires | 🤖 | S |
 
 ### P6 — Advisor skill design session (with user)
 Agenda: persona & scope (professional trader + long-term investor equivalent);

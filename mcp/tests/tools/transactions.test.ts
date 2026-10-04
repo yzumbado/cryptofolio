@@ -55,8 +55,18 @@ function getTool(server: McpServer, name: string) {
     ._registeredTools[name];
 }
 
+/** Emulate `cryptofolio tx list --limit N`: returns the first N rows. */
+function mockTxList(rows: Array<Record<string, unknown>>): void {
+  vi.mocked(runCli).mockImplementation(async (args: string[]) => {
+    const i = args.indexOf("--limit");
+    const n = i === -1 ? rows.length : Number(args[i + 1] ?? rows.length);
+    return rows.slice(0, n);
+  });
+}
+
 describe("cryptofolio_list_transactions", () => {
-  beforeEach(() => vi.clearAllMocks());
+  // reset (not just clear) invalidates mockImplementation between tests
+  beforeEach(() => vi.resetAllMocks());
 
   it("returns paginated transaction list", async () => {
     vi.mocked(runCli).mockResolvedValueOnce(loadFixture("tx-list.json"));
@@ -112,6 +122,105 @@ describe("cryptofolio_list_transactions", () => {
 
     expect(parsed.success).toBe(true);
     expect(parsed.data.items).toHaveLength(2);
+  });
+
+  it("applies offset once to the asset-filtered set (regression)", async () => {
+    // Mixed assets in CLI order; BTC matches are rows 1, 3 and 4.
+    mockTxList([
+      { id: 1, to_asset: "BTC" },
+      { id: 2, to_asset: "ETH" },
+      { id: 3, to_asset: "BTC" },
+      { id: 4, to_asset: "BTC" },
+      { id: 5, to_asset: "SOL" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_list_transactions");
+
+    const result = await tool!.handler({ asset: "BTC", limit: 2, offset: 1 });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: {
+        items: Array<{ id: number }>;
+        total_fetched: number;
+        has_more: boolean;
+      };
+    };
+
+    expect(parsed.success).toBe(true);
+    // offset=1 must skip ONE matching row: [1, 3, 4] → [3, 4] (not [3]).
+    expect(parsed.data.items.map((t) => t.id)).toEqual([3, 4]);
+    expect(parsed.data.total_fetched).toBe(3);
+    expect(parsed.data.has_more).toBe(false);
+    // First window is offset+limit; it grows once because 3 rows only held 2 matches.
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(1, [
+      "tx", "list", "--limit", "3",
+    ]);
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(2, [
+      "tx", "list", "--limit", "6",
+    ]);
+  });
+
+  it("applies offset once when no asset filter is set", async () => {
+    mockTxList(
+      Array.from({ length: 5 }, (_, i) => ({ id: i + 1, to_asset: "BTC" }))
+    );
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_list_transactions");
+
+    const result = await tool!.handler({ limit: 2, offset: 1 });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: {
+        items: Array<{ id: number }>;
+        total_fetched: number;
+        has_more: boolean;
+        next_offset?: number;
+      };
+    };
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data.items.map((t) => t.id)).toEqual([2, 3]);
+    expect(parsed.data.total_fetched).toBe(3);
+    // The window is exactly offset+limit, so nothing beyond this page was
+    // fetched (pre-existing behaviour, unchanged by the fix).
+    expect(parsed.data.has_more).toBe(false);
+    expect(parsed.data.next_offset).toBeUndefined();
+    // One fetch: the offset+limit window already satisfies the page.
+    expect(vi.mocked(runCli)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runCli)).toHaveBeenNthCalledWith(1, [
+      "tx", "list", "--limit", "3",
+    ]);
+  });
+
+  it("stops growing the window when the CLI runs out of data", async () => {
+    mockTxList([
+      { id: 1, to_asset: "BTC" },
+      { id: 2, to_asset: "ETH" },
+      { id: 3, to_asset: "BTC" },
+      { id: 4, to_asset: "ETH" },
+    ]);
+
+    const server = makeServer();
+    const tool = getTool(server, "cryptofolio_list_transactions");
+
+    const result = await tool!.handler({ asset: "BTC", limit: 2, offset: 2 });
+    const parsed = JSON.parse(result.content[0]?.text ?? "{}") as {
+      success: boolean;
+      data: {
+        items: unknown[];
+        total_fetched: number;
+        has_more: boolean;
+      };
+    };
+
+    expect(parsed.success).toBe(true);
+    // Only 2 BTC rows exist and both are skipped — empty page, no runaway loop.
+    expect(parsed.data.items).toEqual([]);
+    expect(parsed.data.total_fetched).toBe(2);
+    expect(parsed.data.has_more).toBe(false);
+    expect(vi.mocked(runCli)).toHaveBeenCalledTimes(2);
   });
 });
 

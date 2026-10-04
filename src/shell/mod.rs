@@ -309,7 +309,7 @@ impl Shell {
                 println!("Already in shell mode.");
             }
             Commands::Status { check } => {
-                handle_status_command(check).await?;
+                handle_status_command(check, opts.json).await?;
             }
         }
 

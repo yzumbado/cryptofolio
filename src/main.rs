@@ -149,7 +149,7 @@ async fn run() -> Result<()> {
         }
 
         Commands::Status { check } => {
-            handle_status_command(check).await?;
+            handle_status_command(check, opts.json).await?;
         }
     }
 
