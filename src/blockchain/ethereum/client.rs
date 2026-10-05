@@ -272,6 +272,45 @@ impl EtherscanClient {
         Ok(tokens)
     }
 
+    /// Fetch ERC-20 token transfers since `start_block` as ledger transactions.
+    async fn fetch_token_transfers_since(
+        &self,
+        address: &str,
+        start_block: u64,
+    ) -> Result<Vec<WalletTransaction>> {
+        let mut url = format!(
+            "{}?chainid={}&module=account&action=tokentx&address={}&startblock={}&endblock=99999999&sort=asc",
+            self.base_url, self.chain_id, address, start_block
+        );
+
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let body = self.fetch_text_with_retry(&url).await?;
+        let data: EtherscanTokenResponse = serde_json::from_str(&body)
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse tokentx: {}", e)))?;
+
+        if data.status != "1" {
+            // "No transactions found" is a valid empty result.
+            if data.message.contains("No transactions found")
+                || data.message.contains("No matching")
+            {
+                return Ok(Vec::new());
+            }
+            return Err(CryptofolioError::Network(format!(
+                "Etherscan API error: {}",
+                data.message
+            )));
+        }
+
+        Ok(data
+            .result
+            .iter()
+            .filter_map(|t| token_transfer_to_wallet_tx(t, address))
+            .collect())
+    }
+
     /// Get transactions for an address, optionally starting from `start_block`.
     async fn fetch_transactions_since(
         &self,
@@ -528,6 +567,8 @@ impl BlockchainClient for EtherscanClient {
         let internal_result = self
             .fetch_internal_transactions_since(address, start_block)
             .await;
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let token_result = self.fetch_token_transfers_since(address, start_block).await;
 
         let mut raw = normal_result?;
         // Internal txs are best-effort; ignore errors (e.g. no API key)
@@ -545,7 +586,7 @@ impl BlockchainClient for EtherscanClient {
         // Deduplicate by hash (same tx can appear in both lists)
         raw.dedup_by(|a, b| a.hash == b.hash);
 
-        let txs = raw
+        let mut txs: Vec<WalletTransaction> = raw
             .into_iter()
             .filter(|tx| !tx.is_error)
             .map(|tx| {
@@ -581,6 +622,12 @@ impl BlockchainClient for EtherscanClient {
                 }
             })
             .collect();
+
+        // ERC-20 token transfers are best-effort (like internal txs): a missing
+        // API key or a token-transfer failure must not drop the native history.
+        if let Ok(tokens) = token_result {
+            txs.extend(tokens);
+        }
 
         Ok(txs)
     }
@@ -628,6 +675,12 @@ struct TokenTransaction {
     value: String,
     from: String,
     to: String,
+    #[serde(default)]
+    hash: String,
+    #[serde(default)]
+    time_stamp: String,
+    #[serde(default)]
+    block_number: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -673,6 +726,51 @@ fn native_safe_asset_key(symbol: &str, contract_address: &str) -> String {
     } else {
         symbol.to_string()
     }
+}
+
+/// Map one ERC-20 token transfer to a ledger transaction, or `None` to skip it
+/// (scam token, zero value, or a row that doesn't touch this address).
+///
+/// `external_id` is `{hash}-{contract}` — a single transaction can move several
+/// ERC-20 tokens, and this suffix keeps each token's transfer unique under the
+/// ledger's UNIQUE(external_id) constraint (the caller prefixes `ethereum-`).
+fn token_transfer_to_wallet_tx(t: &TokenTransaction, address: &str) -> Option<WalletTransaction> {
+    if is_likely_scam_token(&t.token_symbol, &t.contract_address) {
+        return None;
+    }
+    let decimals = t.token_decimal.parse::<u32>().unwrap_or(18);
+    let value = i128::from_str(&t.value).unwrap_or(0);
+    if value == 0 {
+        return None;
+    }
+    let direction = if t.to.eq_ignore_ascii_case(address) {
+        TransactionDirection::Incoming
+    } else if t.from.eq_ignore_ascii_case(address) {
+        TransactionDirection::Outgoing
+    } else {
+        return None;
+    };
+    let asset = native_safe_asset_key(&t.token_symbol, &t.contract_address);
+    let external_id = format!("{}-{}", t.hash, t.contract_address);
+    let timestamp =
+        DateTime::from_timestamp(t.time_stamp.parse().unwrap_or(0), 0).unwrap_or_else(Utc::now);
+    let block_height = t.block_number.parse::<u64>().ok();
+
+    Some(WalletTransaction {
+        external_id,
+        direction,
+        amount: Decimal::from_i128_with_scale(value, decimals),
+        asset,
+        fee: None,
+        fee_asset: None,
+        block_height,
+        timestamp,
+        counterparty: Some(match direction {
+            TransactionDirection::Incoming => t.from.clone(),
+            _ => t.to.clone(),
+        }),
+        memo: None,
+    })
 }
 
 /// Heuristic scam-token detector for ERC-20 holdings.
@@ -820,5 +918,50 @@ mod tests {
         assert_eq!(data.result.len(), 1);
         assert_eq!(data.result[0].gas_price, ""); // defaulted
         assert_eq!(data.result[0].hash, "0xabc");
+    }
+
+    fn sample_token_tx() -> TokenTransaction {
+        TokenTransaction {
+            contract_address: "0xaaa".to_string(),
+            token_symbol: "aEthUSDT".to_string(),
+            token_name: "Aave Ethereum USDT".to_string(),
+            token_decimal: "18".to_string(),
+            value: "12413775463000000000000".to_string(), // 12413.775463 aEthUSDT
+            from: "0xsender".to_string(),
+            to: "0xme".to_string(),
+            hash: "0xhash".to_string(),
+            time_stamp: "1700000000".to_string(),
+            block_number: "12345".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_token_transfer_to_wallet_tx_maps_direction_and_decimals() {
+        let tx = token_transfer_to_wallet_tx(&sample_token_tx(), "0xme").unwrap();
+        assert_eq!(tx.direction, TransactionDirection::Incoming);
+        assert_eq!(tx.asset, "aEthUSDT");
+        assert_eq!(tx.amount, Decimal::from_str("12413.775463").unwrap());
+        assert_eq!(tx.external_id, "0xhash-0xaaa");
+        assert_eq!(tx.block_height, Some(12345));
+        assert_eq!(tx.counterparty.as_deref(), Some("0xsender"));
+        assert_eq!(tx.fee, None); // tokentx carries no gas; native tx gas is separate
+
+        // Outgoing from the sender's perspective.
+        let out = token_transfer_to_wallet_tx(&sample_token_tx(), "0xsender").unwrap();
+        assert_eq!(out.direction, TransactionDirection::Outgoing);
+        assert_eq!(out.counterparty.as_deref(), Some("0xme"));
+
+        // An unrelated address yields None (row doesn't touch it).
+        assert!(token_transfer_to_wallet_tx(&sample_token_tx(), "0xother").is_none());
+
+        // Zero value is skipped.
+        let mut zero = sample_token_tx();
+        zero.value = "0".to_string();
+        assert!(token_transfer_to_wallet_tx(&zero, "0xme").is_none());
+
+        // Empty symbol is a scam token — skipped.
+        let mut scam = sample_token_tx();
+        scam.token_symbol = "".to_string();
+        assert!(token_transfer_to_wallet_tx(&scam, "0xme").is_none());
     }
 }
