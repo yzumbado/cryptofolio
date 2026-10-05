@@ -52,5 +52,7 @@ coverage_output.txt
 *.docx
 ~$*
 .DS_Store
+# Lulubit statements (owner's fiat on/off-ramp history) — repo-root only
+/Lulubit Statements*
 # Local bundle patch holds machine-specific paths (see integrations/dsh-mcp/README.md)
 integrations/dsh-mcp/cordis.patch.yml

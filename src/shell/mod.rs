@@ -290,6 +290,9 @@ impl Shell {
             } => {
                 handle_import_binance_command(file, account, dry_run, &self.pool, &opts).await?;
             }
+            Commands::ImportLulubit { file, account } => {
+                handle_import_lulubit_command(file, account, &self.pool, &opts).await?;
+            }
             Commands::Config { command } => {
                 handle_config_command(command, &self.pool, &opts).await?;
             }

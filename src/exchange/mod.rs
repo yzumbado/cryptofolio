@@ -1,4 +1,5 @@
 pub mod binance;
+pub mod lulubit;
 pub mod models;
 pub mod traits;
 
