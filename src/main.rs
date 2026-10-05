@@ -3,9 +3,10 @@ use clap::Parser;
 use cryptofolio::cli::commands::{
     handle_account_command, handle_audit_command, handle_category_command, handle_config_command,
     handle_currency_command, handle_holdings_command, handle_import_binance_command,
-    handle_import_command, handle_market_command, handle_mining_pnl_command, handle_pnl_command,
-    handle_portfolio_command, handle_price_command, handle_status_command, handle_sync_command,
-    handle_sync_history_command, handle_tx_command, handle_wallet_command,
+    handle_import_command, handle_import_lulubit_command, handle_market_command,
+    handle_mining_pnl_command, handle_pnl_command, handle_portfolio_command, handle_price_command,
+    handle_status_command, handle_sync_command, handle_sync_history_command, handle_tx_command,
+    handle_wallet_command,
 };
 use cryptofolio::cli::output::init_color;
 use cryptofolio::cli::{Cli, Commands, GlobalOptions};
@@ -121,6 +122,10 @@ async fn run() -> Result<()> {
             dry_run,
         } => {
             handle_import_binance_command(file, account, dry_run, &pool, &opts).await?;
+        }
+
+        Commands::ImportLulubit { file, account } => {
+            handle_import_lulubit_command(file, account, &pool, &opts).await?;
         }
 
         Commands::Config { command } => {

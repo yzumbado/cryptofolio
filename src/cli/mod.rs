@@ -288,6 +288,19 @@ pub enum Commands {
         dry_run: bool,
     },
 
+    /// Import a Lulubit fiat on/off-ramp statement CSV (USD + direct USDT receipts)
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio import-lulubit manifest.csv\n    cryptofolio import-lulubit manifest.csv --account Lulubit\n\nCSV FORMAT:\n    id,date,op,from_asset,from_quantity,to_asset,to_quantity,price_usd,note\n    op: receive (deposit/loan) | swap | dispose (withdraw/fee)\n\nThe 'Lulubit' account is created automatically if it does not exist."
+    )]
+    ImportLulubit {
+        /// Path to the Lulubit statement CSV
+        file: String,
+
+        /// Account to import into (defaults to 'Lulubit'; created if absent)
+        #[arg(long)]
+        account: Option<String>,
+    },
+
     /// Manage configuration settings
     #[command(
         after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet"
