@@ -41,6 +41,7 @@ pub async fn handle_import_lulubit_command(
         let to_qty = rec.get(6).unwrap_or("").trim();
         let price = rec.get(7).unwrap_or("").trim();
         let note = rec.get(8).unwrap_or("").trim().to_string();
+        let to_account_name = rec.get(9).unwrap_or("").trim().to_string();
 
         if id.is_empty() {
             return Err(CryptofolioError::InvalidInput(
@@ -68,9 +69,25 @@ pub async fn handle_import_lulubit_command(
                 price_usd: dec(price)?,
                 date,
             },
+            "transfer" => {
+                let to_id = if to_account_name.is_empty() {
+                    return Err(CryptofolioError::InvalidInput(
+                        "transfer op requires to_account (column 10)".to_string(),
+                    ));
+                } else {
+                    resolve_account(pool, &to_account_name).await?
+                };
+                LulubitOp::Transfer {
+                    from_account: account_id.clone(),
+                    to_account: to_id,
+                    asset: from_asset,
+                    quantity: dec(from_qty)?,
+                    date,
+                }
+            }
             other => {
                 return Err(CryptofolioError::InvalidInput(format!(
-                    "unknown Lulubit op '{}' (expected receive|swap|dispose)",
+                    "unknown Lulubit op '{}' (expected receive|swap|dispose|transfer)",
                     other
                 )))
             }

@@ -43,6 +43,14 @@ pub enum LulubitOp {
         price_usd: Decimal,
         date: DateTime<Utc>,
     },
+    /// Move `asset` between two accounts (e.g. Lulubit -> Binance).
+    Transfer {
+        from_account: String,
+        to_account: String,
+        asset: String,
+        quantity: Decimal,
+        date: DateTime<Utc>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -225,6 +233,42 @@ impl<'a> LulubitImporter<'a> {
 
                 Ok(ImportResult::Created(tx_id))
             }
+            LulubitOp::Transfer {
+                from_account,
+                to_account,
+                asset,
+                quantity,
+                date,
+            } => {
+                let mut tx =
+                    Transaction::new_transfer(&from_account, &to_account, &asset, quantity, date);
+                tx.external_id = Some(external_id.to_string());
+                tx.source = "manual".to_string();
+                tx.trust_level = "manual".to_string();
+                tx.notes = note.map(str::to_string);
+
+                let tx_id = match self.tx_repo.insert(&tx).await {
+                    Ok(id) => id,
+                    Err(e) if is_unique_violation(&e) => return Ok(ImportResult::Skipped),
+                    Err(e) => return Err(e),
+                };
+
+                // Carry the source account's cost basis into the destination.
+                let basis = self
+                    .holding_repo
+                    .get(&from_account, &asset)
+                    .await?
+                    .and_then(|h| h.avg_cost_basis);
+
+                self.holding_repo
+                    .remove_quantity(&from_account, &asset, quantity)
+                    .await?;
+                self.holding_repo
+                    .add_quantity(&to_account, &asset, quantity, basis)
+                    .await?;
+
+                Ok(ImportResult::Created(tx_id))
+            }
         }
     }
 }
@@ -339,5 +383,67 @@ mod tests {
             .unwrap();
         assert!(matches!(first, ImportResult::Created(_)));
         assert!(matches!(second, ImportResult::Skipped));
+    }
+
+    #[tokio::test]
+    async fn transfer_moves_asset_and_carries_basis() {
+        let pool = init_memory_pool().await.unwrap();
+        let lulubit = account(&pool).await;
+        sqlx::query(
+            "INSERT INTO accounts (id, category_id, name, account_type) \
+             VALUES ('binance', 'trading', 'Binance', 'exchange')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let importer = LulubitImporter::new(&pool);
+
+        let _ = importer
+            .import(
+                &lulubit,
+                "lulubit-loan-1",
+                Some("loan"),
+                LulubitOp::Receive {
+                    asset: "USDT".into(),
+                    quantity: dec("1000"),
+                    price_usd: dec("1"),
+                    date: date(2026, 1, 1),
+                },
+            )
+            .await
+            .unwrap();
+
+        let r = importer
+            .import(
+                &lulubit,
+                "lulubit-xfer-1",
+                Some("to Binance"),
+                LulubitOp::Transfer {
+                    from_account: lulubit.clone(),
+                    to_account: "binance".into(),
+                    asset: "USDT".into(),
+                    quantity: dec("400"),
+                    date: date(2026, 1, 2),
+                },
+            )
+            .await
+            .unwrap();
+        assert!(matches!(r, ImportResult::Created(_)));
+
+        let src = importer
+            .holding_repo
+            .get(&lulubit, "USDT")
+            .await
+            .unwrap()
+            .unwrap();
+        let dst = importer
+            .holding_repo
+            .get("binance", "USDT")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(src.quantity, dec("600"));
+        assert_eq!(dst.quantity, dec("400"));
+        assert_eq!(dst.avg_cost_basis.unwrap(), dec("1"));
     }
 }
