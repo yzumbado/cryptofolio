@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 use sqlx::SqlitePool;
 
 use crate::core::pnl::{CostBasisMethod, PnLCalculator};
-use crate::core::transaction::Transaction;
+use crate::core::transaction::{Transaction, TransactionType};
 use crate::db::{HoldingRepository, TransactionRepository};
 use crate::error::Result;
 
@@ -47,6 +47,14 @@ pub enum LulubitOp {
     Transfer {
         from_account: String,
         to_account: String,
+        asset: String,
+        quantity: Decimal,
+        date: DateTime<Utc>,
+    },
+    /// Send `asset` out of the tracked system (external withdrawal, no tracked
+    /// destination). The destination's on-chain receipt may already be in the
+    /// ledger via blockchain sync, so this only records the source side.
+    Send {
         asset: String,
         quantity: Decimal,
         date: DateTime<Utc>,
@@ -267,6 +275,45 @@ impl<'a> LulubitImporter<'a> {
                     .add_quantity(&to_account, &asset, quantity, basis)
                     .await?;
 
+                Ok(ImportResult::Created(tx_id))
+            }
+            LulubitOp::Send {
+                asset,
+                quantity,
+                date,
+            } => {
+                let tx = Transaction {
+                    id: 0,
+                    tx_type: TransactionType::TransferOut,
+                    from_account_id: Some(account_id.to_string()),
+                    from_asset: Some(asset.clone()),
+                    from_quantity: Some(quantity),
+                    to_account_id: None,
+                    to_asset: None,
+                    to_quantity: None,
+                    price_usd: None,
+                    price_currency: None,
+                    price_amount: None,
+                    exchange_rate: None,
+                    exchange_rate_pair: None,
+                    fee: None,
+                    fee_asset: None,
+                    tx_hash: None,
+                    external_id: Some(external_id.to_string()),
+                    source: "manual".to_string(),
+                    trust_level: "manual".to_string(),
+                    notes: note.map(str::to_string),
+                    timestamp: date,
+                    created_at: Utc::now(),
+                };
+                let tx_id = match self.tx_repo.insert(&tx).await {
+                    Ok(id) => id,
+                    Err(e) if is_unique_violation(&e) => return Ok(ImportResult::Skipped),
+                    Err(e) => return Err(e),
+                };
+                self.holding_repo
+                    .remove_quantity(account_id, &asset, quantity)
+                    .await?;
                 Ok(ImportResult::Created(tx_id))
             }
         }
