@@ -35,8 +35,10 @@ pub struct AaveUserAccountData {
     pub liquidation_threshold_pct: Decimal,
     /// Weighted max loan-to-value, percent (e.g. `75.00`).
     pub ltv_pct: Decimal,
-    /// Health factor (collateral-weighted / debt). `< 1.0` means liquidation risk.
-    pub health_factor: Decimal,
+    /// Health factor (collateral-weighted / debt). `< 1.0` means liquidation
+    /// risk. `None` means no debt (Aave reports `type(uint256).max`, i.e.
+    /// "infinite" health).
+    pub health_factor: Option<Decimal>,
 }
 
 /// Build the calldata for `getUserAccountData(address)`: selector + the address
@@ -69,13 +71,25 @@ pub fn decode_user_account_data(hex: &str) -> Result<AaveUserAccountData> {
             .map_err(|e| CryptofolioError::Other(format!("invalid uint256 word: {}", e)))
     };
 
+    // Aave reports `type(uint256).max` (all `f`s) as the health factor when the
+    // user has no debt — "infinite" health. 2^256-1 doesn't fit in any fixed
+    // decimal, so represent it as None instead.
+    let health_factor = {
+        let hf = &hex[5 * 64..6 * 64];
+        if hf.chars().all(|c| c == 'f' || c == 'F') {
+            None
+        } else {
+            Some(Decimal::from(word(5)?) / Decimal::from(1_000_000_000_000_000_000u64))
+        }
+    };
+
     Ok(AaveUserAccountData {
         total_collateral_usd: Decimal::from(word(0)?) / Decimal::from(100_000_000u64),
         total_debt_usd: Decimal::from(word(1)?) / Decimal::from(100_000_000u64),
         available_borrows_usd: Decimal::from(word(2)?) / Decimal::from(100_000_000u64),
         liquidation_threshold_pct: Decimal::from(word(3)?) / Decimal::from(100u64),
         ltv_pct: Decimal::from(word(4)?) / Decimal::from(100u64),
-        health_factor: Decimal::from(word(5)?) / Decimal::from(1_000_000_000_000_000_000u64),
+        health_factor,
     })
 }
 
@@ -112,7 +126,24 @@ mod tests {
         assert_eq!(d.available_borrows_usd, Decimal::from(20_000));
         assert_eq!(d.liquidation_threshold_pct, Decimal::from(80));
         assert_eq!(d.ltv_pct, Decimal::from(75));
-        assert_eq!(d.health_factor, Decimal::from(2));
+        assert_eq!(d.health_factor, Some(Decimal::from(2)));
+    }
+
+    #[test]
+    fn decode_max_health_factor_is_none() {
+        let word = |n: u128| format!("{:064x}", n);
+        let hex = format!(
+            "{}{}{}{}{}{}",
+            word(0),        // no collateral
+            word(0),        // no debt
+            word(0),        // no borrows
+            word(0),        // no threshold
+            word(0),        // no ltv
+            "f".repeat(64), // healthFactor = type(uint256).max
+        );
+
+        let d = decode_user_account_data(&hex).unwrap();
+        assert_eq!(d.health_factor, None); // no debt => "infinite" health
     }
 
     #[test]

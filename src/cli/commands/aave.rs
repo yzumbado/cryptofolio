@@ -19,7 +19,9 @@ struct AaveHealthOutput {
     available_borrows_usd: String,
     liquidation_threshold_pct: String,
     ltv_pct: String,
-    health_factor: String,
+    /// `None` means no debt (Aave's "infinite" health factor).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    health_factor: Option<String>,
 }
 
 impl From<(&str, &AaveUserAccountData)> for AaveHealthOutput {
@@ -31,7 +33,7 @@ impl From<(&str, &AaveUserAccountData)> for AaveHealthOutput {
             available_borrows_usd: d.available_borrows_usd.to_string(),
             liquidation_threshold_pct: d.liquidation_threshold_pct.to_string(),
             ltv_pct: d.ltv_pct.to_string(),
-            health_factor: d.health_factor.to_string(),
+            health_factor: d.health_factor.map(|v| v.to_string()),
         }
     }
 }
@@ -130,13 +132,19 @@ async fn aave_health(
         );
         println!();
         print_section("Health Factor");
-        print_kv("Health factor", &health_factor_label(&r.health_factor));
+        print_kv(
+            "Health factor",
+            &health_factor_label(r.health_factor.as_deref()),
+        );
     }
 
     Ok(())
 }
 
-fn health_factor_label(hf: &str) -> String {
+pub(crate) fn health_factor_label(hf: Option<&str>) -> String {
+    let Some(hf) = hf else {
+        return "∞ (no debt)".to_string();
+    };
     let hf = hf.parse::<f64>().unwrap_or(0.0);
     let (label, color) = if hf >= 1.5 {
         ("Healthy", "green")
@@ -188,4 +196,31 @@ async fn all_ethereum_addresses(pool: &SqlitePool) -> Result<Vec<String>> {
     .await?;
 
     Ok(rows.into_iter().map(|(a,)| a).collect())
+}
+
+/// Fetch the Aave health for the first tracked Ethereum wallet with an active
+/// debt position. Returns `None` when no such wallet exists. Used by the
+/// portfolio headline to surface the health factor without a dedicated call.
+pub(crate) async fn fetch_aave_health(
+    pool: &SqlitePool,
+    config: &AppConfig,
+) -> Result<Option<AaveUserAccountData>> {
+    let addresses = all_ethereum_addresses(pool).await?;
+    if addresses.is_empty() {
+        return Ok(None);
+    }
+    let etherscan_key = std::env::var("ETHERSCAN_API_KEY")
+        .ok()
+        .or_else(|| config.get_etherscan_api_key());
+    let client = EtherscanClient::new(false, etherscan_key);
+
+    for addr in &addresses {
+        let calldata = aave::build_user_account_data_call(addr);
+        let hex = client.eth_call(aave::AAVE_V3_POOL, &calldata).await?;
+        let data = aave::decode_user_account_data(&hex)?;
+        if !data.total_debt_usd.is_zero() {
+            return Ok(Some(data));
+        }
+    }
+    Ok(None)
 }

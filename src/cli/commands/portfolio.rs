@@ -11,12 +11,20 @@ use crate::core::portfolio::{Portfolio, PortfolioEntry};
 use crate::db::{AccountRepository, HoldingRepository};
 use crate::error::Result;
 
+use super::aave::{fetch_aave_health, health_factor_label};
+
 #[derive(Serialize)]
 struct PortfolioOutput {
     total_value_usd: String,
     total_cost_basis: String,
     unrealized_pnl: String,
     unrealized_pnl_percent: String,
+    /// Aave debt (USD), present only when a debt position exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aave_debt_usd: Option<String>,
+    /// Aave health factor, present only when a debt position exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aave_health_factor: Option<String>,
     entries: Vec<PortfolioEntryOutput>,
 }
 
@@ -71,6 +79,17 @@ pub async fn handle_portfolio_command(
     // All holdings — the shared pricer derives the symbols it needs (including
     // the underlying of every DeFi/Earn receipt) from this set.
     let all_holdings = holding_repo.list_all().await?;
+
+    // Surface the Aave health factor in the headline when a debt position exists.
+    // Best-effort: a missing key or API hiccup must never fail the portfolio view.
+    let has_aave_debt = all_holdings
+        .iter()
+        .any(|h| crate::core::defi::classify(&h.asset).kind == crate::core::defi::DefiKind::Debt);
+    let aave_health = if has_aave_debt {
+        fetch_aave_health(pool, &config).await.ok().flatten()
+    } else {
+        None
+    };
 
     // Build the price map through the SHARED valuation pipeline (classify DeFi
     // receipts -> price underlying, Binance + Alpha, stablecoin peg, LST on-chain
@@ -140,6 +159,10 @@ pub async fn handle_portfolio_command(
             total_cost_basis: portfolio.total_cost_basis.to_string(),
             unrealized_pnl: portfolio.unrealized_pnl.to_string(),
             unrealized_pnl_percent: portfolio.unrealized_pnl_percent.to_string(),
+            aave_debt_usd: aave_health.as_ref().map(|h| h.total_debt_usd.to_string()),
+            aave_health_factor: aave_health
+                .as_ref()
+                .and_then(|h| h.health_factor.map(|v| v.to_string())),
             entries: portfolio
                 .entries
                 .iter()
@@ -195,6 +218,18 @@ pub async fn handle_portfolio_command(
         "{}",
         format_cost_basis_headline(&portfolio, config.display.color)
     );
+    if let Some(health) = &aave_health {
+        println!();
+        println!(
+            "  Aave Debt:       {}",
+            format_usd(health.total_debt_usd).red().bold()
+        );
+        let hf_str = health.health_factor.map(|v| v.to_string());
+        println!(
+            "  Health Factor:   {}",
+            health_factor_label(hf_str.as_deref())
+        );
+    }
     println!();
 
     if by_category {
