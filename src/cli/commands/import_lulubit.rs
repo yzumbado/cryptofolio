@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::cli::GlobalOptions;
 use crate::core::account::{Account, AccountConfig, AccountType};
-use crate::db::AccountRepository;
+use crate::db::{AccountRepository, HoldingRepository};
 use crate::error::{CryptofolioError, Result};
 use crate::exchange::lulubit::{ImportResult, LulubitImporter, LulubitOp};
 
@@ -157,4 +157,88 @@ fn parse_date(s: &str) -> Result<chrono::DateTime<Utc>> {
 fn dec(s: &str) -> Result<Decimal> {
     Decimal::from_str(s.trim())
         .map_err(|_| CryptofolioError::InvalidInput(format!("invalid decimal '{}'", s)))
+}
+
+/// One-time recovery for the pass-3 import that ran before the atomic-import fix
+/// and left two orphaned transactions (tx written, holdings not applied) plus two
+/// rows never imported. Reapplies the missing holdings and records the missing
+/// rows in an order that never drives a balance negative. **Run once** — the two
+/// imports dedup by `external_id`, but the holdings re-application will fail with
+/// an insufficient-balance error if the balances are already correct.
+pub async fn handle_lulubit_repair_command(pool: &SqlitePool, opts: &GlobalOptions) -> Result<()> {
+    let account_repo = AccountRepository::new(pool);
+    let holding_repo = HoldingRepository::new(pool);
+    let importer = LulubitImporter::new(pool);
+
+    let lulubit = account_repo
+        .get_account("Lulubit")
+        .await?
+        .ok_or_else(|| CryptofolioError::InvalidInput("Lulubit account not found".into()))?;
+    let binance = account_repo
+        .get_account("Binance")
+        .await?
+        .ok_or_else(|| CryptofolioError::InvalidInput("Binance account not found".into()))?;
+
+    // 1. Record the cancelled-order reversal (never imported: its external_id
+    //    collided with the orphaned transfer from the first run).
+    let _ = importer
+        .import(
+            &lulubit.id,
+            "lulubit-pass3-repair-reversal",
+            Some("cancelled order reversal"),
+            LulubitOp::Receive {
+                asset: "USDT".into(),
+                quantity: dec("9901")?,
+                price_usd: Decimal::ONE,
+                date: parse_date("2026-05-19")?,
+            },
+        )
+        .await?;
+
+    // 2. Apply the orphaned swap-invest holdings (USDT out, aEthUSDT in).
+    holding_repo
+        .remove_quantity(&lulubit.id, "USDT", dec("92931.307070")?)
+        .await?;
+    holding_repo
+        .add_quantity(
+            &lulubit.id,
+            "aEthUSDT",
+            dec("80093.265383")?,
+            Some(dec("1.177")?),
+        )
+        .await?;
+
+    // 3. Record the Aave Earn close (never imported).
+    let _ = importer
+        .import(
+            &lulubit.id,
+            "lulubit-pass3-repair-close",
+            Some("Aave Earn close"),
+            LulubitOp::Swap {
+                from_asset: "aEthUSDT".into(),
+                from_quantity: dec("80089.625471")?,
+                to_asset: "USDT".into(),
+                to_quantity: dec("97945.977830")?,
+                date: parse_date("2026-09-22")?,
+            },
+        )
+        .await?;
+
+    // 4. Apply the orphaned transfer holdings (USDT out of Lulubit, into Binance).
+    holding_repo
+        .remove_quantity(&lulubit.id, "USDT", dec("102344.757042")?)
+        .await?;
+    holding_repo
+        .add_quantity(
+            &binance.id,
+            "USDT",
+            dec("102344.757042")?,
+            Some(Decimal::ONE),
+        )
+        .await?;
+
+    if !opts.quiet {
+        println!("Lulubit repair complete: orphaned holdings reapplied, 2 missing rows recorded.");
+    }
+    Ok(())
 }

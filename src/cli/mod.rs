@@ -301,6 +301,13 @@ pub enum Commands {
         account: Option<String>,
     },
 
+    /// One-time recovery for a pass-3 Lulubit import that left orphaned rows
+    /// (reapplies the missing holdings + records the two missing rows).
+    #[command(
+        after_help = "EXAMPLES:\n    cryptofolio lulubit-repair\n\nReapplies orphaned holdings from a pre-fix Lulubit import and records the missing rows, then idempotently no-ops. Run once after the atomic-import fix."
+    )]
+    LulubitRepair,
+
     /// Manage configuration settings
     #[command(
         after_help = "EXAMPLES:\n    # View current configuration\n    cryptofolio config show\n    cryptofolio config show --json\n\n    # Set API credentials securely (recommended)\n    cryptofolio config set-secret binance.api_key\n    cryptofolio config set-secret binance.api_secret\n\n    # Set general configuration\n    cryptofolio config set display.color true\n    cryptofolio config use-testnet"
