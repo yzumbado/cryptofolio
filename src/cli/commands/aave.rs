@@ -141,7 +141,7 @@ async fn aave_health(
     Ok(())
 }
 
-fn health_factor_label(hf: Option<&str>) -> String {
+pub(crate) fn health_factor_label(hf: Option<&str>) -> String {
     let Some(hf) = hf else {
         return "∞ (no debt)".to_string();
     };
@@ -196,4 +196,31 @@ async fn all_ethereum_addresses(pool: &SqlitePool) -> Result<Vec<String>> {
     .await?;
 
     Ok(rows.into_iter().map(|(a,)| a).collect())
+}
+
+/// Fetch the Aave health for the first tracked Ethereum wallet with an active
+/// debt position. Returns `None` when no such wallet exists. Used by the
+/// portfolio headline to surface the health factor without a dedicated call.
+pub(crate) async fn fetch_aave_health(
+    pool: &SqlitePool,
+    config: &AppConfig,
+) -> Result<Option<AaveUserAccountData>> {
+    let addresses = all_ethereum_addresses(pool).await?;
+    if addresses.is_empty() {
+        return Ok(None);
+    }
+    let etherscan_key = std::env::var("ETHERSCAN_API_KEY")
+        .ok()
+        .or_else(|| config.get_etherscan_api_key());
+    let client = EtherscanClient::new(false, etherscan_key);
+
+    for addr in &addresses {
+        let calldata = aave::build_user_account_data_call(addr);
+        let hex = client.eth_call(aave::AAVE_V3_POOL, &calldata).await?;
+        let data = aave::decode_user_account_data(&hex)?;
+        if !data.total_debt_usd.is_zero() {
+            return Ok(Some(data));
+        }
+    }
+    Ok(None)
 }
