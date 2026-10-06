@@ -20,7 +20,7 @@ interface AaveHealthPosition {
   available_borrows_usd: string;
   liquidation_threshold_pct: string;
   ltv_pct: string;
-  health_factor: string;
+  health_factor: string | null; // null = no debt ("infinite" health)
 }
 
 export function registerAaveHealthTool(server: McpServer): void {
@@ -51,6 +51,7 @@ export function registerAaveHealthTool(server: McpServer): void {
         const positions = (raw as AaveHealthPosition[]) ?? [];
 
         const atRisk = positions.filter((p) => {
+          if (p.health_factor == null) return false; // no debt => no liquidation risk
           const hf = Number(p.health_factor);
           return Number.isFinite(hf) && hf < 1;
         }).length;
