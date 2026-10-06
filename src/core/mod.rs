@@ -1,3 +1,4 @@
+pub mod aave;
 pub mod account;
 pub mod currency;
 pub mod defi;

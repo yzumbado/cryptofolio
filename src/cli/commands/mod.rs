@@ -1,3 +1,4 @@
+pub mod aave;
 pub mod account;
 pub mod audit;
 pub mod category;
@@ -17,6 +18,7 @@ pub mod sync;
 pub mod tx;
 pub mod wallet;
 
+pub use aave::handle_aave_command;
 pub use account::handle_account_command;
 pub use audit::handle_audit_command;
 pub use category::handle_category_command;

@@ -8,7 +8,7 @@ figures, addresses, keys, or investment plans. That material lives in the
 §2 portfolio-management backlog, §3 privacy/clean-up log. The leak gate
 (`scripts/check_leaks.sh` + CI `leak-check.yml`) enforces the boundary.
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-05
 
 **Tier legend:** 🤖 = delegable to a subagent (cheap model) · 🧠 = main agent ·
 👤 = needs user design/approval. Estimate: S < 15 min, M < 1 h, L multi-session.
@@ -18,6 +18,23 @@ never design ahead.**
 ---
 
 ## ✅ Done (recent → older)
+
+### Session 2026-10-05 (DSH, fiat-tracing close + Aave health)
+- **Lulubit fiat on/off-ramp importer** (#51): `import-lulubit` CSV (`receive`/`swap`/
+  `dispose`), external-id idempotent; records the USD→USDT on-ramp + egress so Lulubit
+  USD nets to $0. Extended with `transfer` (pass-2a USDT→Binance) and external `send`
+  op (#52).
+- **ERC-20 token-transfer history in Ethereum sync** (#53): `tokentx` rows were only
+  aggregated into balances; now mapped to `WalletTransaction` (direction, decimal
+  scaling, scam skip, unique `external_id = hash-contract`). Aave aTokens/debt/GHO
+  now reconcile with on-chain history.
+- **Aave health factor**: `aave health` CLI + `cryptofolio_aave_health` MCP tool
+  (24th tool) — on-chain `getUserAccountData` via a generic client `eth_call`;
+  `src/core/aave.rs` decodes collateral/debt/available-borrows (8dp), LTV +
+  liquidation-threshold (percent), health factor (1e18). Pure decode is unit-tested.
+- **Debt-as-liability**: confirmed already implemented (KiroCrew `core/defi.rs`
+  `DefiKind::Debt` → negative value); no code needed — verified live via `get_portfolio`
+  (`variableDebtEthGHO` shows `defi_kind:"debt"`, negative current_value).
 
 ### Session 2026-10-04 (DSH, trust-fix batch 3)
 - **T11** dated on-chain reward income: Solana token-account history → `persist_rewards`
@@ -132,7 +149,7 @@ never design ahead.**
 
 | ID | Action | Tier | Size |
 |---|---|---|---|
-| A1 | `price_targets` table + `cryptofolio scenario` CLI: project net worth, P&L-at-target, yield, Aave health factor under bear/base/bull (productize the TDR prototype) | 🧠 | L |
+| A1 | `price_targets` table + `cryptofolio scenario` CLI: project net worth, P&L-at-target, yield, Aave health factor under bear/base/bull (productize the TDR prototype). *Current health-factor tracking is done (`aave health`); the scenario projection remains.* | 🧠 | L |
 | A2 | MCP tool `cryptofolio_project_scenarios` + output schema | 🤖 | S |
 | A3 | Advisor skill consumes live scenarios; per-asset thesis → plan → validation/invalidation triggers → honest review loop | 👤→🧠 | L |
 | A4 | Watchlist alerts + strategy drift reports (later) | 🧠 | M |

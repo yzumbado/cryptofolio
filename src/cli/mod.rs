@@ -349,6 +349,18 @@ pub enum Commands {
         command: AuditCommands,
     },
 
+    /// Show Aave V3 position health (collateral, debt, health factor)
+    ///
+    /// Reads the Aave protocol's own getUserAccountData view for the tracked
+    /// Ethereum wallet(s) — watch-only, no keys, no spending.
+    #[command(
+        after_help = "EXAMPLES:\n    # Health for every tracked Ethereum wallet with an Aave position\n    cryptofolio aave health\n\n    # A specific wallet\n    cryptofolio aave health --wallet \"My Wallet\"\n\n    # A specific address\n    cryptofolio aave health --address 0x0000000000000000000000000000000000000000\n\n    # JSON output\n    cryptofolio aave health --json"
+    )]
+    Aave {
+        #[command(subcommand)]
+        command: AaveCommands,
+    },
+
     /// Start interactive shell mode
     #[command(
         after_help = "EXAMPLES:\n    cryptofolio shell\n\nIn shell mode, you can:\n    - Run commands without typing 'cryptofolio' prefix\n    - Use Tab for auto-completion\n    - Use Up/Down for command history"
@@ -594,6 +606,20 @@ pub enum AuditCommands {
         /// Persist the computed rows to reconciliation_log
         #[arg(long)]
         write: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AaveCommands {
+    /// Position health: collateral, debt, LTV, liquidation threshold, health factor
+    Health {
+        /// Wallet name (resolved from the accounts/wallets tables)
+        #[arg(long)]
+        wallet: Option<String>,
+
+        /// Direct Ethereum address (mutually exclusive with --wallet)
+        #[arg(long)]
+        address: Option<String>,
     },
 }
 

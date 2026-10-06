@@ -2,7 +2,7 @@
 
 LLM-driven crypto portfolio management via the Model Context Protocol.
 
-Exposes 23 tools so Claude Desktop can manage your entire portfolio without
+Exposes 24 tools so Claude Desktop can manage your entire portfolio without
 ever touching the CLI directly.
 
 ## Requirements
@@ -92,6 +92,7 @@ a hidden TTY prompt for security. Everything else can be done via Claude.
 | `cryptofolio_get_mining_pnl` | DePIN mining P&L: revenue, depreciation, capital recovery |
 | `cryptofolio_pnl_backfill` | Recompute tax lots and realized P&L (write) |
 | `cryptofolio_import_binance` | Import a Binance CSV/ZIP export (write) |
+| `cryptofolio_aave_health` | Aave V3 position health: collateral, debt, health factor |
 
 ## Onboarding Flow (LLM-only)
 

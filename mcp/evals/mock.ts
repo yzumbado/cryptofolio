@@ -9,7 +9,7 @@
 import type { Model, ModelContext, ModelTurn, Tools } from "./harness.js";
 import type { ToolCall, ToolDef, ToolResult } from "./types.js";
 
-// Must match the tools registered in src/index.ts, in registration order (23).
+// Must match the tools registered in src/index.ts, in registration order (24).
 const TOOL_NAMES = [
   "cryptofolio_get_system_status",
   "cryptofolio_list_accounts",
@@ -34,6 +34,7 @@ const TOOL_NAMES = [
   "cryptofolio_get_mining_pnl",
   "cryptofolio_pnl_backfill",
   "cryptofolio_import_binance",
+  "cryptofolio_aave_health",
 ];
 
 export class MockTools implements Tools {

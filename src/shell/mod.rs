@@ -308,6 +308,9 @@ impl Shell {
             Commands::Audit { command } => {
                 handle_audit_command(command, &self.pool, &opts).await?;
             }
+            Commands::Aave { command } => {
+                handle_aave_command(command, &self.pool, &opts).await?;
+            }
             Commands::Shell => {
                 println!("Already in shell mode.");
             }
