@@ -27,7 +27,7 @@ pub use currency::handle_currency_command;
 pub use holdings::handle_holdings_command;
 pub use import::handle_import_command;
 pub use import_binance::handle_import_binance_command;
-pub use import_lulubit::handle_import_lulubit_command;
+pub use import_lulubit::{handle_import_lulubit_command, handle_lulubit_repair_command};
 pub use market::handle_market_command;
 pub use mining::handle_mining_pnl_command;
 pub use pnl::handle_pnl_command;

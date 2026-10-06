@@ -293,6 +293,9 @@ impl Shell {
             Commands::ImportLulubit { file, account } => {
                 handle_import_lulubit_command(file, account, &self.pool, &opts).await?;
             }
+            Commands::LulubitRepair => {
+                handle_lulubit_repair_command(&self.pool, &opts).await?;
+            }
             Commands::Config { command } => {
                 handle_config_command(command, &self.pool, &opts).await?;
             }

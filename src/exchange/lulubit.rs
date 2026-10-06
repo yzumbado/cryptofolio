@@ -16,7 +16,7 @@ use sqlx::SqlitePool;
 use crate::core::pnl::{CostBasisMethod, PnLCalculator};
 use crate::core::transaction::{Transaction, TransactionType};
 use crate::db::{HoldingRepository, TransactionRepository};
-use crate::error::Result;
+use crate::error::{CryptofolioError, Result};
 
 /// One Lulubit statement operation, reduced to the three ledger primitives.
 #[derive(Debug, Clone, PartialEq)]
@@ -84,6 +84,21 @@ impl<'a> LulubitImporter<'a> {
         }
     }
 
+    /// Fail fast if `account_id` lacks `quantity` of `asset`, BEFORE any
+    /// transaction is written. Without this, an underfunded row would insert the
+    /// transaction and then fail on the holdings update, leaving an orphaned
+    /// (tx-without-holdings) record — the import must be all-or-nothing.
+    async fn ensure_balance(&self, account_id: &str, asset: &str, quantity: Decimal) -> Result<()> {
+        match self.holding_repo.get(account_id, asset).await? {
+            Some(h) if h.quantity >= quantity => Ok(()),
+            Some(h) => Err(CryptofolioError::InsufficientBalance {
+                available: h.quantity.to_string(),
+                required: quantity.to_string(),
+            }),
+            None => Err(CryptofolioError::AssetNotFound(asset.to_string())),
+        }
+    }
+
     /// Record one operation against `account_id`, deduped by `external_id`.
     ///
     /// Returns `Skipped` if a transaction with that `external_id` already exists
@@ -139,6 +154,7 @@ impl<'a> LulubitImporter<'a> {
                 price_usd,
                 date,
             } => {
+                self.ensure_balance(account_id, &asset, quantity).await?;
                 let mut tx = Transaction::new_sell(account_id, &asset, quantity, price_usd, date);
                 tx.external_id = Some(external_id.to_string());
                 tx.source = "manual".to_string();
@@ -177,6 +193,8 @@ impl<'a> LulubitImporter<'a> {
                 to_quantity,
                 date,
             } => {
+                self.ensure_balance(account_id, &from_asset, from_quantity)
+                    .await?;
                 // Implied price carries the from-asset cost basis into the
                 // to-asset, so the on-ramp spread becomes real cost basis.
                 let implied_price = self
@@ -248,6 +266,7 @@ impl<'a> LulubitImporter<'a> {
                 quantity,
                 date,
             } => {
+                self.ensure_balance(&from_account, &asset, quantity).await?;
                 let mut tx =
                     Transaction::new_transfer(&from_account, &to_account, &asset, quantity, date);
                 tx.external_id = Some(external_id.to_string());
@@ -282,6 +301,7 @@ impl<'a> LulubitImporter<'a> {
                 quantity,
                 date,
             } => {
+                self.ensure_balance(account_id, &asset, quantity).await?;
                 let tx = Transaction {
                     id: 0,
                     tx_type: TransactionType::TransferOut,
@@ -492,5 +512,45 @@ mod tests {
         assert_eq!(src.quantity, dec("600"));
         assert_eq!(dst.quantity, dec("400"));
         assert_eq!(dst.avg_cost_basis.unwrap(), dec("1"));
+    }
+
+    #[tokio::test]
+    async fn insufficient_balance_fails_before_insert() {
+        let pool = init_memory_pool().await.unwrap();
+        let lulubit = account(&pool).await;
+        sqlx::query(
+            "INSERT INTO accounts (id, category_id, name, account_type) \
+             VALUES ('binance', 'trading', 'Binance', 'exchange')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let importer = LulubitImporter::new(&pool);
+
+        // No USDT was ever credited, so this transfer must fail...
+        let r = importer
+            .import(
+                &lulubit,
+                "lulubit-xfer-underfunded",
+                None,
+                LulubitOp::Transfer {
+                    from_account: lulubit.clone(),
+                    to_account: "binance".into(),
+                    asset: "USDT".into(),
+                    quantity: dec("100"),
+                    date: date(2026, 1, 1),
+                },
+            )
+            .await;
+        assert!(r.is_err());
+
+        // ...and it must NOT have left an orphaned transaction behind.
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM transactions WHERE external_id = 'lulubit-xfer-underfunded'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(count.0, 0);
     }
 }
