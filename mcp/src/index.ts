@@ -42,6 +42,7 @@ import {
 } from "./tools/pnl.js";
 import { registerSyncExchangeTool } from "./tools/sync.js";
 import { registerAuditLogTool, registerGetSyncHistoryTool } from "./tools/audit.js";
+import { registerAaveHealthTool } from "./tools/aave.js";
 import { registerGetMiningPnlTool } from "./tools/mining.js";
 import { registerListHoldingsTool } from "./tools/holdings.js";
 import { registerImportBinanceTool } from "./tools/import.js";
@@ -87,6 +88,7 @@ registerListHoldingsTool(server);    // cryptofolio_list_holdings
 registerGetMiningPnlTool(server);    // cryptofolio_get_mining_pnl
 registerPnlBackfillTool(server);     // cryptofolio_pnl_backfill
 registerImportBinanceTool(server);   // cryptofolio_import_binance
+registerAaveHealthTool(server);      // cryptofolio_aave_health
 
 // ---------------------------------------------------------------------------
 // Start

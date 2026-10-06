@@ -166,6 +166,30 @@ impl EtherscanClient {
         Ok(rate)
     }
 
+    /// Generic read-only `eth_call` via Etherscan's proxy module. Returns the
+    /// raw `result` hex (with the `0x` prefix). Callers decode it.
+    pub async fn eth_call(&self, to: &str, calldata: &str) -> Result<String> {
+        let mut url = format!(
+            "{}?chainid={}&module=proxy&action=eth_call&to={}&data={}&tag=latest",
+            self.base_url, self.chain_id, to, calldata
+        );
+        if let Some(key) = &self.api_key {
+            url.push_str(&format!("&apikey={}", key));
+        }
+
+        let body = self.fetch_text_with_retry(&url).await?;
+
+        #[derive(serde::Deserialize)]
+        struct EthCallResponse {
+            result: Option<String>,
+        }
+        let resp: EthCallResponse = serde_json::from_str(&body)
+            .map_err(|e| CryptofolioError::Network(format!("Failed to parse eth_call: {}", e)))?;
+
+        resp.result
+            .ok_or_else(|| CryptofolioError::Network("eth_call returned no result".into()))
+    }
+
     /// Get ETH balance for an address
     async fn get_eth_balance(&self, address: &str) -> Result<Decimal> {
         let mut url = format!(
