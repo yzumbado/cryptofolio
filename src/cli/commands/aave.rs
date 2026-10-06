@@ -19,7 +19,9 @@ struct AaveHealthOutput {
     available_borrows_usd: String,
     liquidation_threshold_pct: String,
     ltv_pct: String,
-    health_factor: String,
+    /// `None` means no debt (Aave's "infinite" health factor).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    health_factor: Option<String>,
 }
 
 impl From<(&str, &AaveUserAccountData)> for AaveHealthOutput {
@@ -31,7 +33,7 @@ impl From<(&str, &AaveUserAccountData)> for AaveHealthOutput {
             available_borrows_usd: d.available_borrows_usd.to_string(),
             liquidation_threshold_pct: d.liquidation_threshold_pct.to_string(),
             ltv_pct: d.ltv_pct.to_string(),
-            health_factor: d.health_factor.to_string(),
+            health_factor: d.health_factor.map(|v| v.to_string()),
         }
     }
 }
@@ -130,13 +132,19 @@ async fn aave_health(
         );
         println!();
         print_section("Health Factor");
-        print_kv("Health factor", &health_factor_label(&r.health_factor));
+        print_kv(
+            "Health factor",
+            &health_factor_label(r.health_factor.as_deref()),
+        );
     }
 
     Ok(())
 }
 
-fn health_factor_label(hf: &str) -> String {
+fn health_factor_label(hf: Option<&str>) -> String {
+    let Some(hf) = hf else {
+        return "∞ (no debt)".to_string();
+    };
     let hf = hf.parse::<f64>().unwrap_or(0.0);
     let (label, color) = if hf >= 1.5 {
         ("Healthy", "green")
