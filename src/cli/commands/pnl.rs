@@ -572,20 +572,32 @@ async fn handle_backfill(
                 }
             }
             "swap" => {
-                // Process as disposal + acquisition
+                // Process as disposal + acquisition. Price the source leg at its
+                // average cost basis (no historical market price is stored on a
+                // swap), so the source disposal realises ~zero; the destination
+                // leg inherits the source cost spread over the acquired amount.
                 if let (Some(from_asset), Some(from_qty), Some(to_asset), Some(to_qty)) = (
                     &tx.from_asset,
                     tx.from_quantity,
                     &tx.to_asset,
                     tx.to_quantity,
                 ) {
-                    // For swaps, we need to estimate the price
-                    // This is simplified - in real backfill we should use historical prices
-                    if let Some(price) = tx.price_usd {
+                    let from_account = tx.from_account_id.clone().unwrap_or_default();
+                    let to_account = tx.to_account_id.clone().unwrap_or_default();
+
+                    let disposal_price = pnl_calc
+                        .average_cost_basis(&from_account, from_asset, method)
+                        .await
+                        .ok()
+                        .flatten()
+                        .or(tx.price_usd);
+                    let acquisition_price = disposal_price.map(|p| p * from_qty / to_qty);
+
+                    if let Some(price) = disposal_price {
                         let _ = pnl_calc
                             .process_disposal(
                                 tx.id,
-                                &tx.from_account_id.unwrap_or_default(),
+                                &from_account,
                                 from_asset,
                                 from_qty,
                                 price,
@@ -593,11 +605,12 @@ async fn handle_backfill(
                                 method,
                             )
                             .await;
-
+                    }
+                    if let Some(price) = acquisition_price {
                         let _ = pnl_calc
                             .process_acquisition(
                                 tx.id,
-                                &tx.to_account_id.unwrap_or_default(),
+                                &to_account,
                                 to_asset,
                                 to_qty,
                                 price,
@@ -605,8 +618,8 @@ async fn handle_backfill(
                                 method,
                             )
                             .await;
-                        swap_count += 1;
                     }
+                    swap_count += 1;
                 }
             }
             "transfer_internal" => {
