@@ -59,6 +59,13 @@ pub enum LulubitOp {
         quantity: Decimal,
         date: DateTime<Utc>,
     },
+    /// Record a tx-sum-only correction (no holdings update). Used to reconcile a
+    /// stale import whose transaction history no longer matches the raw source.
+    Correction {
+        asset: String,
+        quantity: Decimal,
+        date: DateTime<Utc>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -334,6 +341,45 @@ impl<'a> LulubitImporter<'a> {
                 self.holding_repo
                     .remove_quantity(account_id, &asset, quantity)
                     .await?;
+                Ok(ImportResult::Created(tx_id))
+            }
+            LulubitOp::Correction {
+                asset,
+                quantity,
+                date,
+            } => {
+                // A correction adjusts the tx-sum only (so `audit reconciliation`
+                // sees the right computed balance) and deliberately does NOT touch
+                // holdings — the recorded balance is already correct.
+                let tx = Transaction {
+                    id: 0,
+                    tx_type: TransactionType::Correction,
+                    from_account_id: Some(account_id.to_string()),
+                    from_asset: Some(asset.clone()),
+                    from_quantity: Some(quantity),
+                    to_account_id: None,
+                    to_asset: None,
+                    to_quantity: None,
+                    price_usd: None,
+                    price_currency: None,
+                    price_amount: None,
+                    exchange_rate: None,
+                    exchange_rate_pair: None,
+                    fee: None,
+                    fee_asset: None,
+                    tx_hash: None,
+                    external_id: Some(external_id.to_string()),
+                    source: "manual".to_string(),
+                    trust_level: "manual".to_string(),
+                    notes: note.map(str::to_string),
+                    timestamp: date,
+                    created_at: Utc::now(),
+                };
+                let tx_id = match self.tx_repo.insert(&tx).await {
+                    Ok(id) => id,
+                    Err(e) if is_unique_violation(&e) => return Ok(ImportResult::Skipped),
+                    Err(e) => return Err(e),
+                };
                 Ok(ImportResult::Created(tx_id))
             }
         }
