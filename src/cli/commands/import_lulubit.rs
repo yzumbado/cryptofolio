@@ -91,8 +91,26 @@ pub async fn handle_import_lulubit_command(
                 date,
             },
             "correction" => LulubitOp::Correction {
-                asset: from_asset,
-                quantity: dec(from_qty)?,
+                from_asset: if from_asset.is_empty() {
+                    None
+                } else {
+                    Some(from_asset)
+                },
+                from_quantity: if from_qty.is_empty() {
+                    None
+                } else {
+                    Some(dec(from_qty)?)
+                },
+                to_asset: if to_asset.is_empty() {
+                    None
+                } else {
+                    Some(to_asset)
+                },
+                to_quantity: if to_qty.is_empty() {
+                    None
+                } else {
+                    Some(dec(to_qty)?)
+                },
                 date,
             },
             other => {
