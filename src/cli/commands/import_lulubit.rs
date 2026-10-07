@@ -90,11 +90,34 @@ pub async fn handle_import_lulubit_command(
                 quantity: dec(from_qty)?,
                 date,
             },
+            "correction" => LulubitOp::Correction {
+                from_asset: if from_asset.is_empty() {
+                    None
+                } else {
+                    Some(from_asset)
+                },
+                from_quantity: if from_qty.is_empty() {
+                    None
+                } else {
+                    Some(dec(from_qty)?)
+                },
+                to_asset: if to_asset.is_empty() {
+                    None
+                } else {
+                    Some(to_asset)
+                },
+                to_quantity: if to_qty.is_empty() {
+                    None
+                } else {
+                    Some(dec(to_qty)?)
+                },
+                date,
+            },
             other => {
                 return Err(CryptofolioError::InvalidInput(format!(
-                    "unknown Lulubit op '{}' (expected receive|swap|dispose|transfer|send)",
-                    other
-                )))
+                "unknown Lulubit op '{}' (expected receive|swap|dispose|transfer|send|correction)",
+                other
+            )))
             }
         };
 
