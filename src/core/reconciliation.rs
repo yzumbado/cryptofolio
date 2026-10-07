@@ -51,18 +51,25 @@ pub fn reconcile(
     for t in transactions {
         if let (Some(acc), Some(asset), Some(qty)) = (&t.to_account_id, &t.to_asset, &t.to_quantity)
         {
-            *computed.entry((acc.clone(), asset.clone())).or_default() += qty;
+            *computed
+                .entry((acc.clone(), asset.to_uppercase()))
+                .or_default() += qty;
         }
         if let (Some(acc), Some(asset), Some(qty)) =
             (&t.from_account_id, &t.from_asset, &t.from_quantity)
         {
-            *computed.entry((acc.clone(), asset.clone())).or_default() -= qty;
+            *computed
+                .entry((acc.clone(), asset.to_uppercase()))
+                .or_default() -= qty;
         }
     }
 
+    // Normalize asset keys to UPPERCASE on both sides so a holding stored as
+    // `AETHUSDT` matches a transaction recorded as `aEthUSDT` (the ledger treats
+    // symbols case-insensitively everywhere else).
     let mut onchain: HashMap<(String, String), Decimal> = HashMap::new();
     for h in holdings {
-        onchain.insert((h.account_id.clone(), h.asset.clone()), h.quantity);
+        onchain.insert((h.account_id.clone(), h.asset.to_uppercase()), h.quantity);
     }
 
     let mut keys: HashSet<(String, String)> = computed.keys().cloned().collect();
@@ -226,5 +233,25 @@ mod tests {
         assert_eq!(rows[0].computed_balance, dec("0"));
         assert_eq!(rows[0].delta, dec("100"));
         assert_eq!(rows[0].status, "unreconciled");
+    }
+
+    #[test]
+    fn asset_case_is_normalized_across_history_and_holdings() {
+        // A holding stored uppercase (AETHUSDT) must match a transaction recorded
+        // with the protocol's mixed case (aEthUSDT) — symbols are case-insensitive.
+        let txs = vec![Transaction::new_swap(
+            "a1",
+            "USDT",
+            dec("100"),
+            "aEthUSDT",
+            dec("85"),
+            now(),
+        )];
+        let holdings = vec![holding("a1", "AETHUSDT", "85")];
+        let rows = reconcile(&txs, &holdings, &names());
+        let aeth = rows.iter().find(|r| r.asset == "AETHUSDT").unwrap();
+        assert_eq!(aeth.computed_balance, dec("85"));
+        assert_eq!(aeth.delta, dec("0"));
+        assert_eq!(aeth.status, "verified");
     }
 }
