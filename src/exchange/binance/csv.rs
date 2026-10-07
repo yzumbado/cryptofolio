@@ -900,10 +900,6 @@ fn classify_tx_history_row(
     Option<String>,
     Option<Decimal>,
 )> {
-    let positive = change >= Decimal::ZERO;
-    let qty = change.abs();
-    let asset = Some(coin.to_string());
-
     // Fail closed: an unrecognised operation is NEVER guessed into a transaction
     // type (the old code defaulted unknowns to `Earn`, silently inventing income).
     // It becomes an error so the row is surfaced as skipped for human review.
@@ -914,14 +910,40 @@ fn classify_tx_history_row(
         ))
     })?;
 
-    // Direction: positive Change = money arriving (to_account), negative = leaving (from_account)
-    let (from_asset, from_qty, to_asset, to_qty) = if positive {
-        (None, None, asset, Some(qty))
-    } else {
-        (asset, Some(qty), None, None)
-    };
-
-    Ok((tx_type, from_asset, from_qty, to_asset, to_qty))
+    // Binance Simple Earn Flexible wraps the subscribed coin 1:1 into an `LD*`
+    // receipt token (`LDUSDT`, `LDNEAR`, ...). A subscription is therefore a
+    // two-sided swap COIN -> LD{COIN} and a redemption LD{COIN} -> COIN — not a
+    // one-sided Stake/Unstake. Without creating/destroying the LD wrapper the
+    // position reconciles as "computed 0" (defi.rs already prices `LD*` by its
+    // underlying, so the ledger only needs to move the wrapper in/out).
+    match operation {
+        "Simple Earn Flexible Subscription" => Ok((
+            tx_type,
+            Some(coin.to_string()),
+            Some(change.abs()),
+            Some(format!("LD{}", coin)),
+            Some(change.abs()),
+        )),
+        "Simple Earn Flexible Redemption" => Ok((
+            tx_type,
+            Some(format!("LD{}", coin)),
+            Some(change.abs()),
+            Some(coin.to_string()),
+            Some(change.abs()),
+        )),
+        _ => {
+            // Direction: positive Change = money arriving (to_account), negative = leaving (from_account)
+            let positive = change >= Decimal::ZERO;
+            let qty = change.abs();
+            let asset = Some(coin.to_string());
+            let (from_asset, from_qty, to_asset, to_qty) = if positive {
+                (None, None, asset, Some(qty))
+            } else {
+                (asset, Some(qty), None, None)
+            };
+            Ok((tx_type, from_asset, from_qty, to_asset, to_qty))
+        }
+    }
 }
 
 /// Map a Binance Transaction-History operation string to a transaction type.
@@ -937,14 +959,8 @@ fn map_operation(op: &str) -> Option<TransactionType> {
         "Transaction Fee" | "Fee" | "Alpha Token - Payment" => Fee,
         "Withdraw" | "Send" => TransferOut,
         "Deposit" => TransferIn,
-        "Simple Earn Flexible Subscription"
-        | "Simple Earn Locked Subscription"
-        | "Alpha 2.0 - Asset Freeze"
-        | "Asset Freeze" => Stake,
-        "Simple Earn Flexible Redemption"
-        | "Simple Earn Locked Redemption"
-        | "Alpha 2.0 - Refund"
-        | "Alpha Token - Refund" => Unstake,
+        "Simple Earn Locked Subscription" | "Alpha 2.0 - Asset Freeze" | "Asset Freeze" => Stake,
+        "Simple Earn Locked Redemption" | "Alpha 2.0 - Refund" | "Alpha Token - Refund" => Unstake,
         "Simple Earn Flexible Interest"
         | "Simple Earn Locked Rewards"
         | "Strategy Trading Fee Rebate"
@@ -954,7 +970,9 @@ fn map_operation(op: &str) -> Option<TransactionType> {
         | "Earn - Airdrop Distribution"
         | "Launchpool Airdrop - System Distribution"
         | "Crypto Box" => Airdrop,
-        "Binance Convert" => Swap,
+        "Simple Earn Flexible Subscription"
+        | "Simple Earn Flexible Redemption"
+        | "Binance Convert" => Swap,
         "Transfer Between Spot and Strategy Account"
         | "Transfer Between Spot and Strategy"
         | "Transfer Funds to Spot"
@@ -1242,6 +1260,38 @@ mod tests {
         assert_eq!(rows[0].to_asset.as_deref(), Some("USD"));
         assert_eq!(rows[1].tx_type, TransactionType::Earn);
         assert_eq!(rows[1].to_asset.as_deref(), Some("USDC"));
+    }
+
+    #[test]
+    fn test_simple_earn_flexible_tracks_ld_wrapper() {
+        // Subscription (negative change) wraps COIN 1:1 into LD{COIN};
+        // redemption (positive change) unwraps LD{COIN} back into COIN. Both
+        // must be two-sided Swaps, not one-sided Stake/Unstake, so the LD
+        // wrapper is actually created/destroyed in the ledger and reconciles.
+        let csv = "User ID,Time,Account,Operation,Coin,Change,Remark\n\
+                   1,2026-02-01 10:00:00,Earn,Simple Earn Flexible Subscription,USDT,-100,\n\
+                   1,2026-02-10 10:00:00,Earn,Simple Earn Flexible Redemption,USDT,100,\n";
+        let report = parse_bytes(csv.as_bytes()).unwrap();
+        assert!(
+            report.skipped.is_empty(),
+            "earn rows should import cleanly, got skips: {:?}",
+            report.skipped
+        );
+        assert_eq!(report.rows.len(), 2);
+
+        let sub = &report.rows[0];
+        assert_eq!(sub.tx_type, TransactionType::Swap);
+        assert_eq!(sub.from_asset.as_deref(), Some("USDT"));
+        assert_eq!(sub.from_quantity, Some(Decimal::from(100)));
+        assert_eq!(sub.to_asset.as_deref(), Some("LDUSDT"));
+        assert_eq!(sub.to_quantity, Some(Decimal::from(100)));
+
+        let red = &report.rows[1];
+        assert_eq!(red.tx_type, TransactionType::Swap);
+        assert_eq!(red.from_asset.as_deref(), Some("LDUSDT"));
+        assert_eq!(red.from_quantity, Some(Decimal::from(100)));
+        assert_eq!(red.to_asset.as_deref(), Some("USDT"));
+        assert_eq!(red.to_quantity, Some(Decimal::from(100)));
     }
 
     #[test]
