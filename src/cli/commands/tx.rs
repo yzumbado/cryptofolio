@@ -497,13 +497,14 @@ pub async fn handle_tx_command(
                 (None, None)
             };
 
-            // Calculate implied price for cost basis (used for P&L and holdings)
-            let implied_price = if from_qty > Decimal::ZERO {
-                // Get current holding to calculate USD value
-                let from_holding = holding_repo.get(&acc.id, &from_asset).await?;
-                from_holding
-                    .and_then(|h| h.avg_cost_basis)
-                    .map(|cost| cost * from_qty / to_qty)
+            // Calculate implied prices for cost basis (used for P&L and holdings).
+            // The from-asset leaves at its own average cost basis (no market price
+            // → no gain/loss on the source leg); the to-asset's cost per unit is
+            // the from-asset's total cost spread over the amount acquired.
+            let from_holding = holding_repo.get(&acc.id, &from_asset).await?;
+            let disposal_price = from_holding.and_then(|h| h.avg_cost_basis);
+            let acquisition_price = if from_qty > Decimal::ZERO {
+                disposal_price.map(|cost| cost * from_qty / to_qty)
             } else {
                 None
             };
@@ -521,7 +522,7 @@ pub async fn handle_tx_command(
             let method = CostBasisMethod::Fifo; // Default: FIFO (Future: configurable per account)
 
             // Process disposal of from_asset (if we have implied price)
-            let realized_pnl = if let Some(price) = implied_price {
+            let realized_pnl = if let Some(price) = disposal_price {
                 match pnl_calc
                     .process_disposal(
                         tx_id,
@@ -547,7 +548,7 @@ pub async fn handle_tx_command(
             };
 
             // Process acquisition of to_asset
-            if let Some(price) = implied_price {
+            if let Some(price) = acquisition_price {
                 if let Err(e) = pnl_calc
                     .process_acquisition(
                         tx_id, &acc.id, &to_asset, to_qty, price, timestamp, method,
@@ -565,7 +566,7 @@ pub async fn handle_tx_command(
                 .remove_quantity(&acc.id, &from_asset, from_qty)
                 .await?;
             holding_repo
-                .add_quantity(&acc.id, &to_asset, to_qty, implied_price)
+                .add_quantity(&acc.id, &to_asset, to_qty, acquisition_price)
                 .await?;
 
             // Show P&L in success message

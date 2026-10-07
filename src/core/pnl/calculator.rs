@@ -162,6 +162,31 @@ impl<'a> PnLCalculator<'a> {
         Ok(matches)
     }
 
+    /// Average cost basis (USD per unit) of the currently-available lots for an
+    /// account/asset. Used to price a swap's source leg when no market price is
+    /// available, so the source disposal realises ~zero gain/loss instead of an
+    /// inflated figure.
+    pub async fn average_cost_basis(
+        &self,
+        account_id: &str,
+        asset: &str,
+        method: CostBasisMethod,
+    ) -> Result<Option<Decimal>> {
+        let lots = self
+            .tax_lot_repo
+            .get_available_lots(account_id, asset, method)
+            .await?;
+        let total_qty: Decimal = lots.iter().map(|l| l.remaining_quantity).sum();
+        if total_qty <= Decimal::ZERO {
+            return Ok(None);
+        }
+        let total_cost: Decimal = lots
+            .iter()
+            .map(|l| l.remaining_quantity * l.acquisition_price)
+            .sum();
+        Ok(Some(total_cost / total_qty))
+    }
+
     /// Transfer FIFO tax lots from one account to another (internal portfolio transfer).
     ///
     /// Preserves original acquisition dates and prices — no P&L is recognised because
@@ -485,6 +510,54 @@ mod tests {
             dec("0.5"),
             "Should have 0.5 BTC remaining (2.0 bought - 1.5 sold)"
         );
+    }
+
+    #[tokio::test]
+    async fn test_average_cost_basis() {
+        let pool = init_memory_pool().await.unwrap();
+        create_test_account(&pool, "test_account").await;
+        let calculator = PnLCalculator::new(&pool);
+
+        // Buy 1.0 USDT @ $1.01 and 1.0 USDT @ $1.02 → average = $1.015
+        create_test_transaction(&pool, 1, "test_account", "USDT").await;
+        calculator
+            .process_acquisition(
+                1,
+                "test_account",
+                "USDT",
+                dec("1.0"),
+                dec("1.01"),
+                Utc::now(),
+                CostBasisMethod::Fifo,
+            )
+            .await
+            .unwrap();
+        create_test_transaction(&pool, 2, "test_account", "USDT").await;
+        calculator
+            .process_acquisition(
+                2,
+                "test_account",
+                "USDT",
+                dec("1.0"),
+                dec("1.02"),
+                Utc::now(),
+                CostBasisMethod::Fifo,
+            )
+            .await
+            .unwrap();
+
+        let avg = calculator
+            .average_cost_basis("test_account", "USDT", CostBasisMethod::Fifo)
+            .await
+            .unwrap();
+        assert_eq!(avg, Some(dec("1.015")));
+
+        // No lots → None
+        let none = calculator
+            .average_cost_basis("test_account", "BTC", CostBasisMethod::Fifo)
+            .await
+            .unwrap();
+        assert_eq!(none, None);
     }
 
     #[tokio::test]

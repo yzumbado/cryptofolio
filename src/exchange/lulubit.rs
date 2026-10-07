@@ -205,14 +205,22 @@ impl<'a> LulubitImporter<'a> {
             } => {
                 self.ensure_balance(account_id, &from_asset, from_quantity)
                     .await?;
-                // Implied price carries the from-asset cost basis into the
-                // to-asset, so the on-ramp spread becomes real cost basis.
-                let implied_price = self
+                // The from-asset leaves at its own average cost basis. Without a
+                // market price for the source leg, realising zero gain/loss is
+                // the correct fallback (previously the to-asset's per-unit cost
+                // was reused as the source proceeds, inflating P&L ~thousands of
+                // times on e.g. a USDT->ETH swap).
+                let disposal_price = self
                     .holding_repo
                     .get(account_id, &from_asset)
                     .await?
-                    .and_then(|h| h.avg_cost_basis)
-                    .map(|cost| cost * from_quantity / to_quantity);
+                    .and_then(|h| h.avg_cost_basis);
+
+                // The to-asset's cost per unit = the from-asset's total cost
+                // spread over the amount acquired, so the on-ramp spread becomes
+                // real cost basis on the destination leg.
+                let acquisition_price =
+                    disposal_price.map(|cost| cost * from_quantity / to_quantity);
 
                 let mut tx = Transaction::new_swap(
                     account_id,
@@ -233,7 +241,7 @@ impl<'a> LulubitImporter<'a> {
                     Err(e) => return Err(e),
                 };
 
-                if let Some(price) = implied_price {
+                if let Some(price) = disposal_price {
                     let _ = self
                         .pnl_calc
                         .process_disposal(
@@ -246,6 +254,8 @@ impl<'a> LulubitImporter<'a> {
                             CostBasisMethod::Fifo,
                         )
                         .await;
+                }
+                if let Some(price) = acquisition_price {
                     let _ = self
                         .pnl_calc
                         .process_acquisition(
@@ -264,7 +274,7 @@ impl<'a> LulubitImporter<'a> {
                     .remove_quantity(account_id, &from_asset, from_quantity)
                     .await?;
                 self.holding_repo
-                    .add_quantity(account_id, &to_asset, to_quantity, implied_price)
+                    .add_quantity(account_id, &to_asset, to_quantity, acquisition_price)
                     .await?;
 
                 Ok(ImportResult::Created(tx_id))
