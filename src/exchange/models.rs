@@ -56,3 +56,35 @@ pub struct Trade {
     pub is_buyer: bool,
     pub is_maker: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    /// A Spot balance held entirely in open orders (locked) must count toward
+    /// the account total. Regressing to reading only `free` would report this
+    /// position as 0 even though the funds exist.
+    #[test]
+    fn total_includes_locked_balance() {
+        let balance = AccountBalance {
+            asset: "USDT".to_string(),
+            free: Decimal::ZERO,
+            locked: Decimal::from_str("2.28").unwrap(),
+        };
+
+        assert_eq!(balance.total(), Decimal::from_str("2.28").unwrap());
+    }
+
+    #[test]
+    fn total_sums_free_and_locked() {
+        let balance = AccountBalance {
+            asset: "BTC".to_string(),
+            free: Decimal::from_str("0.5").unwrap(),
+            locked: Decimal::from_str("0.25").unwrap(),
+        };
+
+        assert_eq!(balance.total(), Decimal::from_str("0.75").unwrap());
+    }
+}

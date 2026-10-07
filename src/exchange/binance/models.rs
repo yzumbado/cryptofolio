@@ -225,3 +225,37 @@ where
     let s = String::deserialize(deserializer)?;
     s.parse().map_err(serde::de::Error::custom)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    /// Binance's GET /api/v3/account returns each balance as a string with
+    /// `free` and `locked` fields. A locked-only balance (funds in open orders,
+    /// or promotional futures credit moved to spot) must not be dropped.
+    #[test]
+    fn deserializes_free_and_locked_balances() {
+        let json = r#"{
+            "balances": [
+                {"asset": "USDT", "free": "0.00000000", "locked": "2.28000000"},
+                {"asset": "BTC", "free": "0.00100000", "locked": "0.00000000"}
+            ]
+        }"#;
+
+        let response: BinanceAccountResponse = serde_json::from_str(json).unwrap();
+
+        assert_eq!(response.balances.len(), 2);
+
+        let usdt = &response.balances[0];
+        assert_eq!(usdt.asset, "USDT");
+        assert_eq!(usdt.free, Decimal::ZERO);
+        assert_eq!(usdt.locked, Decimal::from_str("2.28").unwrap());
+
+        let btc = &response.balances[1];
+        assert_eq!(btc.asset, "BTC");
+        assert_eq!(btc.free, Decimal::from_str("0.001").unwrap());
+        assert_eq!(btc.locked, Decimal::ZERO);
+    }
+}
