@@ -798,11 +798,14 @@ async fn sync_holding_cost_basis(
             .await?
         {
             holding_repo
-                .set_quantity(&h.account_id, &h.asset, h.quantity, Some(avg))
+                .set_cost_basis(&h.account_id, &h.asset, avg)
                 .await?;
             updated += 1;
         }
     }
+    // Drop case-insensitive duplicates that a prior `set_quantity`-based sync
+    // may have minted (UPPER(asset) insert alongside a mixed-case row).
+    holding_repo.dedupe_case_insensitive().await?;
     Ok(updated)
 }
 
