@@ -62,11 +62,14 @@ pub enum LulubitOp {
     /// Record a tx-sum-only correction (no holdings update). Used to reconcile a
     /// stale import whose transaction history no longer matches the raw source.
     /// A `from_*` leg reduces the computed balance; a `to_*` leg increases it.
+    /// `price_usd` (on a `to_*` leg) supplies the acquisition cost basis that the
+    /// P&L backfill will mint as a tax lot.
     Correction {
         from_asset: Option<String>,
         from_quantity: Option<Decimal>,
         to_asset: Option<String>,
         to_quantity: Option<Decimal>,
+        price_usd: Option<Decimal>,
         date: DateTime<Utc>,
     },
 }
@@ -361,6 +364,7 @@ impl<'a> LulubitImporter<'a> {
                 from_quantity,
                 to_asset,
                 to_quantity,
+                price_usd,
                 date,
             } => {
                 // A correction adjusts the tx-sum only (so `audit reconciliation`
@@ -375,7 +379,7 @@ impl<'a> LulubitImporter<'a> {
                     to_account_id: to_asset.as_ref().map(|_| account_id.to_string()),
                     to_asset,
                     to_quantity,
-                    price_usd: None,
+                    price_usd,
                     price_currency: None,
                     price_amount: None,
                     exchange_rate: None,

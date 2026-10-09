@@ -111,6 +111,11 @@ pub async fn handle_import_lulubit_command(
                 } else {
                     Some(dec(to_qty)?)
                 },
+                price_usd: if price.is_empty() {
+                    None
+                } else {
+                    Some(dec(price)?)
+                },
                 date,
             },
             other => {

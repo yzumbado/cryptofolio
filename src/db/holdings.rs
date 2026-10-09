@@ -187,6 +187,42 @@ impl<'a> HoldingRepository<'a> {
         Ok(())
     }
 
+    /// Update a holding's average cost basis in place, preserving its existing
+    /// asset case and quantity. Unlike `set_quantity` (which inserts via
+    /// `UPPER(asset)` and can mint a case-duplicate row), this only rewrites the
+    /// cost-basis columns.
+    pub async fn set_cost_basis(
+        &self,
+        account_id: &str,
+        asset: &str,
+        avg_cost_basis: Decimal,
+    ) -> Result<()> {
+        let cost_str = avg_cost_basis.to_string();
+        sqlx::query(
+            "UPDATE holdings SET avg_cost_basis = ?, avg_cost_basis_base = ?, updated_at = CURRENT_TIMESTAMP \
+             WHERE account_id = ? AND UPPER(asset) = UPPER(?)",
+        )
+        .bind(&cost_str)
+        .bind(&cost_str)
+        .bind(account_id)
+        .bind(asset)
+        .execute(self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Remove case-insensitive duplicate holdings (same account + UPPER(asset)),
+    /// keeping the oldest row for each group.
+    pub async fn dedupe_case_insensitive(&self) -> Result<usize> {
+        let result = sqlx::query(
+            "DELETE FROM holdings WHERE id NOT IN (SELECT MIN(id) FROM holdings GROUP BY account_id, UPPER(asset))",
+        )
+        .execute(self.pool)
+        .await?;
+        Ok(result.rows_affected() as usize)
+    }
+
     pub async fn delete_all_for_account(&self, account_id: &str) -> Result<()> {
         sqlx::query("DELETE FROM holdings WHERE account_id = ?")
             .bind(account_id)

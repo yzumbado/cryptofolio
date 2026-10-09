@@ -458,6 +458,7 @@ async fn handle_backfill(
 
     let tx_repo = TransactionRepository::new(pool);
     let pnl_calc = PnLCalculator::new(pool);
+    let holding_repo = HoldingRepository::new(pool);
 
     // Get all transactions in chronological (oldest-first) order. Backfill MUST
     // see the full history and replay buys before sells; the paged `list`/
@@ -751,6 +752,17 @@ async fn handle_backfill(
          {swap_count} swaps, {transfer_count} transfers, {correction_count} corrections"
     ));
 
+    // Sync the holdings' avg_cost_basis from the rebuilt tax lots so the
+    // portfolio cost-basis headline reflects the authoritative P&L basis.
+    // Chain-synced holdings previously had NULL avg_cost_basis and were silently
+    // excluded from the cost-basis total (understating cost, inflating P&L%).
+    let cost_synced = sync_holding_cost_basis(&holding_repo, &pnl_calc, method).await?;
+    if cost_synced > 0 && !opts.quiet {
+        info(&format!(
+            "Synced cost basis from tax lots for {cost_synced} holding(s)"
+        ));
+    }
+
     if !unmatched_disposals.is_empty() {
         warning(&format!(
             "{} disposal(s) could NOT be matched to tax lots — their realized P&L \
@@ -764,6 +776,37 @@ async fn handle_backfill(
     }
 
     Ok(())
+}
+
+/// Update each holding's `avg_cost_basis` to the average cost of its rebuilt tax
+/// lots. Holdings without lots (chain-synced balances with no acquisition record)
+/// are left untouched so a manually-set basis is preserved. Returns the number of
+/// holdings updated.
+async fn sync_holding_cost_basis(
+    holding_repo: &HoldingRepository<'_>,
+    pnl_calc: &PnLCalculator<'_>,
+    method: CostBasisMethod,
+) -> Result<usize> {
+    let holdings = holding_repo.list_all().await?;
+    let mut updated = 0usize;
+    for h in holdings {
+        if h.quantity <= Decimal::ZERO {
+            continue;
+        }
+        if let Some(avg) = pnl_calc
+            .average_cost_basis(&h.account_id, &h.asset, method)
+            .await?
+        {
+            holding_repo
+                .set_cost_basis(&h.account_id, &h.asset, avg)
+                .await?;
+            updated += 1;
+        }
+    }
+    // Drop case-insensitive duplicates that a prior `set_quantity`-based sync
+    // may have minted (UPPER(asset) insert alongside a mixed-case row).
+    holding_repo.dedupe_case_insensitive().await?;
+    Ok(updated)
 }
 
 async fn calculate_total_unrealized(
