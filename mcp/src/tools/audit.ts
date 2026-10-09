@@ -40,7 +40,7 @@ export function registerAuditLogTool(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano", "bittensor")'
           ),
         limit: z
           .number()
@@ -158,7 +158,7 @@ export function registerGetSyncHistoryTool(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano")'
+            'Filter to a blockchain (e.g. "bitcoin", "ethereum", "solana", "cardano", "bittensor")'
           ),
         limit: z
           .number()
