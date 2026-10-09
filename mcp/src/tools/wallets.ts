@@ -20,7 +20,7 @@ import type {
   CliWalletAddResult,
 } from "../types.js";
 
-const BLOCKCHAINS = ["bitcoin", "ethereum", "solana", "cardano"] as const;
+const BLOCKCHAINS = ["bitcoin", "ethereum", "solana", "cardano", "bittensor"] as const;
 
 // ---------------------------------------------------------------------------
 // cryptofolio_manage_wallet
@@ -48,7 +48,7 @@ export function registerManageWalletTool(server: McpServer): void {
           .enum(BLOCKCHAINS)
           .optional()
           .describe(
-            'Required for add. One of: bitcoin, ethereum, solana, cardano. For list, optionally filters by blockchain.'
+            'Required for add. One of: bitcoin, ethereum, solana, cardano, bittensor. For list, optionally filters by blockchain.'
           ),
         address: z
           .string()
