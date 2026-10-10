@@ -373,7 +373,14 @@ impl<'a> AccountRepository<'a> {
         network: Option<&str>,
     ) -> Result<i64> {
         let result = sqlx::query(
-            "INSERT INTO wallet_addresses (account_id, blockchain, address, label, xpub, derivation_path, address_type, network) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO wallet_addresses (account_id, blockchain, address, label, xpub, derivation_path, address_type, network) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+             ON CONFLICT(account_id, blockchain, address) DO UPDATE SET \
+                 label = excluded.label, \
+                 xpub = excluded.xpub, \
+                 derivation_path = excluded.derivation_path, \
+                 address_type = excluded.address_type, \
+                 network = excluded.network"
         )
         .bind(account_id)
         .bind(blockchain)
